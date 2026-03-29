@@ -78,6 +78,25 @@ export async function GET(req: NextRequest) {
     permitDetails: m.permitDetails ?? "",
     // Schools
     schoolsData:   m.schoolsData   ?? "",
+    // Proximity
+    proximityMiles:   m.proximityMiles   ?? "",
+    proximityMinutes: m.proximityMinutes ?? "",
+    proximityCity:    m.proximityCity    ?? "",
+    // MSA comparison
+    msaName:    m.msaName    ?? "",
+    msaIncome:  m.msaIncome  ?? "",
+    msaHomeVal: m.msaHomeVal ?? "",
+    msaRent:    m.msaRent    ?? "",
+    msaPoverty: m.msaPoverty ?? "",
+    // Census HH
+    censusHouseholds:    m.censusHouseholds    ?? "",
+    censusAvgHHSize:     m.censusAvgHHSize     ?? "",
+    censusAvgRenterSize: m.censusAvgRenterSize ?? "",
+    // HUD
+    hudNearbyProps:   m.hudNearbyProps   ?? "",
+    hudNearbyUnits:   m.hudNearbyUnits   ?? "",
+    hudSection8Count: m.hudSection8Count ?? "",
+    hudPropNames:     m.hudPropNames     ?? "",
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -21,9 +21,12 @@ export async function POST(req: NextRequest) {
   const crime   = (p.crime   ?? {}) as Record<string, unknown>;
   const census  = (p.census  ?? {}) as Record<string, unknown>;
   const permits = (p.permits ?? {}) as Record<string, unknown>;
-  const assessor = (p.assessor ?? {}) as Record<string, unknown>;
-  const geo      = (p.geo     ?? {}) as Record<string, unknown>;
-  const schoolsData = (p.schools ?? {}) as Record<string, unknown>;
+  const assessor    = (p.assessor   ?? {}) as Record<string, unknown>;
+  const geo         = (p.geo        ?? {}) as Record<string, unknown>;
+  const schoolsData = (p.schools    ?? {}) as Record<string, unknown>;
+  const proximityData = (p.proximity ?? {}) as Record<string, unknown>;
+  const msaData     = (p.msa        ?? {}) as Record<string, unknown>;
+  const hudData     = (p.hud        ?? {}) as Record<string, unknown>;
 
   const metadata: Record<string, string> = {};
 
@@ -89,9 +92,36 @@ export async function POST(req: NextRequest) {
     metadata.permitDetails = JSON.stringify(compact).slice(0, 490);
   }
 
-  // Geo extras (for display)
+  // Geo extras
   if (geo.city)  metadata.geoCity  = String(geo.city).slice(0, 50);
   if (geo.state) metadata.geoState = String(geo.state).slice(0, 10);
+
+  // Proximity to downtown
+  if (proximityData.distanceMiles != null) metadata.proximityMiles   = String(proximityData.distanceMiles);
+  if (proximityData.driveMinutes  != null) metadata.proximityMinutes = String(proximityData.driveMinutes);
+  if (proximityData.downtownCity)          metadata.proximityCity    = String(proximityData.downtownCity).slice(0, 50);
+
+  // MSA comparison
+  if (msaData.msaName)       metadata.msaName      = String(msaData.msaName).slice(0, 80);
+  if (msaData.medianIncome)  metadata.msaIncome    = String(msaData.medianIncome).slice(0, 20);
+  if (msaData.medianHomeValue) metadata.msaHomeVal = String(msaData.medianHomeValue).slice(0, 20);
+  if (msaData.medianRent)    metadata.msaRent      = String(msaData.medianRent).slice(0, 20);
+  if (msaData.povertyRate)   metadata.msaPoverty   = String(msaData.povertyRate).slice(0, 10);
+
+  // Census HH size
+  if (census.totalHouseholds)        metadata.censusHouseholds    = String(census.totalHouseholds);
+  if (census.avgHouseholdSize)       metadata.censusAvgHHSize     = String(census.avgHouseholdSize);
+  if (census.avgRenterHouseholdSize) metadata.censusAvgRenterSize = String(census.avgRenterHouseholdSize);
+
+  // HUD subsidized
+  if (hudData.nearbyAssistedProperties != null)
+    metadata.hudNearbyProps = String(hudData.nearbyAssistedProperties);
+  if (hudData.nearbyAssistedUnits != null)
+    metadata.hudNearbyUnits = String(hudData.nearbyAssistedUnits);
+  if (hudData.section8Properties != null)
+    metadata.hudSection8Count = String(hudData.section8Properties);
+  if (Array.isArray(hudData.propertyNames) && hudData.propertyNames.length > 0)
+    metadata.hudPropNames = (hudData.propertyNames as string[]).slice(0, 3).join("; ").slice(0, 200);
 
   // Schools — compact JSON for up to 3 schools
   const schoolList = (schoolsData.schools ?? []) as Array<Record<string, unknown>>;

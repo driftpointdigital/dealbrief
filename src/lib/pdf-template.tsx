@@ -30,6 +30,14 @@ export interface ReportData {
   permitCount: string; permitSource: string; permitDetails: string;
   // Schools
   schoolsData: string;
+  // Proximity
+  proximityMiles: string; proximityMinutes: string; proximityCity: string;
+  // MSA comparison
+  msaName: string; msaIncome: string; msaHomeVal: string; msaRent: string; msaPoverty: string;
+  // Census household composition
+  censusHouseholds: string; censusAvgHHSize: string; censusAvgRenterSize: string;
+  // HUD subsidized housing
+  hudNearbyProps: string; hudNearbyUnits: string; hudSection8Count: string; hudPropNames: string;
 }
 
 // ── color palette ─────────────────────────────────────────────────────────────
@@ -472,6 +480,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {!hasWalk && (
                 <Row label="Walk / Transit Scores" value="Not retrieved — Walk Score API key not configured" />
               )}
+              {data.proximityMiles && (
+                <Row label={`Drive to Downtown ${data.proximityCity || ""}`}
+                  value={`${data.proximityMiles} mi — ${data.proximityMinutes} min drive`}
+                  alt />
+              )}
             </View>
             {hasSchools && (
               <>
@@ -572,17 +585,69 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <>
             <SectionHead title={"DEMOGRAPHIC SNAPSHOT" + (zip ? " — ZIP " + zip : "")} />
             <View style={s.tableWrap}>
-              {data.censusPop    && <Row label="Total Population"   value={parseInt(data.censusPop).toLocaleString("en-US")} />}
-              {data.censusAge    && <Row label="Median Age"         value={data.censusAge + " yrs"} alt />}
-              {data.censusIncome && <Row label="Median HH Income"   value={data.censusIncome + "/yr"} />}
-              {data.censusRent   && <Row label="Median Gross Rent"  value={data.censusRent + "/mo"} alt />}
-              {data.censusHomeVal && <Row label="Median Home Value" value={data.censusHomeVal} />}
-              {data.censusPoverty && <Row label="Poverty Rate"      value={data.censusPoverty} alt />}
-              {data.censusRenterPct && <Row label="Renter-Occupied" value={data.censusRenterPct + " of housing units"} />}
-              {raceStr && <Row label="Racial/Ethnic Composition" value={raceStr} alt />}
+              {data.censusPop       && <Row label="Total Population"        value={parseInt(data.censusPop).toLocaleString("en-US")} />}
+              {data.censusHouseholds && <Row label="Total Households"       value={parseInt(data.censusHouseholds).toLocaleString("en-US")} alt />}
+              {data.censusAge       && <Row label="Median Age"              value={data.censusAge + " yrs"} />}
+              {data.censusAvgHHSize && <Row label="Avg Household Size"      value={parseFloat(data.censusAvgHHSize).toFixed(2) + " persons/household"} alt />}
+              {data.censusAvgRenterSize && <Row label="Avg Renter HH Size"  value={parseFloat(data.censusAvgRenterSize).toFixed(2) + " persons/household"} />}
+              {data.censusIncome && (
+                <Row label="Median HH Income (ZIP)"
+                  value={data.censusIncome + "/yr"
+                    + (data.msaIncome ? "  |  MSA: " + data.msaIncome + "/yr" : "")} alt />
+              )}
+              {data.censusRent && (
+                <Row label="Median Gross Rent (ZIP)"
+                  value={data.censusRent + "/mo"
+                    + (data.msaRent ? "  |  MSA: " + data.msaRent + "/mo" : "")} />
+              )}
+              {data.censusHomeVal && (
+                <Row label="Median Home Value (ZIP)"
+                  value={data.censusHomeVal
+                    + (data.msaHomeVal ? "  |  MSA: " + data.msaHomeVal : "")} alt />
+              )}
+              {data.censusPoverty && (
+                <Row label="Poverty Rate (ZIP)"
+                  value={data.censusPoverty
+                    + (data.msaPoverty ? "  |  MSA: " + data.msaPoverty : "")} />
+              )}
+              {data.censusRenterPct && <Row label="Renter-Occupied"         value={data.censusRenterPct + " of housing units"} alt />}
+              {raceStr              && <Row label="Racial/Ethnic Composition" value={raceStr} />}
             </View>
+            {data.msaName && (
+              <Text style={s.note}>MSA comparison: {data.msaName}.</Text>
+            )}
+
+            {/* HUD subsidized housing */}
+            {data.hudNearbyProps && (
+              <View style={{ marginTop: 6 }}>
+                <Text style={[s.note, { fontFamily: "Helvetica-Bold", fontStyle: "normal", color: NAVY, marginBottom: 2 }]}>
+                  Subsidized Housing within 0.5 mi (HUD)
+                </Text>
+                <View style={s.tableWrap}>
+                  <Row label="HUD-Assisted Properties"
+                    value={data.hudNearbyProps + " propert" + (parseInt(data.hudNearbyProps) === 1 ? "y" : "ies")
+                      + (data.hudNearbyUnits ? " (~" + data.hudNearbyUnits + " assisted units)" : "")} />
+                  {data.hudSection8Count && parseInt(data.hudSection8Count) > 0 && (
+                    <Row label="Section 8 / HAP Properties"
+                      value={data.hudSection8Count + " identified within 0.5 mi"} alt />
+                  )}
+                  {data.hudPropNames && (
+                    <Row label="Known Properties" value={data.hudPropNames} />
+                  )}
+                </View>
+                <Text style={s.note}>
+                  {parseInt(data.hudNearbyProps) === 0
+                    ? "No HUD-assisted properties found within 0.5 miles."
+                    : parseInt(data.hudNearbyProps) >= 3
+                      ? "Elevated subsidized housing concentration. Factor into tenant mix assumptions and exit cap rate."
+                      : "Low subsidized housing presence nearby."}
+                  {" "}Source: HUD Multifamily Housing database.
+                </Text>
+              </View>
+            )}
+
             <Text style={s.note}>
-              Source: U.S. Census Bureau ACS 5-Year Estimates (most recent vintage). City/MSA comparisons and avg. household size not yet automated.
+              Source: U.S. Census Bureau ACS 5-Year Estimates (most recent vintage). ZIP-level figures compared to MSA medians where available.
             </Text>
           </>
         )}
