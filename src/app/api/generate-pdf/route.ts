@@ -71,9 +71,10 @@ export async function GET(req: NextRequest) {
     censusHomeVal: m.censusHomeVal ?? "",
     censusPoverty: m.censusPoverty ?? "",
     censusRenterPct:   m.censusRenterPct   ?? "",
-    censusPctBlack:    m.censusPctBlack    ?? "",
-    censusPctHispanic: m.censusPctHispanic ?? "",
-    censusPctWhite:    m.censusPctWhite    ?? "",
+    // Race — new format: censusRace="Black,Hispanic,White"; fallback to old individual keys
+    censusPctBlack:    (m.censusRace ? m.censusRace.split(",")[0] : null) ?? m.censusPctBlack    ?? "",
+    censusPctHispanic: (m.censusRace ? m.censusRace.split(",")[1] : null) ?? m.censusPctHispanic ?? "",
+    censusPctWhite:    (m.censusRace ? m.censusRace.split(",")[2] : null) ?? m.censusPctWhite    ?? "",
     // Permits — may be split across two keys due to Stripe 500-char limit
     permitCount:   m.permitCount   ?? "0",
     permitSource:  m.permitSource  ?? "",

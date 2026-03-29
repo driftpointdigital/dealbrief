@@ -69,9 +69,13 @@ export async function POST(req: NextRequest) {
   if (census.medianHomeValue) metadata.censusHomeVal   = pick(census, "medianHomeValue");
   if (census.povertyRate)     metadata.censusPoverty   = pick(census, "povertyRate");
   if (census.renterPct)       metadata.censusRenterPct = pick(census, "renterPct");
-  if (census.pctBlack)        metadata.censusPctBlack    = String(census.pctBlack);
-  if (census.pctHispanic)     metadata.censusPctHispanic = String(census.pctHispanic);
-  if (census.pctWhite)        metadata.censusPctWhite    = String(census.pctWhite);
+  // Race — packed as "Black,Hispanic,White" to save 2 metadata keys
+  if (census.pctBlack || census.pctHispanic || census.pctWhite)
+    metadata.censusRace = [
+      census.pctBlack    ? String(census.pctBlack)    : "",
+      census.pctHispanic ? String(census.pctHispanic) : "",
+      census.pctWhite    ? String(census.pctWhite)    : "",
+    ].join(",");
 
   // Pipeline — Permits
   metadata.permitCount = String(permits.count ?? 0);
@@ -91,10 +95,6 @@ export async function POST(req: NextRequest) {
     metadata.permitDetails  = fullJson.slice(0, 490);
     if (fullJson.length > 490) metadata.permitDetails2 = fullJson.slice(490, 980);
   }
-
-  // Geo extras
-  if (geo.city)  metadata.geoCity  = String(geo.city).slice(0, 50);
-  if (geo.state) metadata.geoState = String(geo.state).slice(0, 10);
 
   // Proximity to downtown
   if (proximityData.distanceMiles != null) metadata.proximityMiles   = String(proximityData.distanceMiles);
