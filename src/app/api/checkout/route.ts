@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   const permits = (p.permits ?? {}) as Record<string, unknown>;
   const assessor = (p.assessor ?? {}) as Record<string, unknown>;
   const geo      = (p.geo     ?? {}) as Record<string, unknown>;
+  const schoolsData = (p.schools ?? {}) as Record<string, unknown>;
 
   const metadata: Record<string, string> = {};
 
@@ -91,6 +92,18 @@ export async function POST(req: NextRequest) {
   // Geo extras (for display)
   if (geo.city)  metadata.geoCity  = String(geo.city).slice(0, 50);
   if (geo.state) metadata.geoState = String(geo.state).slice(0, 10);
+
+  // Schools — compact JSON for up to 3 schools
+  const schoolList = (schoolsData.schools ?? []) as Array<Record<string, unknown>>;
+  if (schoolList.length > 0) {
+    const compact = schoolList.map(s => ({
+      n: String(s.name || "").slice(0, 40),
+      l: String(s.level || "").slice(0, 12),
+      r: String(s.ratingBand || "").slice(0, 15),
+      d: s.distanceMiles != null ? Number(s.distanceMiles).toFixed(1) : null,
+    }));
+    metadata.schoolsData = JSON.stringify(compact).slice(0, 490);
+  }
 
   const base = baseUrl();
 

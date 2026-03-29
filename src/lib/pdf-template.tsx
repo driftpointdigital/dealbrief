@@ -28,6 +28,8 @@ export interface ReportData {
   censusRenterPct: string; censusPctBlack: string; censusPctHispanic: string; censusPctWhite: string;
   // Permits
   permitCount: string; permitSource: string; permitDetails: string;
+  // Schools
+  schoolsData: string;
 }
 
 // ── color palette ─────────────────────────────────────────────────────────────
@@ -254,11 +256,22 @@ function dealVerdict(flags: Flag[]) {
 interface PermitDetail { t: string; d: string; dt: string; v: number | null; }
 
 function parsePermits(raw: string): PermitDetail[] {
-  try {
-    return JSON.parse(raw) as PermitDetail[];
-  } catch {
-    return [];
-  }
+  try { return JSON.parse(raw) as PermitDetail[]; } catch { return []; }
+}
+
+// ── school parser ─────────────────────────────────────────────────────────────
+interface SchoolDetail { n: string; l: string; r: string; d: string | null; }
+
+function parseSchools(raw: string): SchoolDetail[] {
+  try { return JSON.parse(raw) as SchoolDetail[]; } catch { return []; }
+}
+
+function schoolRatingColor(band: string): string {
+  const b = band.toLowerCase();
+  if (b.includes("above")) return GREEN;
+  if (b.includes("below")) return RED;
+  if (b === "average") return AMBER;
+  return GRAY;
 }
 
 // ── sub-components ────────────────────────────────────────────────────────────
@@ -337,6 +350,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const hasWalk     = !!(data.walkScore || data.transitScore || data.bikeScore);
   const hasCrime    = !!data.crimeOverall;
   const hasCensus   = !!data.censusIncome;
+  const schoolsList = parseSchools(data.schoolsData || "[]");
+  const hasSchools  = schoolsList.length > 0;
 
   const raceArr: string[] = [];
   if (data.censusPctBlack)    raceArr.push(`Black/African American ${data.censusPctBlack}%`);
@@ -458,7 +473,32 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 <Row label="Walk / Transit Scores" value="Not retrieved — Walk Score API key not configured" />
               )}
             </View>
-            <Text style={s.note}>Walk Score data requires API key. School district ratings, downtown proximity, and retail access not yet automated.</Text>
+            {hasSchools && (
+              <>
+                <Text style={[s.note, { marginTop: 4, marginBottom: 3, fontFamily: "Helvetica-Bold", color: NAVY, fontStyle: "normal" }]}>
+                  Nearby Public Schools (GreatSchools)
+                </Text>
+                <View style={s.tableWrap}>
+                  {schoolsList.map((sc, i) => (
+                    <View key={i} style={i % 2 === 0 ? s.row : s.rowAlt}>
+                      <Text style={s.lbl}>{sc.l}</Text>
+                      <Text style={s.val}>
+                        <Text style={{ fontFamily: "Helvetica-Bold" }}>{sc.n}</Text>
+                        {sc.d ? `  (${sc.d} mi)` : ""}
+                        {"   "}
+                        <Text style={{ color: schoolRatingColor(sc.r), fontFamily: "Helvetica-Bold" }}>
+                          {sc.r}
+                        </Text>
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+            {!hasSchools && (
+              <Text style={s.note}>School ratings not retrieved — GREATSCHOOLS_API_KEY not yet set on server.</Text>
+            )}
+            <Text style={s.note}>Source: GreatSchools NearbySchools API (School Quality plan). Rating bands: Above Average / Average / Below Average.</Text>
           </>
         )}
 

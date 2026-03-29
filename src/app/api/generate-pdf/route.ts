@@ -76,6 +76,8 @@ export async function GET(req: NextRequest) {
     permitCount:   m.permitCount   ?? "0",
     permitSource:  m.permitSource  ?? "",
     permitDetails: m.permitDetails ?? "",
+    // Schools
+    schoolsData:   m.schoolsData   ?? "",
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
