@@ -83,7 +83,7 @@ function LoadingSequence() {
   );
 }
 
-function FieldRow({ label, value, placeholder, editable = true }: { label: string; value?: string; placeholder?: string; editable?: boolean }) {
+function FieldRow({ label, name, value, placeholder, editable = true }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", padding: "0 24px", height: 44,
@@ -95,6 +95,7 @@ function FieldRow({ label, value, placeholder, editable = true }: { label: strin
       {editable ? (
         <input
           type="text"
+          name={name}
           defaultValue={value || ""}
           placeholder={placeholder || ""}
           style={{
@@ -147,6 +148,32 @@ export default function DealBrief() {
     setTimeout(() => setHeroVisible(true), 50);
   }, []);
 
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setGenerating(true);
+    const fd = new FormData(e.currentTarget);
+    const body: Record<string, unknown> = {};
+    fd.forEach((val, key) => { body[key] = val; });
+    body.rates = selectedRates;
+    body.ltvs = selectedLtvs;
+    body.amortYears = amortYears;
+    body.ioPeriod = ioPeriod;
+
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch {
+      setGenerating(false);
+    }
+  };
+
   const go = () => {
     if (!address.trim()) return;
     setView("loading");
@@ -197,6 +224,7 @@ export default function DealBrief() {
         </button>
       </div>
 
+      <form onSubmit={handleGenerate}>
       <div style={{ maxWidth: 660, margin: "0 auto", padding: "36px 24px 64px" }}>
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
@@ -207,31 +235,33 @@ export default function DealBrief() {
           </p>
         </div>
 
+        <input type="hidden" name="address" value={data.address} />
+
         <SectionCard title="Property">
-          <FieldRow label="Type" value={data.propertyType} />
-          <FieldRow label="Year Built" value={data.yearBuilt} />
-          <FieldRow label="Building Area" value={data.buildingArea} />
-          <FieldRow label="Lot Size" value={data.lotSize} />
-          <FieldRow label="Units" value={data.units} />
-          <FieldRow label="Unit Mix" value={data.unitMix} />
+          <FieldRow label="Type" name="propertyType" value={data.propertyType} />
+          <FieldRow label="Year Built" name="yearBuilt" value={data.yearBuilt} />
+          <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea} />
+          <FieldRow label="Lot Size" name="lotSize" value={data.lotSize} />
+          <FieldRow label="Units" name="units" value={data.units} />
+          <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
         </SectionCard>
 
         {/* Tax Assessment — only shown when auto-fetch failed */}
         {!data.assessedValue && (
           <SectionCard title="Tax Assessment · Not Found">
-            <FieldRow label="Assessed Value" value="" placeholder="e.g. $925,000" />
-            <FieldRow label="Land Value" value="" placeholder="e.g. $125,000" />
-            <FieldRow label="Improvements" value="" placeholder="e.g. $800,000" />
-            <FieldRow label="Effective Tax Rate" value="" placeholder="e.g. 2.3%" />
+            <FieldRow label="Assessed Value" name="assessedValue" value="" placeholder="e.g. $925,000" />
+            <FieldRow label="Land Value" name="landValue" value="" placeholder="e.g. $125,000" />
+            <FieldRow label="Improvements" name="improvements" value="" placeholder="e.g. $800,000" />
+            <FieldRow label="Effective Tax Rate" name="taxRate" value="" placeholder="e.g. 2.3%" />
           </SectionCard>
         )}
 
         <SectionCard title="Deal Inputs · Optional">
-          <FieldRow label="Asking Price" value="" placeholder="$995,000" />
-          <FieldRow label="Broker Cap Rate" value="" placeholder="6.76%" />
-          <FieldRow label="Occupancy" value="" placeholder="100%" />
-          <FieldRow label="In-Place Rents" value="" placeholder="3BR: $1,100 / 4BR: $1,300" />
-          <FieldRow label="Broker Claims" value="" placeholder="New roof 2022, renovated units" />
+          <FieldRow label="Asking Price" name="askingPrice" value="" placeholder="$995,000" />
+          <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%" />
+          <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%" />
+          <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="3BR: $1,100 / 4BR: $1,300" />
+          <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units" />
         </SectionCard>
 
         {/* Analysis Assumptions */}
@@ -335,18 +365,24 @@ export default function DealBrief() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-          <button style={{
-            padding: "12px 32px", fontSize: 14, fontWeight: 500,
-            background: "#1D3557", color: "white", border: "none", borderRadius: 6,
-            cursor: "pointer", fontFamily: "inherit", letterSpacing: "-0.1px",
-            transition: "background 0.12s",
-          }}
-            onMouseEnter={e => e.currentTarget.style.background = "#152A47"}
-            onMouseLeave={e => e.currentTarget.style.background = "#1D3557"}>
-            Generate DealBrief
+          <button
+            type="submit"
+            disabled={generating}
+            style={{
+              padding: "12px 32px", fontSize: 14, fontWeight: 500,
+              background: generating ? "#9CA3AF" : "#1D3557",
+              color: "white", border: "none", borderRadius: 6,
+              cursor: generating ? "not-allowed" : "pointer",
+              fontFamily: "inherit", letterSpacing: "-0.1px",
+              transition: "background 0.12s",
+            }}
+            onMouseEnter={e => { if (!generating) e.currentTarget.style.background = "#152A47"; }}
+            onMouseLeave={e => { if (!generating) e.currentTarget.style.background = generating ? "#9CA3AF" : "#1D3557"; }}>
+            {generating ? "Redirecting to checkout…" : "Generate DealBrief →"}
           </button>
         </div>
       </div>
+      </form>
     </div>
   );
 
