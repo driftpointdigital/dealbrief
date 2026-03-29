@@ -137,7 +137,7 @@ export default function DealBrief() {
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestVal, setSuggestVal] = useState("");
   const [suggestDone, setSuggestDone] = useState(false);
-  const [data, setData] = useState<typeof MOCK_RETURN_DATA | null>(null);
+  const [data, setData] = useState<typeof MOCK_RETURN_DATA & { _pipeline?: unknown } | null>(null);
   const [heroVisible, setHeroVisible] = useState(false);
   const [selectedRates, setSelectedRates] = useState(["8.5", "7.5", "6.5", "5.0"]);
   const [selectedLtvs, setSelectedLtvs] = useState(["75", "50"]);
@@ -163,6 +163,7 @@ export default function DealBrief() {
     body.ltvs = selectedLtvs;
     body.amortYears = amortYears;
     body.ioPeriod = ioPeriod;
+    if (data?._pipeline) body._pipeline = data._pipeline;
 
     try {
       const res = await fetch("/api/checkout", {
@@ -183,13 +184,55 @@ export default function DealBrief() {
     }
   };
 
-  const go = () => {
+  const go = async () => {
     if (!address.trim()) return;
     setView("loading");
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      const pipeline = await res.json();
+      if (!res.ok || pipeline.error) {
+        // Fall back to mock data so the UI still works during development
+        setData({ ...MOCK_RETURN_DATA, address });
+      } else {
+        const a = pipeline.assessor ?? {};
+        const geo = pipeline.geo ?? {};
+        setData({
+          address: pipeline.geo?.formattedAddress || address,
+          propertyType: a.propertyType || MOCK_RETURN_DATA.propertyType,
+          yearBuilt: a.yearBuilt || MOCK_RETURN_DATA.yearBuilt,
+          buildingArea: a.buildingArea || MOCK_RETURN_DATA.buildingArea,
+          lotSize: a.lotSize || MOCK_RETURN_DATA.lotSize,
+          units: a.units || MOCK_RETURN_DATA.units,
+          unitMix: MOCK_RETURN_DATA.unitMix, // assessor rarely has unit mix
+          zoning: MOCK_RETURN_DATA.zoning,
+          assessedValue: a.assessedValue || "",
+          landValue: a.landValue || "",
+          improvementValue: a.improvements || "",
+          taxRate: a.taxRate || "",
+          femaFloodZone: pipeline.fema?.floodZone || "",
+          walkScore: pipeline.walkscore?.walk?.toString() || "",
+          bikeScore: pipeline.walkscore?.bike?.toString() || "",
+          crimeGrade: pipeline.crime?.overallGrade || "",
+          crimeRate: pipeline.crime?.ratePerThousand
+            ? `${pipeline.crime.ratePerThousand} per 1,000`
+            : "",
+          medianHHIncome: pipeline.census?.medianIncome || "",
+          population: pipeline.census?.population?.toString() || "",
+          medianAge: pipeline.census?.medianAge?.toString() || "",
+          medianHomeValue: pipeline.census?.medianHomeValue || "",
+          medianRent: pipeline.census?.medianRent || "",
+          // Store full pipeline for PDF generation
+          _pipeline: pipeline,
+        } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
+      }
+    } catch {
       setData({ ...MOCK_RETURN_DATA, address });
-      setView("confirm");
-    }, 2600);
+    }
+    setView("confirm");
   };
 
   const submitSuggest = () => {
