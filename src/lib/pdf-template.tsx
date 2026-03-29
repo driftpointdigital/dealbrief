@@ -19,7 +19,8 @@ export interface ReportData {
   femaZone: string;
   // Walk Score
   walkScore: string; bikeScore: string; transitScore: string; walkDesc: string;
-  // Crime
+  // Crime — new compact JSON (crimeData) or legacy individual fields
+  crimeData?: string;
   crimeOverall: string; crimeViolent: string; crimeProp: string;
   crimeRate: string; crimeViolentRate: string; crimePct: string;
   // Census
@@ -174,13 +175,14 @@ function computeFlags(data: ReportData, model: FinancialSummary): Flag[] {
   const ask = parseDol(data.askingPrice);
 
   // Crime
-  if (data.crimeOverall) {
-    if (["F","D-","D"].includes(data.crimeOverall)) {
-      flags.push({ level: "red", title: `High Crime — Grade ${data.crimeOverall}`,
-        body: `Crime grade ${data.crimeOverall}${data.crimeRate ? " (" + data.crimeRate + " per 1,000 residents)" : ""}${data.crimePct ? "; safer than only " + data.crimePct + "% of U.S. ZIP codes" : ""}. Expect higher insurance premiums, lender scrutiny, and ongoing tenant quality challenges.` });
-    } else if (["D+","C-","C"].includes(data.crimeOverall)) {
-      flags.push({ level: "amber", title: `Elevated Crime — Grade ${data.crimeOverall}`,
-        body: `Crime index is ${data.crimeOverall}. Factor into tenant screening, insurance budget, and exit cap assumptions.` });
+  const _crimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
+  if (_crimeGrade) {
+    if (["F","D-","D"].includes(_crimeGrade)) {
+      flags.push({ level: "red", title: `High Crime — Grade ${_crimeGrade}`,
+        body: `Crime grade ${_crimeGrade}${data.crimeRate ? " (" + data.crimeRate + " per 1,000 residents)" : ""}${data.crimePct ? "; safer than only " + data.crimePct + "% of U.S. ZIP codes" : ""}. Expect higher insurance premiums, lender scrutiny, and ongoing tenant quality challenges.` });
+    } else if (["D+","C-","C"].includes(_crimeGrade)) {
+      flags.push({ level: "amber", title: `Elevated Crime — Grade ${_crimeGrade}`,
+        body: `Crime index is ${_crimeGrade}. Factor into tenant screening, insurance budget, and exit cap assumptions.` });
     }
   }
 
@@ -267,8 +269,9 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
       parts.push(`Assessment-to-ask ratio of ${ratio}% is elevated — limited buffer before a tax reassessment materializes.`);
     }
   }
-  if (data.crimeOverall && ["F","D-","D","D+"].includes(data.crimeOverall)) {
-    parts.push(`Crime profile (grade ${data.crimeOverall}) positions this as a workforce / C-class housing play. Operators with experience in challenged submarkets may find value; institutional capital will largely pass.`);
+  const _thesisCrimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
+  if (_thesisCrimeGrade && ["F","D-","D","D+"].includes(_thesisCrimeGrade)) {
+    parts.push(`Crime profile (grade ${_thesisCrimeGrade}) positions this as a workforce / C-class housing play. Operators with experience in challenged submarkets may find value; institutional capital will largely pass.`);
   }
   if (data.censusIncome && data.censusRent) {
     const inc = parseDol(data.censusIncome);
@@ -311,6 +314,67 @@ function schoolRatingColor(band: string): string {
   if (b.includes("below")) return RED;
   if (b === "average") return AMBER;
   return GRAY;
+}
+
+// ── crime data parser ─────────────────────────────────────────────────────────
+// National FBI UCR 2022 rates per 1,000 (hardcoded; matches Python constants)
+const NAT_RATES = {
+  violent: 3.80, murder: 0.063, robbery: 0.609, assault: 2.743,
+  property: 19.54, burglary: 3.14, larceny: 13.46, vehicleTheft: 2.94,
+};
+
+interface ParsedCrime {
+  source: string; yearRange: string; population: number;
+  overallGrade: string; violentGrade: string; propertyGrade: string; pct: number | null;
+  // CrimeGrade path
+  crateTotal: number | null; crateViolent: number | null;
+  // Dallas Open Data path — local rates per 1,000 (annual avg)
+  vr: number | null; mr: number | null; rr: number | null; ar: number | null;
+  pr: number | null; br: number | null; lr: number | null; vtr: number | null;
+}
+
+function parseCrimeData(raw: string): ParsedCrime | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw);
+    return {
+      source: d.src || "",
+      yearRange: d.yr || "",
+      population: d.pop || 0,
+      overallGrade: d.og || "",
+      violentGrade: d.vg || "",
+      propertyGrade: d.pg || "",
+      pct: d.pct ?? null,
+      crateTotal: d.cr ?? null,
+      crateViolent: d.vr1k ?? null,
+      vr: d.vr ?? null, mr: d.mr ?? null, rr: d.rr ?? null, ar: d.ar ?? null,
+      pr: d.pr ?? null, br: d.br ?? null, lr: d.lr ?? null, vtr: d.vtr ?? null,
+    };
+  } catch { return null; }
+}
+
+function crimeGradeColor(grade: string): string {
+  if (!grade) return GRAY;
+  const g = grade.toUpperCase();
+  if (g === "A" || g === "A+") return GREEN;
+  if (g === "B+" || g === "B" || g === "B-") return GREEN;
+  if (g === "C+" || g === "C" || g === "C-") return AMBER;
+  return RED;
+}
+
+function vsNat(local: number, nat: number): string {
+  if (!nat) return "";
+  const pct = Math.round((local - nat) / nat * 100);
+  return pct >= 0 ? `+${pct}%` : `${pct}%`;
+}
+
+function vsNatColor(local: number, nat: number): string {
+  if (!nat) return GRAY;
+  const ratio = local / nat;
+  if (ratio <= 0.9) return GREEN;
+  if (ratio <= 1.25) return "#374151";
+  if (ratio <= 1.75) return AMBER;
+  return RED;
 }
 
 // ── sub-components ────────────────────────────────────────────────────────────
@@ -387,7 +451,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const hasAssessor = !!(data.assessedValue || data.annualTaxes);
   const hasFema     = !!data.femaZone;
   const hasWalk     = !!(data.walkScore || data.transitScore || data.bikeScore);
-  const hasCrime    = !!data.crimeOverall;
+  const parsedCrime = parseCrimeData(data.crimeData ?? "");
+  const crimeGrade  = parsedCrime?.overallGrade || data.crimeOverall || "";
+  const hasCrime    = !!(parsedCrime?.overallGrade || data.crimeOverall);
   const hasCensus   = !!data.censusIncome;
   const schoolsList = parseSchools(data.schoolsData || "[]");
   const hasSchools  = schoolsList.length > 0;
@@ -603,26 +669,82 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
         {/* CRIME & SAFETY */}
         <SectionHead title="CRIME & SAFETY" />
-        {hasCrime ? (
+        {parsedCrime && parsedCrime.source === "dallas_opendata" && parsedCrime.vr !== null ? (
+          <>
+            {/* Dallas Open Data — per-offense comparison table */}
+            <View style={{ marginBottom: 3 }}>
+              <View style={{ flexDirection: "row", backgroundColor: NAVY, paddingVertical: 4, paddingHorizontal: 4, borderRadius: 2, marginBottom: 1 }}>
+                <Text style={{ flex: 5, fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#FFF" }}>Crime Category</Text>
+                <Text style={{ flex: 2.5, fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#FFF", textAlign: "right" }}>Local /1K</Text>
+                <Text style={{ flex: 2.5, fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#FFF", textAlign: "right" }}>Natl /1K</Text>
+                <Text style={{ flex: 2, fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#FFF", textAlign: "right" }}>vs. Avg</Text>
+              </View>
+              {/* Violent */}
+              {[
+                { label: "Violent Crime (total)", local: parsedCrime.vr!, nat: NAT_RATES.violent, bold: true },
+                { label: "  Murder / Homicide",   local: parsedCrime.mr!, nat: NAT_RATES.murder,  bold: false },
+                { label: "  Robbery",             local: parsedCrime.rr!, nat: NAT_RATES.robbery, bold: false },
+                { label: "  Aggravated Assault",  local: parsedCrime.ar!, nat: NAT_RATES.assault, bold: false },
+              ].map((row, i) => (
+                <View key={i} style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: RULE, backgroundColor: i % 2 === 0 ? LIGHT : "#FFF" }}>
+                  <Text style={{ flex: 5, fontSize: 8, fontFamily: row.bold ? "Helvetica-Bold" : "Helvetica", color: row.bold ? NAVY : "#374151" }}>{row.label}</Text>
+                  <Text style={{ flex: 2.5, fontSize: 8, color: "#374151", textAlign: "right" }}>{row.local.toFixed(2)}</Text>
+                  <Text style={{ flex: 2.5, fontSize: 8, color: GRAY, textAlign: "right" }}>{row.nat.toFixed(2)}</Text>
+                  <Text style={{ flex: 2, fontSize: 8, fontFamily: "Helvetica-Bold", color: vsNatColor(row.local, row.nat), textAlign: "right" }}>{vsNat(row.local, row.nat)}</Text>
+                </View>
+              ))}
+              {/* Property */}
+              {[
+                { label: "Property Crime (total)", local: parsedCrime.pr!, nat: NAT_RATES.property,     bold: true },
+                { label: "  Burglary",             local: parsedCrime.br!, nat: NAT_RATES.burglary,     bold: false },
+                { label: "  Larceny / Theft",      local: parsedCrime.lr!, nat: NAT_RATES.larceny,      bold: false },
+                { label: "  Motor Vehicle Theft",  local: parsedCrime.vtr!, nat: NAT_RATES.vehicleTheft, bold: false },
+              ].map((row, i) => (
+                <View key={i + 4} style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: RULE, backgroundColor: i % 2 === 0 ? "#FFF" : LIGHT }}>
+                  <Text style={{ flex: 5, fontSize: 8, fontFamily: row.bold ? "Helvetica-Bold" : "Helvetica", color: row.bold ? NAVY : "#374151" }}>{row.label}</Text>
+                  <Text style={{ flex: 2.5, fontSize: 8, color: "#374151", textAlign: "right" }}>{row.local.toFixed(2)}</Text>
+                  <Text style={{ flex: 2.5, fontSize: 8, color: GRAY, textAlign: "right" }}>{row.nat.toFixed(2)}</Text>
+                  <Text style={{ flex: 2, fontSize: 8, fontFamily: "Helvetica-Bold", color: vsNatColor(row.local, row.nat), textAlign: "right" }}>{vsNat(row.local, row.nat)}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={{ flexDirection: "row", gap: 16, marginBottom: 3 }}>
+              {[
+                { label: "Overall Grade", grade: parsedCrime.overallGrade },
+                { label: "Violent Grade", grade: parsedCrime.violentGrade },
+                { label: "Property Grade", grade: parsedCrime.propertyGrade },
+              ].filter(g => g.grade).map((g, i) => (
+                <View key={i} style={{ flexDirection: "row", gap: 4 }}>
+                  <Text style={{ fontSize: 8, color: GRAY }}>{g.label}:</Text>
+                  <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: crimeGradeColor(g.grade) }}>{g.grade}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={s.note}>
+              Source: Dallas Open Data (NIBRS-coded incidents), {parsedCrime.yearRange} annual average. National comparison: FBI UCR 2022.
+            </Text>
+          </>
+        ) : hasCrime ? (
           <>
             <View style={s.tableWrap}>
               <Row label="Overall Crime Grade"
-                value={data.crimeOverall
+                value={crimeGrade
                   + (data.crimeRate ? " — " + data.crimeRate + " per 1,000 residents" : "")
                   + (data.crimePct ? " (safer than " + data.crimePct + "% of U.S. ZIPs)" : "")} />
-              {data.crimeViolent && (
+              {(parsedCrime?.violentGrade || data.crimeViolent) && (
                 <Row label="Violent Crime Grade"
-                  value={data.crimeViolent + (data.crimeViolentRate ? " — " + data.crimeViolentRate + " per 1,000" : "")} alt />
+                  value={(parsedCrime?.violentGrade || data.crimeViolent)
+                    + (data.crimeViolentRate ? " — " + data.crimeViolentRate + " per 1,000" : "")} alt />
               )}
-              {data.crimeProp && (
-                <Row label="Property Crime Grade" value={data.crimeProp} />
+              {(parsedCrime?.propertyGrade || data.crimeProp) && (
+                <Row label="Property Crime Grade" value={parsedCrime?.propertyGrade || data.crimeProp} />
               )}
             </View>
             <Text style={s.note}>Source: CrimeGrade.org (ZIP-level aggregates). High crime may limit lender options, increase insurance premiums, and affect tenant quality.</Text>
           </>
         ) : (
           <Text style={[s.note, { marginBottom: 6 }]}>
-            Crime data not retrieved — CrimeGrade.org may have blocked the request from the server. Look up crimegrade.org manually using the property ZIP code.
+            Crime data not retrieved — look up crimegrade.org manually using the property ZIP code.
           </Text>
         )}
 
@@ -884,7 +1006,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           rest="The broker's cap rate is an assertion, not a fact. Verify every line of income and expenses against trailing-12-month actuals before underwriting." />
         <Bullet bold="Order a thorough property inspection. "
           rest={`On a ${age > 0 ? age + "-year-old" : "older"} building${permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (cast iron drain lines), electrical panels (load capacity and age), and foundation.`} />
-        {hasCrime && ["F","D-","D","D+"].includes(data.crimeOverall) && (
+        {hasCrime && ["F","D-","D","D+"].includes(crimeGrade) && (
           <Bullet bold="Speak with local portfolio lenders before making an offer. "
             rest={`The crime profile (${data.crimeOverall}) may limit conventional financing options. Regional banks and credit unions familiar with the submarket are more likely to lend here than national platforms.`} />
         )}

@@ -54,7 +54,9 @@ export async function GET(req: NextRequest) {
     bikeScore:   m.bikeScore   ?? "",
     transitScore: m.transitScore ?? "",
     walkDesc:    m.walkDesc    ?? "",
-    // Crime
+    // Crime — new compact JSON format (crimeData) replaces old individual fields.
+    // Old fields kept for backward compat with reports purchased before this change.
+    crimeData:     m.crimeData     ?? "",
     crimeOverall:  m.crimeOverall  ?? "",
     crimeViolent:  m.crimeViolent  ?? "",
     crimeProp:     m.crimeProp     ?? "",

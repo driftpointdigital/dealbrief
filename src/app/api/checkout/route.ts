@@ -58,13 +58,8 @@ export async function POST(req: NextRequest) {
   if (ws.transit != null)    metadata.transitScore = String(ws.transit);
   if (ws.walkDescription)    metadata.walkDesc     = String(ws.walkDescription).slice(0, 100);
 
-  // Pipeline — Crime
-  if (crime.overallGrade)           metadata.crimeOverall     = String(crime.overallGrade);
-  if (crime.violentGrade)           metadata.crimeViolent     = String(crime.violentGrade);
-  if (crime.propertyGrade)          metadata.crimeProp        = String(crime.propertyGrade);
-  if (crime.ratePerThousand)        metadata.crimeRate        = String(crime.ratePerThousand);
-  if (crime.violentRatePerThousand) metadata.crimeViolentRate = String(crime.violentRatePerThousand);
-  if (crime.safetyPercentile)       metadata.crimePct         = String(crime.safetyPercentile);
+  // Pipeline — Crime (compact JSON covers both CrimeGrade and Dallas Open Data)
+  if (crime.crimeDataJson) metadata.crimeData = String(crime.crimeDataJson).slice(0, 490);
 
   // Pipeline — Census
   if (census.medianIncome)    metadata.censusIncome    = pick(census, "medianIncome");
