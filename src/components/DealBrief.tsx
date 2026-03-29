@@ -138,9 +138,10 @@ export default function DealBrief() {
   const [suggestDone, setSuggestDone] = useState(false);
   const [data, setData] = useState<typeof MOCK_RETURN_DATA | null>(null);
   const [heroVisible, setHeroVisible] = useState(false);
-  const [selectedRates, setSelectedRates] = useState([8.5, 7.5, 6.5, 5.0]);
-  const [selectedLtvs, setSelectedLtvs] = useState([75, 50]);
+  const [selectedRates, setSelectedRates] = useState(["8.5", "7.5", "6.5", "5.0"]);
+  const [selectedLtvs, setSelectedLtvs] = useState(["75", "50"]);
   const [amortYears, setAmortYears] = useState("30");
+  const [ioPeriod, setIoPeriod] = useState("0");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -250,20 +251,22 @@ export default function DealBrief() {
                 Interest Rates
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {[8.5, 7.5, 6.5, 5.0].map(r => (
-                  <label key={r} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                {selectedRates.map((r, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <input
-                      type="checkbox"
-                      checked={selectedRates.includes(r)}
-                      onChange={e => setSelectedRates(prev =>
-                        e.target.checked ? [...prev, r].sort((a, b) => b - a) : prev.filter(x => x !== r)
-                      )}
-                      style={{ width: 14, height: 14, accentColor: "#1D3557", cursor: "pointer" }}
+                      type="text"
+                      value={r}
+                      onChange={e => setSelectedRates(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                      style={{
+                        width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                        border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                        fontFamily: "inherit", outline: "none",
+                      }}
+                      onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                      onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
                     />
-                    <span style={{ fontSize: 13, color: "#111827" }}>
-                      {r.toFixed(1)}%{r === 5.0 ? <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: 4 }}>owner financing</span> : null}
-                    </span>
-                  </label>
+                    <span style={{ fontSize: 13, color: "#6B7280" }}>%</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -273,18 +276,22 @@ export default function DealBrief() {
                 Loan-to-Value
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                {[75, 50].map(ltv => (
-                  <label key={ltv} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                {selectedLtvs.map((ltv, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <input
-                      type="checkbox"
-                      checked={selectedLtvs.includes(ltv)}
-                      onChange={e => setSelectedLtvs(prev =>
-                        e.target.checked ? [...prev, ltv].sort((a, b) => b - a) : prev.filter(x => x !== ltv)
-                      )}
-                      style={{ width: 14, height: 14, accentColor: "#1D3557", cursor: "pointer" }}
+                      type="text"
+                      value={ltv}
+                      onChange={e => setSelectedLtvs(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                      style={{
+                        width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                        border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                        fontFamily: "inherit", outline: "none",
+                      }}
+                      onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                      onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
                     />
-                    <span style={{ fontSize: 13, color: "#111827" }}>{ltv}% LTV</span>
-                  </label>
+                    <span style={{ fontSize: 13, color: "#6B7280" }}>% LTV</span>
+                  </div>
                 ))}
               </div>
             </div>
@@ -293,7 +300,7 @@ export default function DealBrief() {
               <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
                 Amortization
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
                 <input
                   type="text"
                   value={amortYears}
@@ -306,7 +313,22 @@ export default function DealBrief() {
                   onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
                   onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
                 />
-                <span style={{ fontSize: 13, color: "#6B7280" }}>years</span>
+                <span style={{ fontSize: 13, color: "#6B7280" }}>yr amort</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="text"
+                  value={ioPeriod}
+                  onChange={e => setIoPeriod(e.target.value)}
+                  style={{
+                    width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                    border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                    fontFamily: "inherit", outline: "none",
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                  onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+                />
+                <span style={{ fontSize: 13, color: "#6B7280" }}>yr I/O</span>
               </div>
             </div>
           </div>
