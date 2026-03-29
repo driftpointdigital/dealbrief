@@ -146,7 +146,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <View style={s.headerRow}>
           <Text style={s.logo}>DEAL<Text style={s.logoAccent}>BRIEF</Text></Text>
           <Text style={s.headerSub}>
-            Pre-Offer Property Research Brief | Generated {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            Pre-Offer Property Research Brief v2 | Generated {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
           </Text>
         </View>
 
