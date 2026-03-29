@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const getStripe = () => new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 function baseUrl(): string {
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
 
   const base = baseUrl();
 
+  const stripe = getStripe();
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     allow_promotion_codes: true,

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 const MOCK_RETURN_DATA = {
   address: "2718 Cleveland St, Dallas, TX 75215",
@@ -150,12 +150,13 @@ export default function DealBrief() {
 
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
 
-  const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleGenerate = async () => {
+    if (!formRef.current) return;
     setGenerating(true);
     setGenerateError("");
-    const fd = new FormData(e.currentTarget);
+    const fd = new FormData(formRef.current);
     const body: Record<string, unknown> = {};
     fd.forEach((val, key) => { body[key] = val; });
     body.rates = selectedRates;
@@ -232,7 +233,7 @@ export default function DealBrief() {
         </button>
       </div>
 
-      <form onSubmit={handleGenerate}>
+      <form ref={formRef}>
       <div style={{ maxWidth: 660, margin: "0 auto", padding: "36px 24px 64px" }}>
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
@@ -377,7 +378,8 @@ export default function DealBrief() {
             <p style={{ fontSize: 13, color: "#C0392B", margin: 0, textAlign: "right" }}>{generateError}</p>
           )}
           <button
-            type="submit"
+            type="button"
+            onClick={handleGenerate}
             disabled={generating}
             style={{
               padding: "12px 32px", fontSize: 14, fontWeight: 500,

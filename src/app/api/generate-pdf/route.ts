@@ -6,9 +6,8 @@ import { DealBriefPDF, ReportData } from "@/lib/pdf-template";
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-
 export async function GET(req: NextRequest) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const sessionId = req.nextUrl.searchParams.get("session");
   if (!sessionId) {
     return NextResponse.json({ error: "Missing session" }, { status: 400 });
