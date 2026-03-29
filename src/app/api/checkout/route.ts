@@ -21,13 +21,15 @@ export async function POST(req: NextRequest) {
   const crime   = (p.crime   ?? {}) as Record<string, unknown>;
   const census  = (p.census  ?? {}) as Record<string, unknown>;
   const permits = (p.permits ?? {}) as Record<string, unknown>;
+  const assessor = (p.assessor ?? {}) as Record<string, unknown>;
+  const geo      = (p.geo     ?? {}) as Record<string, unknown>;
 
   const metadata: Record<string, string> = {};
 
   // Form fields
   for (const f of [
     "address","propertyType","yearBuilt","buildingArea","lotSize",
-    "units","unitMix","assessedValue","landValue","improvements",
+    "units","unitMix","zoning","assessedValue","landValue","improvements",
     "taxRate","askingPrice","brokerCapRate","occupancy","inPlaceRents",
     "brokerClaims","amortYears","ioPeriod",
   ]) {
@@ -36,38 +38,59 @@ export async function POST(req: NextRequest) {
   if (body.rates) metadata.rates = JSON.stringify(body.rates).slice(0, 500);
   if (body.ltvs)  metadata.ltvs  = JSON.stringify(body.ltvs).slice(0, 500);
 
+  // Pipeline — Assessor extras
+  if (assessor.annualTaxes) metadata.annualTaxes   = String(assessor.annualTaxes).slice(0, 50);
+  if (assessor.parcelId)    metadata.parcelId      = String(assessor.parcelId).slice(0, 100);
+  if (assessor.source)      metadata.assessorSource = String(assessor.source).slice(0, 100);
+
   // Pipeline — FEMA
   if (fema.floodZone) metadata.femaZone = String(fema.floodZone).slice(0, 100);
 
   // Pipeline — Walk Score
-  if (ws.walk != null) metadata.walkScore    = String(ws.walk);
-  if (ws.bike != null) metadata.bikeScore    = String(ws.bike);
-  if (ws.transit != null) metadata.transitScore = String(ws.transit);
-  if (ws.walkDescription) metadata.walkDesc  = String(ws.walkDescription).slice(0, 100);
+  if (ws.walk != null)       metadata.walkScore    = String(ws.walk);
+  if (ws.bike != null)       metadata.bikeScore    = String(ws.bike);
+  if (ws.transit != null)    metadata.transitScore = String(ws.transit);
+  if (ws.walkDescription)    metadata.walkDesc     = String(ws.walkDescription).slice(0, 100);
 
   // Pipeline — Crime
-  if (crime.overallGrade)         metadata.crimeOverall  = String(crime.overallGrade);
-  if (crime.violentGrade)         metadata.crimeViolent  = String(crime.violentGrade);
-  if (crime.propertyGrade)        metadata.crimeProp     = String(crime.propertyGrade);
-  if (crime.ratePerThousand)      metadata.crimeRate     = String(crime.ratePerThousand);
+  if (crime.overallGrade)           metadata.crimeOverall     = String(crime.overallGrade);
+  if (crime.violentGrade)           metadata.crimeViolent     = String(crime.violentGrade);
+  if (crime.propertyGrade)          metadata.crimeProp        = String(crime.propertyGrade);
+  if (crime.ratePerThousand)        metadata.crimeRate        = String(crime.ratePerThousand);
   if (crime.violentRatePerThousand) metadata.crimeViolentRate = String(crime.violentRatePerThousand);
-  if (crime.safetyPercentile)     metadata.crimePct      = String(crime.safetyPercentile);
+  if (crime.safetyPercentile)       metadata.crimePct         = String(crime.safetyPercentile);
 
   // Pipeline — Census
-  if (census.medianIncome)    metadata.censusIncome   = pick(census, "medianIncome");
-  if (census.population)      metadata.censusPop      = String(census.population);
-  if (census.medianAge)       metadata.censusAge      = String(census.medianAge);
-  if (census.medianRent)      metadata.censusRent     = pick(census, "medianRent");
-  if (census.medianHomeValue) metadata.censusHomeVal  = pick(census, "medianHomeValue");
-  if (census.povertyRate)     metadata.censusPoverty  = pick(census, "povertyRate");
+  if (census.medianIncome)    metadata.censusIncome    = pick(census, "medianIncome");
+  if (census.population)      metadata.censusPop       = String(census.population);
+  if (census.medianAge)       metadata.censusAge       = String(census.medianAge);
+  if (census.medianRent)      metadata.censusRent      = pick(census, "medianRent");
+  if (census.medianHomeValue) metadata.censusHomeVal   = pick(census, "medianHomeValue");
+  if (census.povertyRate)     metadata.censusPoverty   = pick(census, "povertyRate");
   if (census.renterPct)       metadata.censusRenterPct = pick(census, "renterPct");
-  if (census.pctBlack)        metadata.censusPctBlack  = String(census.pctBlack);
+  if (census.pctBlack)        metadata.censusPctBlack    = String(census.pctBlack);
   if (census.pctHispanic)     metadata.censusPctHispanic = String(census.pctHispanic);
-  if (census.pctWhite)        metadata.censusPctWhite  = String(census.pctWhite);
+  if (census.pctWhite)        metadata.censusPctWhite    = String(census.pctWhite);
 
   // Pipeline — Permits
-  metadata.permitCount  = String(permits.count ?? 0);
-  if (permits.source)   metadata.permitSource = String(permits.source).slice(0, 100);
+  metadata.permitCount = String(permits.count ?? 0);
+  if (permits.source) metadata.permitSource = String(permits.source).slice(0, 100);
+
+  // Permit details — compact JSON for up to 5 permits
+  const permitList = (permits.permits ?? []) as Array<Record<string, unknown>>;
+  if (permitList.length > 0) {
+    const compact = permitList.slice(0, 5).map(p => ({
+      t: String(p.type || "").slice(0, 25),
+      d: String(p.description || "").slice(0, 45),
+      dt: String(p.fileDate || p.issueDate || "").slice(0, 10),
+      v: p.jobValue ? Math.round(Number(p.jobValue)) : null,
+    }));
+    metadata.permitDetails = JSON.stringify(compact).slice(0, 490);
+  }
+
+  // Geo extras (for display)
+  if (geo.city)  metadata.geoCity  = String(geo.city).slice(0, 50);
+  if (geo.state) metadata.geoState = String(geo.state).slice(0, 10);
 
   const base = baseUrl();
 

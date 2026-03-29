@@ -296,6 +296,7 @@ export default function DealBrief() {
           <FieldRow label="Lot Size" name="lotSize" value={data.lotSize} />
           <FieldRow label="Units" name="units" value={data.units} />
           <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
+          <FieldRow label="Zoning" name="zoning" value={data.zoning} placeholder="e.g. MF-2, R-3" />
         </SectionCard>
 
         {/* Tax Assessment — only shown when auto-fetch failed */}
