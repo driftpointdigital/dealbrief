@@ -29,27 +29,33 @@ export async function POST(req: NextRequest) {
 
   const base = baseUrl();
 
-  const stripe = getStripe();
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    allow_promotion_codes: true,
-    line_items: [
-      {
-        price_data: {
-          currency: "usd",
-          product_data: {
-            name: "DealBrief Report",
-            description: body.address || "Pre-offer property research report",
+  try {
+    const stripe = getStripe();
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      allow_promotion_codes: true,
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "DealBrief Report",
+              description: body.address || "Pre-offer property research report",
+            },
+            unit_amount: 2900, // $29.00
           },
-          unit_amount: 2900, // $29.00
+          quantity: 1,
         },
-        quantity: 1,
-      },
-    ],
-    metadata,
-    success_url: `${base}/report/{CHECKOUT_SESSION_ID}`,
-    cancel_url: `${base}/`,
-  });
+      ],
+      metadata,
+      success_url: `${base}/report/{CHECKOUT_SESSION_ID}`,
+      cancel_url: `${base}/`,
+    });
 
-  return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Checkout error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

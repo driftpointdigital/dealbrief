@@ -170,11 +170,11 @@ export default function DealBrief() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Server error ${res.status}: ${text}`);
+      const json = await res.json();
+      if (!res.ok || json.error) {
+        throw new Error(json.error || `Server error ${res.status}`);
       }
-      const { url } = await res.json();
+      const { url } = json;
       if (!url) throw new Error("No checkout URL returned");
       window.location.href = url;
     } catch (err) {
