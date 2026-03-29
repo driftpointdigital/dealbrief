@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
 
   const base = baseUrl();
 
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ error: "STRIPE_SECRET_KEY is not set in environment" }, { status: 500 });
+  }
+
   try {
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
