@@ -237,7 +237,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </View>
             ))}
             <Text style={{ fontSize: 7, color: GRAY, marginTop: 5 }}>
-              DSCR and CoC use broker-stated cap rate to derive NOI. Green ≥ 1.10x DSCR / ≥ 7% CoC. Closing costs assumed 1.5%.
+              DSCR and CoC use broker-stated cap rate to derive NOI. Green = 1.10x+ DSCR / 7%+ CoC. Closing costs assumed 1.5%.
             </Text>
           </>
         )}
