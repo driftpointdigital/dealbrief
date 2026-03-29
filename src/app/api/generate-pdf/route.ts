@@ -102,8 +102,15 @@ export async function GET(req: NextRequest) {
     hudPropNames:     m.hudPropNames     ?? "",
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfBuffer = await renderToBuffer(React.createElement(DealBriefPDF, { data }) as any);
+  let pdfBuffer: Buffer;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pdfBuffer = await renderToBuffer(React.createElement(DealBriefPDF, { data }) as any);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("PDF render error:", msg, err);
+    return NextResponse.json({ error: "PDF generation failed", detail: msg }, { status: 500 });
+  }
 
   const slug = (data.address || "dealbrief").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60);
 

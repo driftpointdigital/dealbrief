@@ -681,10 +681,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </View>
               {/* Violent */}
               {[
-                { label: "Violent Crime (total)", local: parsedCrime.vr!, nat: NAT_RATES.violent, bold: true },
-                { label: "  Murder / Homicide",   local: parsedCrime.mr!, nat: NAT_RATES.murder,  bold: false },
-                { label: "  Robbery",             local: parsedCrime.rr!, nat: NAT_RATES.robbery, bold: false },
-                { label: "  Aggravated Assault",  local: parsedCrime.ar!, nat: NAT_RATES.assault, bold: false },
+                { label: "Violent Crime (total)", local: parsedCrime.vr ?? 0, nat: NAT_RATES.violent, bold: true },
+                { label: "  Murder / Homicide",   local: parsedCrime.mr ?? 0, nat: NAT_RATES.murder,  bold: false },
+                { label: "  Robbery",             local: parsedCrime.rr ?? 0, nat: NAT_RATES.robbery, bold: false },
+                { label: "  Aggravated Assault",  local: parsedCrime.ar ?? 0, nat: NAT_RATES.assault, bold: false },
               ].map((row, i) => (
                 <View key={i} style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: RULE, backgroundColor: i % 2 === 0 ? LIGHT : "#FFF" }}>
                   <Text style={{ flex: 5, fontSize: 8, fontFamily: row.bold ? "Helvetica-Bold" : "Helvetica", color: row.bold ? NAVY : "#374151" }}>{row.label}</Text>
@@ -695,10 +695,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               ))}
               {/* Property */}
               {[
-                { label: "Property Crime (total)", local: parsedCrime.pr!, nat: NAT_RATES.property,     bold: true },
-                { label: "  Burglary",             local: parsedCrime.br!, nat: NAT_RATES.burglary,     bold: false },
-                { label: "  Larceny / Theft",      local: parsedCrime.lr!, nat: NAT_RATES.larceny,      bold: false },
-                { label: "  Motor Vehicle Theft",  local: parsedCrime.vtr!, nat: NAT_RATES.vehicleTheft, bold: false },
+                { label: "Property Crime (total)", local: parsedCrime.pr  ?? 0, nat: NAT_RATES.property,     bold: true },
+                { label: "  Burglary",             local: parsedCrime.br  ?? 0, nat: NAT_RATES.burglary,     bold: false },
+                { label: "  Larceny / Theft",      local: parsedCrime.lr  ?? 0, nat: NAT_RATES.larceny,      bold: false },
+                { label: "  Motor Vehicle Theft",  local: parsedCrime.vtr ?? 0, nat: NAT_RATES.vehicleTheft, bold: false },
               ].map((row, i) => (
                 <View key={i + 4} style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: RULE, backgroundColor: i % 2 === 0 ? "#FFF" : LIGHT }}>
                   <Text style={{ flex: 5, fontSize: 8, fontFamily: row.bold ? "Helvetica-Bold" : "Helvetica", color: row.bold ? NAVY : "#374151" }}>{row.label}</Text>
@@ -708,13 +708,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </View>
               ))}
             </View>
-            <View style={{ flexDirection: "row", gap: 16, marginBottom: 3 }}>
+            <View style={{ flexDirection: "row", marginBottom: 3 }}>
               {[
                 { label: "Overall Grade", grade: parsedCrime.overallGrade },
                 { label: "Violent Grade", grade: parsedCrime.violentGrade },
                 { label: "Property Grade", grade: parsedCrime.propertyGrade },
               ].filter(g => g.grade).map((g, i) => (
-                <View key={i} style={{ flexDirection: "row", gap: 4 }}>
+                <View key={i} style={{ flexDirection: "row" }}>
                   <Text style={{ fontSize: 8, color: GRAY }}>{g.label}:</Text>
                   <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: crimeGradeColor(g.grade) }}>{g.grade}</Text>
                 </View>
