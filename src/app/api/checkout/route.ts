@@ -85,13 +85,16 @@ export async function POST(req: NextRequest) {
   // Permit details — compact JSON for up to 5 permits
   const permitList = (permits.permits ?? []) as Array<Record<string, unknown>>;
   if (permitList.length > 0) {
-    const compact = permitList.slice(0, 5).map(p => ({
+    const compact = permitList.slice(0, 15).map(p => ({
       t: String(p.type || "").slice(0, 25),
-      d: String(p.description || "").slice(0, 45),
+      d: String(p.description || "").slice(0, 50),
       dt: String(p.fileDate || p.issueDate || "").slice(0, 10),
       v: p.jobValue ? Math.round(Number(p.jobValue)) : null,
     }));
-    metadata.permitDetails = JSON.stringify(compact).slice(0, 490);
+    const fullJson = JSON.stringify(compact);
+    // Stripe metadata: 500 char limit per key — split across two keys if needed
+    metadata.permitDetails  = fullJson.slice(0, 490);
+    if (fullJson.length > 490) metadata.permitDetails2 = fullJson.slice(490, 980);
   }
 
   // Geo extras

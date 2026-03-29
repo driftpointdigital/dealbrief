@@ -72,10 +72,10 @@ export async function GET(req: NextRequest) {
     censusPctBlack:    m.censusPctBlack    ?? "",
     censusPctHispanic: m.censusPctHispanic ?? "",
     censusPctWhite:    m.censusPctWhite    ?? "",
-    // Permits
+    // Permits — may be split across two keys due to Stripe 500-char limit
     permitCount:   m.permitCount   ?? "0",
     permitSource:  m.permitSource  ?? "",
-    permitDetails: m.permitDetails ?? "",
+    permitDetails: (m.permitDetails ?? "") + (m.permitDetails2 ?? ""),
     // Schools
     schoolsData:   m.schoolsData   ?? "",
     // Proximity

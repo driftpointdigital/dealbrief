@@ -101,20 +101,28 @@ function parseDol(str: string): number {
   return parseFloat(str.replace(/[$,]/g, "")) || 0;
 }
 
-function fmtAskingPrice(str: string): string {
+// Format any dollar string (user input or pipeline) as $X,XXX,XXX
+function fmtDol(str: string): string {
   const n = parseDol(str);
   if (!n) return str;
   return "$" + Math.round(n).toLocaleString("en-US");
 }
 
+// Alias kept for existing usage
+const fmtAskingPrice = fmtDol;
+
 function dscrColor(v: number | null) { return v === null ? "#1F2937" : v >= 1.10 ? GREEN : v >= 0.95 ? AMBER : RED; }
-function cocColor(v: number | null)  { return v === null ? "#1F2937" : v >= 0.07 ? GREEN : v >= 0.03 ? AMBER : RED; }
+function cocColor(v: number | null)  { return v === null ? "#1F2937" : v >= 0.06 ? GREEN : v >= 0.03 ? AMBER : RED; }
 
 // ── BOE estimate ──────────────────────────────────────────────────────────────
 interface BoeEst {
-  noi: number; taxes: number; insurance: number; maintenance: number;
+  brokerNoi: number;
+  taxes: number; taxesSource: string;
+  insurance: number; maintenance: number;
   utilities: number; management: number; totalOpEx: number;
   egi: number; gpr: number; gprPerUnitPerMonth: number;
+  occupancyRate: number;
+  estNoi: number;
 }
 
 function computeBoe(data: ReportData): BoeEst | null {
@@ -123,19 +131,35 @@ function computeBoe(data: ReportData): BoeEst | null {
   const units = parseInt(data.units) || 0;
   const yr    = parseInt(data.yearBuilt) || 0;
   if (!ask || !cap) return null;
-  const noi = ask * (cap / 100);
-  const taxes = parseDol(data.annualTaxes);
-  const insurance = units > 0 ? units * 800 : Math.round(noi * 0.08);
+  const brokerNoi = ask * (cap / 100);
+
+  // Taxes: use actual if available, compute from assessment × rate as fallback
+  let taxes = parseDol(data.annualTaxes);
+  let taxesSource = "from county assessor";
+  if (!taxes && data.assessedValue && data.taxRate) {
+    const av = parseDol(data.assessedValue);
+    const rate = parseFloat(data.taxRate.replace(/%/g, "")) / 100;
+    if (av && rate) { taxes = Math.round(av * rate); taxesSource = "est. from assessment × tax rate"; }
+  }
+
+  const insurance = units > 0 ? units * 800 : Math.round(brokerNoi * 0.08);
   const maintPerUnit = yr >= 2000 ? 500 : yr >= 1980 ? 750 : 1000;
-  const maintenance = units > 0 ? units * maintPerUnit : Math.round(noi * 0.10);
-  const utilities = units > 0 ? units * 250 : Math.round(noi * 0.04);
+  const maintenance = units > 0 ? units * maintPerUnit : Math.round(brokerNoi * 0.10);
+  const utilities = units > 0 ? units * 250 : Math.round(brokerNoi * 0.04);
   const opExExMgmt = taxes + insurance + maintenance + utilities;
-  const egi = (noi + opExExMgmt) / 0.92;
+
+  // Occupancy: parse from user input (e.g. "93%") or default to 95%
+  const occupancyRaw = parseFloat((data.occupancy || "").replace(/%/g, ""));
+  const occupancyRate = occupancyRaw > 0 ? occupancyRaw / 100 : 0.95;
+
+  const egi = (brokerNoi + opExExMgmt) / 0.92;
   const management = egi * 0.08;
   const totalOpEx = opExExMgmt + management;
-  const gpr = egi / 0.95;
+  const gpr = egi / occupancyRate;
   const gprPerUnitPerMonth = units > 0 ? gpr / 12 / units : 0;
-  return { noi, taxes, insurance, maintenance, utilities, management, totalOpEx, egi, gpr, gprPerUnitPerMonth };
+  const estNoi = egi - totalOpEx;
+
+  return { brokerNoi, taxes, taxesSource, insurance, maintenance, utilities, management, totalOpEx, egi, gpr, gprPerUnitPerMonth, occupancyRate, estNoi };
 }
 
 // ── flags ─────────────────────────────────────────────────────────────────────
@@ -192,9 +216,16 @@ function computeFlags(data: ReportData, model: FinancialSummary): Flag[] {
   // Assessment vs. ask
   if (av > 0 && ask > 0) {
     const ratio = av / ask;
-    if (ratio > 0.90) {
-      flags.push({ level: "amber", title: `Reassessment Risk — Assessed at ${Math.round(ratio * 100)}% of Ask`,
-        body: `County appraised at ${data.assessedValue} vs. ${fmtAskingPrice(data.askingPrice)} asking price. A purchase near ask will likely trigger reassessment at next cycle, increasing annual tax burden significantly.` });
+    const pct = Math.round(ratio * 100);
+    if (ratio > 0.95) {
+      flags.push({ level: "amber", title: `Assessment Already Near Ask — ${pct}% of Ask Price`,
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Property is already assessed near the purchase price — minimal additional reassessment exposure, but current tax burden will carry forward and may step up modestly at next cycle.` });
+    } else if (ratio > 0.75) {
+      flags.push({ level: "amber", title: `Reassessment Risk — Assessed at ${pct}% of Ask`,
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward at next cycle, increasing annual taxes. Model the delta in your pro forma.` });
+    } else if (ratio <= 0.75) {
+      flags.push({ level: "amber", title: `Significant Reassessment Risk — Assessed at Only ${pct}% of Ask`,
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment at next cycle — model a tax increase of ${fmtDol(String((ask - av) * 0.023))}+/yr in your pro forma.` });
     }
   }
 
@@ -425,13 +456,20 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <SectionHead title="TAX PROFILE" />
             <View style={s.tableWrap}>
               {data.assessedValue && (
-                <Row label="Appraised Value (County)" value={data.assessedValue} />
+                <Row label="Appraised Value (County)" value={fmtDol(data.assessedValue)} />
               )}
               {data.landValue && data.improvements && (
-                <Row label="Land / Improvements" value={data.landValue + " land + " + data.improvements + " improvements"} alt />
+                <Row label="Land / Improvements" value={fmtDol(data.landValue) + " land + " + fmtDol(data.improvements) + " improvements"} alt />
               )}
               {data.annualTaxes && (
-                <Row label="Current Annual Taxes" value={data.annualTaxes + "/yr"} />
+                <Row label="Current Annual Taxes" value={fmtDol(data.annualTaxes) + "/yr"} />
+              )}
+              {!data.annualTaxes && data.assessedValue && data.taxRate && (
+                <Row label="Est. Annual Taxes" value={(() => {
+                  const av = parseDol(data.assessedValue);
+                  const rate = parseFloat(data.taxRate.replace(/%/g, "")) / 100;
+                  return av && rate ? fmt$(Math.round(av * rate)) + "/yr  (assessment × tax rate)" : "";
+                })()} />
               )}
               {data.taxRate && (
                 <Row label="Effective Tax Rate" value={data.taxRate} alt />
@@ -444,12 +482,20 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                       const ask = parseDol(data.askingPrice);
                       if (!av || !ask) return "";
                       const pct = Math.round((av / ask) * 100);
-                      const flag = pct >= 90 ? " — reassessment risk at close" : pct < 70 ? " — expect upward reassessment" : "";
-                      return `${data.assessedValue} / ${askFmt} = ${pct}% assessment ratio${flag}`;
+                      const flag = pct >= 95 ? " — already near ask, limited further exposure" : pct >= 80 ? " — expect upward reassessment at next cycle" : " — significant reassessment risk";
+                      return `${fmtDol(data.assessedValue)} / ${askFmt} = ${pct}% assessment ratio${flag}`;
                     })()} />
-                  {unitsNum > 0 && data.annualTaxes && (
+                  {unitsNum > 0 && (data.annualTaxes || (data.assessedValue && data.taxRate)) && (
                     <Row label="Taxes per Unit per Year"
-                      value={fmt$(parseDol(data.annualTaxes) / unitsNum) + "/unit/yr"} alt />
+                      value={(() => {
+                        let taxes = parseDol(data.annualTaxes);
+                        if (!taxes && data.assessedValue && data.taxRate) {
+                          const av = parseDol(data.assessedValue);
+                          const rate = parseFloat(data.taxRate.replace(/%/g, "")) / 100;
+                          taxes = av * rate;
+                        }
+                        return taxes ? fmt$(taxes / unitsNum) + "/unit/yr" : "";
+                      })()} alt />
                   )}
                 </>
               )}
@@ -689,17 +735,17 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {permits.length > 0 && (
               <>
                 <View style={s.tHead}>
-                  <Text style={[s.tHCell, { flex: 2 }]}>Type / Description</Text>
-                  <Text style={[s.tHCell, { width: 70 }]}>Date</Text>
-                  <Text style={[s.tHCell, { width: 70 }]}>Value</Text>
+                  <Text style={[s.tHCell, { flex: 3 }]}>Type</Text>
+                  <Text style={[s.tHCell, { flex: 5 }]}>Description</Text>
+                  <Text style={[s.tHCell, { width: 68 }]}>Date</Text>
+                  <Text style={[s.tHCell, { width: 58 }]}>Value</Text>
                 </View>
                 {permits.map((p, i) => (
                   <View key={i} style={i % 2 === 0 ? s.tRow : s.tRowAlt}>
-                    <Text style={[s.tCell, { flex: 2 }]}>
-                      {[p.t, p.d].filter(Boolean).join(" — ").slice(0, 70)}
-                    </Text>
-                    <Text style={[s.tCell, { width: 70 }]}>{p.dt || "—"}</Text>
-                    <Text style={[s.tCell, { width: 70 }]}>{p.v ? fmt$(p.v) : "—"}</Text>
+                    <Text style={[s.tCell, { flex: 3 }]}>{p.t || "—"}</Text>
+                    <Text style={[s.tCell, { flex: 5 }]}>{p.d || "—"}</Text>
+                    <Text style={[s.tCell, { width: 68 }]}>{p.dt || "—"}</Text>
+                    <Text style={[s.tCell, { width: 58 }]}>{p.v ? fmt$(p.v) : "—"}</Text>
                   </View>
                 ))}
                 <Text style={s.note}>Source: {data.permitSource || "City permit portal"}. Values shown are permitted job values, not actual cost.</Text>
@@ -716,21 +762,33 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               Uses broker-stated cap rate ({data.brokerCapRate}) on asking price ({askFmt}). Expense estimates are rule-of-thumb; verify with actual T-12 operating statement.
             </Text>
             <View style={s.tableWrap}>
-              <Row label="Broker-Implied Annual NOI"    value={fmt$(boe.noi) + "/yr"} />
-              <Row label="Est. Property Taxes"         value={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr  (from county assessor)" : "Not available — enter assessed value"} alt />
-              <Row label={`Est. Insurance`}             value={fmt$(boe.insurance) + "/yr  (~$800/unit)"} />
-              <Row label={`Est. Maintenance`}           value={fmt$(boe.maintenance) + "/yr  (~$" + (yrBuilt >= 2000 ? "500" : yrBuilt >= 1980 ? "750" : "1,000") + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980-2000" : "pre-1980") + " vintage)"} alt />
-              <Row label="Est. Water/Sewer/Trash"      value={fmt$(boe.utilities) + "/yr  (~$250/unit)"} />
-              <Row label="Est. Mgmt (8% of EGI)"       value={fmt$(boe.management) + "/yr"} />
-              <Row label="Est. Total OpEx"             value={fmt$(boe.totalOpEx) + "/yr"} alt />
-              <Row label="Implied EGI (NOI + OpEx)"    value={fmt$(boe.egi) + "/yr"} />
-              <Row label="Implied GPR (at 5% vacancy)" value={fmt$(boe.gpr) + "/yr"} alt />
-              {unitsNum > 0 && (
-                <Row label="Implied GPR per Unit"      value={fmt$(boe.gprPerUnitPerMonth) + "/unit/mo — compare to in-place rents and area median rent above"} />
-              )}
+              {/* Revenue */}
+              <Row label="Gross Potential Revenue (GPR)"
+                value={fmt$(boe.gpr) + "/yr" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo implied)" : "")} />
+              <Row label={"Effective Gross Income (EGI)"}
+                value={fmt$(boe.egi) + "/yr  (at " + Math.round(boe.occupancyRate * 100) + "% economic occupancy)"}
+                alt />
+              {/* Expenses */}
+              <Row label="Est. Property Taxes"
+                value={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr  (" + boe.taxesSource + ")" : "Not available"} />
+              <Row label="Est. Insurance"
+                value={fmt$(boe.insurance) + "/yr  (~$800/unit)"} alt />
+              <Row label="Est. Maintenance"
+                value={fmt$(boe.maintenance) + "/yr  (~$" + (yrBuilt >= 2000 ? "500" : yrBuilt >= 1980 ? "750" : "1,000") + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : "pre-1980") + " vintage)"} />
+              <Row label="Est. Water/Sewer/Trash"
+                value={fmt$(boe.utilities) + "/yr  (~$250/unit)"} alt />
+              <Row label="Est. Mgmt (8% of EGI)"
+                value={fmt$(boe.management) + "/yr"} />
+              <Row label="Est. Total OpEx"
+                value={fmt$(boe.totalOpEx) + "/yr"} alt />
+              {/* Bottom line */}
+              <Row label="Est. NOI  (EGI – OpEx)"
+                value={fmt$(boe.estNoi) + "/yr"} />
+              <Row label="Broker-Implied NOI"
+                value={fmt$(boe.brokerNoi) + "/yr  (at " + data.brokerCapRate + " cap on " + askFmt + ")"} alt />
             </View>
             <Text style={s.note}>
-              Management fee not included in broker's NOI if gross management is excluded from their pro forma — verify. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
+              Management fee not included in broker's NOI if gross management is excluded — verify. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
             </Text>
           </>
         )}
@@ -836,7 +894,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           rest="Confirm the occupancy claim with a current rent roll. Note lease expiration dates — a property with all leases expiring at closing carries significant rollover risk." />
         {hasAssessor && data.assessedValue && data.askingPrice && (
           <Bullet bold="Model post-acquisition tax reassessment. "
-            rest={`Current assessment is ${data.assessedValue}. A purchase at ${askFmt} will likely trigger reassessment to the purchase price at next cycle, increasing annual taxes materially. Factor this into your pro forma.`} />
+            rest={`Current assessment is ${fmtDol(data.assessedValue)}. A purchase at ${askFmt} will likely trigger reassessment to the purchase price at next cycle, increasing annual taxes materially. Factor this into your pro forma.`} />
         )}
         <Bullet bold="Get quotes from local insurance brokers. "
           rest={`Insurance estimates in this report are rule-of-thumb. Actual premiums depend on building age, condition, claims history, crime data, and flood zone${hasFema && !data.femaZone.includes("X") ? ` (flood insurance will be required for this property)` : ""}. Get a real quote before LOI.`} />
