@@ -149,10 +149,12 @@ export default function DealBrief() {
   }, []);
 
   const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState("");
 
   const handleGenerate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setGenerating(true);
+    setGenerateError("");
     const fd = new FormData(e.currentTarget);
     const body: Record<string, unknown> = {};
     fd.forEach((val, key) => { body[key] = val; });
@@ -167,9 +169,15 @@ export default function DealBrief() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Server error ${res.status}: ${text}`);
+      }
       const { url } = await res.json();
+      if (!url) throw new Error("No checkout URL returned");
       window.location.href = url;
-    } catch {
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setGenerating(false);
     }
   };
@@ -364,7 +372,10 @@ export default function DealBrief() {
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10, marginTop: 20 }}>
+          {generateError && (
+            <p style={{ fontSize: 13, color: "#C0392B", margin: 0, textAlign: "right" }}>{generateError}</p>
+          )}
           <button
             type="submit"
             disabled={generating}
