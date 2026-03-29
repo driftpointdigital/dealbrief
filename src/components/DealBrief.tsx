@@ -138,6 +138,9 @@ export default function DealBrief() {
   const [suggestDone, setSuggestDone] = useState(false);
   const [data, setData] = useState<typeof MOCK_RETURN_DATA | null>(null);
   const [heroVisible, setHeroVisible] = useState(false);
+  const [selectedRates, setSelectedRates] = useState([8.5, 7.5, 6.5, 5.0]);
+  const [selectedLtvs, setSelectedLtvs] = useState([75, 50]);
+  const [amortYears, setAmortYears] = useState("30");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -210,31 +213,17 @@ export default function DealBrief() {
           <FieldRow label="Lot Size" value={data.lotSize} />
           <FieldRow label="Units" value={data.units} />
           <FieldRow label="Unit Mix" value={data.unitMix} />
-          <FieldRow label="Zoning" value={data.zoning} />
         </SectionCard>
 
-        <SectionCard title="Tax Assessment">
-          <FieldRow label="Assessed Value" value={data.assessedValue} />
-          <FieldRow label="Land" value={data.landValue} />
-          <FieldRow label="Improvements" value={data.improvementValue} />
-          <FieldRow label="Effective Tax Rate" value={data.taxRate} />
-        </SectionCard>
-
-        <SectionCard title="Location & Risk">
-          <FieldRow label="FEMA Flood Zone" value={data.femaFloodZone} />
-          <FieldRow label="Walk Score" value={data.walkScore} />
-          <FieldRow label="Bike Score" value={data.bikeScore} />
-        </SectionCard>
-
-        <SectionCard title="Crime & Demographics">
-          <FieldRow label="Crime Grade (ZIP)" value={data.crimeGrade} />
-          <FieldRow label="Crime Rate" value={data.crimeRate} />
-          <FieldRow label="Median HH Income" value={data.medianHHIncome} />
-          <FieldRow label="Population" value={data.population} />
-          <FieldRow label="Median Age" value={data.medianAge} />
-          <FieldRow label="Median Home Value" value={data.medianHomeValue} />
-          <FieldRow label="Median Rent" value={data.medianRent} />
-        </SectionCard>
+        {/* Tax Assessment — only shown when auto-fetch failed */}
+        {!data.assessedValue && (
+          <SectionCard title="Tax Assessment · Not Found">
+            <FieldRow label="Assessed Value" value="" placeholder="e.g. $925,000" />
+            <FieldRow label="Land Value" value="" placeholder="e.g. $125,000" />
+            <FieldRow label="Improvements" value="" placeholder="e.g. $800,000" />
+            <FieldRow label="Effective Tax Rate" value="" placeholder="e.g. 2.3%" />
+          </SectionCard>
+        )}
 
         <SectionCard title="Deal Inputs · Optional">
           <FieldRow label="Asking Price" value="" placeholder="$995,000" />
@@ -243,6 +232,85 @@ export default function DealBrief() {
           <FieldRow label="In-Place Rents" value="" placeholder="3BR: $1,100 / 4BR: $1,300" />
           <FieldRow label="Broker Claims" value="" placeholder="New roof 2022, renovated units" />
         </SectionCard>
+
+        {/* Analysis Assumptions */}
+        <div style={{
+          background: "white", borderRadius: 8, border: "1px solid #E5E7EB",
+          marginBottom: 12, overflow: "hidden",
+        }}>
+          <div style={{ padding: "10px 24px", borderBottom: "1px solid #E5E7EB" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", letterSpacing: "0.8px", textTransform: "uppercase" }}>
+              Analysis Assumptions
+            </span>
+          </div>
+          <div style={{ padding: "16px 24px", display: "flex", gap: 32, flexWrap: "wrap" }}>
+            {/* Rates */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
+                Interest Rates
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[8.5, 7.5, 6.5, 5.0].map(r => (
+                  <label key={r} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRates.includes(r)}
+                      onChange={e => setSelectedRates(prev =>
+                        e.target.checked ? [...prev, r].sort((a, b) => b - a) : prev.filter(x => x !== r)
+                      )}
+                      style={{ width: 14, height: 14, accentColor: "#1D3557", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 13, color: "#111827" }}>
+                      {r.toFixed(1)}%{r === 5.0 ? <span style={{ fontSize: 11, color: "#9CA3AF", marginLeft: 4 }}>owner financing</span> : null}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* LTVs */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
+                Loan-to-Value
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {[75, 50].map(ltv => (
+                  <label key={ltv} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedLtvs.includes(ltv)}
+                      onChange={e => setSelectedLtvs(prev =>
+                        e.target.checked ? [...prev, ltv].sort((a, b) => b - a) : prev.filter(x => x !== ltv)
+                      )}
+                      style={{ width: 14, height: 14, accentColor: "#1D3557", cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 13, color: "#111827" }}>{ltv}% LTV</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* Amortization */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
+                Amortization
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="text"
+                  value={amortYears}
+                  onChange={e => setAmortYears(e.target.value)}
+                  style={{
+                    width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                    border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                    fontFamily: "inherit", outline: "none",
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                  onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+                />
+                <span style={{ fontSize: 13, color: "#6B7280" }}>years</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
           <button style={{
