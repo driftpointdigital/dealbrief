@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
             name: "DealBrief Report",
             description: body.address || "Pre-offer property research report",
           },
-          unit_amount: 1900, // $19.00
+          unit_amount: 2900, // $29.00
         },
         quantity: 1,
       },
