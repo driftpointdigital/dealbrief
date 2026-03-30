@@ -107,6 +107,8 @@ export async function GET(req: NextRequest) {
     hudNearbyUnits:   m.hudNearbyUnits   ?? "",
     hudSection8Count: m.hudSection8Count ?? "",
     hudPropNames:     m.hudPropNames     ?? "",
+    // BLS employment
+    blsData: m.blsData ?? "",
   };
 
   let pdfBuffer: Buffer;

@@ -43,6 +43,8 @@ export interface ReportData {
   censusHouseholds: string; censusAvgHHSize: string; censusAvgRenterSize: string;
   // HUD subsidized housing
   hudNearbyProps: string; hudNearbyUnits: string; hudSection8Count: string; hudPropNames: string;
+  // BLS employment
+  blsData: string;
 }
 
 // ── color palette ─────────────────────────────────────────────────────────────
@@ -352,6 +354,28 @@ function schoolRatingColor(band: string): string {
   return GRAY;
 }
 
+// ── BLS employment parser ─────────────────────────────────────────────────────
+interface ParsedBLS {
+  ur: number | null; nat: number | null;
+  emp: number | null; lf: number | null;
+  per: string; co: string;
+}
+
+function parseBLS(raw: string): ParsedBLS | null {
+  if (!raw) return null;
+  try {
+    const d = JSON.parse(raw);
+    return {
+      ur:  d.ur  ?? null,
+      nat: d.nat ?? null,
+      emp: d.emp ?? null,
+      lf:  d.lf  ?? null,
+      per: d.per || "",
+      co:  d.co  || "",
+    };
+  } catch { return null; }
+}
+
 // ── crime data parser ─────────────────────────────────────────────────────────
 // National FBI UCR 2022 rates per 1,000 (hardcoded; matches Python constants)
 const NAT_RATES = {
@@ -493,6 +517,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const hasCensus   = !!data.censusIncome;
   const schoolsList = parseSchools(data.schoolsData || "[]");
   const hasSchools  = schoolsList.length > 0;
+  const parsedBLS   = parseBLS(data.blsData ?? "");
+  const hasBLS      = parsedBLS !== null && parsedBLS.ur !== null;
 
   const raceArr: string[] = [];
   if (data.censusPctBlack)    raceArr.push(`Black/African American ${data.censusPctBlack}%`);
@@ -857,6 +883,55 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
             <Text style={s.note}>
               Source: U.S. Census Bureau ACS 5-Year Estimates (most recent vintage). ZIP-level figures compared to MSA medians where available.
+            </Text>
+          </>
+        )}
+
+        {/* LOCAL EMPLOYMENT MARKET */}
+        {hasBLS && parsedBLS !== null && (
+          <>
+            <SectionHead title={"LOCAL EMPLOYMENT MARKET" + (parsedBLS.co ? " — " + parsedBLS.co + " County" : "")} />
+            <View style={s.tableWrap}>
+              {parsedBLS.ur !== null && (
+                <Row
+                  label={"Unemployment Rate" + (parsedBLS.per ? " (" + parsedBLS.per + ")" : "")}
+                  value={
+                    parsedBLS.ur.toFixed(1) + "%"
+                    + (parsedBLS.nat !== null
+                      ? "  |  U.S. National: " + parsedBLS.nat.toFixed(1) + "%"
+                        + (parsedBLS.ur <= parsedBLS.nat
+                          ? "  ✓ Below national average"
+                          : parsedBLS.ur - parsedBLS.nat > 2
+                            ? "  ⚠ Significantly above national average"
+                            : "  Above national average")
+                      : "")
+                  }
+                />
+              )}
+              {parsedBLS.lf !== null && (
+                <Row
+                  label="Labor Force"
+                  value={parsedBLS.lf.toLocaleString("en-US") + " persons"}
+                  alt
+                />
+              )}
+              {parsedBLS.emp !== null && parsedBLS.lf !== null && (
+                <Row
+                  label="Employment Level"
+                  value={
+                    parsedBLS.emp.toLocaleString("en-US") + " employed"
+                    + "  (" + (parsedBLS.lf - parsedBLS.emp).toLocaleString("en-US") + " unemployed)"
+                  }
+                />
+              )}
+            </View>
+            <Text style={s.note}>
+              Source: U.S. Bureau of Labor Statistics, Local Area Unemployment Statistics (LAUS).
+              {parsedBLS.ur !== null && parsedBLS.nat !== null && parsedBLS.ur <= parsedBLS.nat
+                ? " County unemployment is at or below the national rate — a positive indicator for rental demand stability."
+                : parsedBLS.ur !== null && parsedBLS.nat !== null && parsedBLS.ur - parsedBLS.nat > 2
+                  ? " County unemployment is significantly above the national rate — stress-test vacancy assumptions."
+                  : ""}
             </Text>
           </>
         )}

@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   const proximityData = (p.proximity ?? {}) as Record<string, unknown>;
   const msaData     = (p.msa        ?? {}) as Record<string, unknown>;
   const hudData     = (p.hud        ?? {}) as Record<string, unknown>;
+  const blsData     = (p.bls        ?? {}) as Record<string, unknown>;
 
   const metadata: Record<string, string> = {};
 
@@ -131,6 +132,18 @@ export async function POST(req: NextRequest) {
     metadata.hudSection8Count = String(hudData.section8Properties);
   if (Array.isArray(hudData.propertyNames) && hudData.propertyNames.length > 0)
     metadata.hudPropNames = (hudData.propertyNames as string[]).slice(0, 3).join("; ").slice(0, 200);
+
+  // BLS employment — compact JSON
+  if (blsData.ok) {
+    const blsCompact: Record<string, unknown> = {};
+    if (blsData.unemploymentRate != null)        blsCompact.ur  = blsData.unemploymentRate;
+    if (blsData.nationalUnemploymentRate != null) blsCompact.nat = blsData.nationalUnemploymentRate;
+    if (blsData.employment != null)              blsCompact.emp = blsData.employment;
+    if (blsData.laborForce != null)              blsCompact.lf  = blsData.laborForce;
+    if (blsData.periodLabel)                     blsCompact.per = String(blsData.periodLabel).slice(0, 20);
+    if (blsData.countyName)                      blsCompact.co  = String(blsData.countyName).slice(0, 30);
+    metadata.blsData = JSON.stringify(blsCompact).slice(0, 490);
+  }
 
   // Schools — compact JSON for up to 3 schools
   const schoolList = (schoolsData.schools ?? []) as Array<Record<string, unknown>>;
