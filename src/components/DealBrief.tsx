@@ -526,7 +526,7 @@ export default function DealBrief() {
 
         {/* DFW NOTE */}
         <p style={{ fontSize: 13, color: "#9CA3AF", margin: "0 0 48px", paddingLeft: 2 }}>
-          Currently covering Dallas-Ft Worth (Dallas, Denton, Tarrant & Collin counties) and Houston (Harris, Fort Bend & Montgomery counties).
+          Currently covering the full DFW and Houston metros.
         </p>
 
         {/* FEATURES — card grid */}
