@@ -210,7 +210,7 @@ export default function DealBrief() {
         lotSize:      a.lotSize      || "",
         units:        a.units        || "",
         unitMix:      "",
-        zoning:       "",
+        zoning:       a.zoning || "",
         assessedValue:    a.assessedValue  || "",
         landValue:        a.landValue      || "",
         improvementValue: a.improvements   || "",
