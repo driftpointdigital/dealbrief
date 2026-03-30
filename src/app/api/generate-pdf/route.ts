@@ -47,6 +47,13 @@ export async function GET(req: NextRequest) {
     ltvs:        m.ltvs  ? JSON.parse(m.ltvs)  : ["75","50"],
     amortYears:  m.amortYears ?? "30",
     ioPeriod:    m.ioPeriod   ?? "0",
+    // Revenue assumptions — unpacked from "vacancy,badDebt,otherIncomePct"
+    vacancyPct:     m.revAssumptions ? (m.revAssumptions.split(",")[0] ?? "5.0") : "5.0",
+    badDebtPct:     m.revAssumptions ? (m.revAssumptions.split(",")[1] ?? "1.0") : "1.0",
+    otherIncomePct: m.revAssumptions ? (m.revAssumptions.split(",")[2] ?? "50")  : "50",
+    // Sale history — unpacked from "price|year" (pipe separator)
+    salePrice: m.saleInfo ? (m.saleInfo.split("|")[0] ?? "") : "",
+    saleYear:  m.saleInfo ? (m.saleInfo.split("|")[1] ?? "") : "",
     // FEMA
     femaZone:    m.femaZone   ?? "",
     // Walk Score

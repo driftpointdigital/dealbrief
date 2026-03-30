@@ -43,11 +43,20 @@ export async function POST(req: NextRequest) {
   }
   if (body.rates) metadata.rates = JSON.stringify(body.rates).slice(0, 500);
   if (body.ltvs)  metadata.ltvs  = JSON.stringify(body.ltvs).slice(0, 500);
+  // Revenue assumptions — packed as "vacancy,badDebt,otherIncomePct" to save keys
+  const vac = body.vacancyPct     ? String(body.vacancyPct)     : "5.0";
+  const bd  = body.badDebtPct     ? String(body.badDebtPct)     : "1.0";
+  const oth = body.otherIncomePct ? String(body.otherIncomePct) : "50";
+  metadata.revAssumptions = `${vac},${bd},${oth}`.slice(0, 50);
 
   // Pipeline — Assessor extras
   if (assessor.annualTaxes) metadata.annualTaxes   = String(assessor.annualTaxes).slice(0, 50);
   if (assessor.parcelId)    metadata.parcelId      = String(assessor.parcelId).slice(0, 100);
   if (assessor.source)      metadata.assessorSource = String(assessor.source).slice(0, 100);
+  // Sale history — packed as "price|year" (pipe separator avoids clash with dollar-formatted price)
+  const saleP = assessor.salePrice ? String(assessor.salePrice) : "";
+  const saleY = assessor.saleYear  ? String(assessor.saleYear)  : "";
+  if (saleP || saleY) metadata.saleInfo = `${saleP}|${saleY}`.slice(0, 100);
 
   // Pipeline — FEMA
   if (fema.floodZone) metadata.femaZone = String(fema.floodZone).slice(0, 100);

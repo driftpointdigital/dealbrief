@@ -15,6 +15,10 @@ export interface ReportData {
   inPlaceRents: string; brokerClaims: string;
   // Assumptions
   rates: string[]; ltvs: string[]; amortYears: string; ioPeriod: string;
+  // Revenue assumptions
+  vacancyPct: string; badDebtPct: string; otherIncomePct: string;
+  // Sale history
+  salePrice: string; saleYear: string;
   // FEMA
   femaZone: string;
   // Walk Score
@@ -124,6 +128,11 @@ interface BoeEst {
   egi: number; gpr: number; gprPerUnitPerMonth: number;
   occupancyRate: number;
   estNoi: number;
+  // Revenue breakdown
+  vacancyAmt: number; badDebtAmt: number; otherIncomeAmt: number;
+  vacancyPct: number; badDebtPct: number; otherIncomePct: number;
+  // Breakeven
+  breakevenOcc: number;   // physical occupancy % at which EGI = OpEx (no debt)
 }
 
 function computeBoe(data: ReportData): BoeEst | null {
@@ -149,18 +158,45 @@ function computeBoe(data: ReportData): BoeEst | null {
   const utilities = units > 0 ? units * 250 : Math.round(brokerNoi * 0.04);
   const opExExMgmt = taxes + insurance + maintenance + utilities;
 
-  // Occupancy: parse from user input (e.g. "93%") or default to 95%
-  const occupancyRaw = parseFloat((data.occupancy || "").replace(/%/g, ""));
-  const occupancyRate = occupancyRaw > 0 ? occupancyRaw / 100 : 0.95;
+  // Revenue assumptions
+  const vacPct  = parseFloat(data.vacancyPct  || "5.0")  || 5.0;
+  const bdPct   = parseFloat(data.badDebtPct  || "1.0")  || 1.0;
+  const othPct  = parseFloat(data.otherIncomePct || "50") || 50;
 
+  // EGI backward from broker NOI + OpEx (management included):
+  // EGI = (brokerNoi + opExExMgmt) / 0.92  so that mgmt = EGI × 8%
   const egi = (brokerNoi + opExExMgmt) / 0.92;
   const management = egi * 0.08;
   const totalOpEx = opExExMgmt + management;
-  const gpr = egi / occupancyRate;
+
+  // GPR forward: EGI = GPR × (1 - vac/100 - bd/100) + GPR/12 × oth/100
+  // → GPR = EGI / (1 - vacPct/100 - bdPct/100 + othPct/1200)
+  const revenueMultiplier = 1 - vacPct / 100 - bdPct / 100 + othPct / 1200;
+  const gpr = revenueMultiplier > 0 ? egi / revenueMultiplier : egi / 0.94;
+  const vacancyAmt    = gpr * (vacPct / 100);
+  const badDebtAmt    = gpr * (bdPct / 100);
+  const otherIncomeAmt = gpr / 12 * (othPct / 100);
   const gprPerUnitPerMonth = units > 0 ? gpr / 12 / units : 0;
+
+  // Occupancy: parse from user input (e.g. "93%") or derive from vacancy %
+  const occupancyRaw = parseFloat((data.occupancy || "").replace(/%/g, ""));
+  const occupancyRate = occupancyRaw > 0 ? occupancyRaw / 100 : Math.max(0, 1 - vacPct / 100);
+
   const estNoi = egi - totalOpEx;
 
-  return { brokerNoi, taxes, taxesSource, insurance, maintenance, utilities, management, totalOpEx, egi, gpr, gprPerUnitPerMonth, occupancyRate, estNoi };
+  // Breakeven physical occupancy = OpEx / (GPR + otherIncomeAmt) × 100
+  // The occupancy at which rental revenue + other income exactly covers OpEx (pre-debt)
+  const breakevenOcc = (gpr + otherIncomeAmt) > 0
+    ? (totalOpEx / (gpr + otherIncomeAmt)) * 100
+    : 0;
+
+  return {
+    brokerNoi, taxes, taxesSource, insurance, maintenance, utilities,
+    management, totalOpEx, egi, gpr, gprPerUnitPerMonth, occupancyRate, estNoi,
+    vacancyAmt, badDebtAmt, otherIncomeAmt,
+    vacancyPct: vacPct, badDebtPct: bdPct, otherIncomePct: othPct,
+    breakevenOcc,
+  };
 }
 
 // ── flags ─────────────────────────────────────────────────────────────────────
@@ -491,6 +527,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
           {data.assessorSource && <Row label="Assessor Source"  value={data.assessorSource} alt />}
           {data.parcelId      && <Row label="Parcel ID"        value={data.parcelId} />}
+          {(data.salePrice || data.saleYear) && (
+            <Row label="Last Recorded Sale"
+              value={[data.salePrice, data.saleYear].filter(Boolean).join("  —  ")}
+              alt />
+          )}
         </View>
 
         {/* PRICING & MARKET CONTEXT */}
@@ -880,17 +921,29 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         {boe !== null && (
           <>
             <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
-            <Text style={[s.note, { marginBottom: 4 }]}>
+            <Text style={[s.note, { marginBottom: 6 }]}>
               Uses broker-stated cap rate ({data.brokerCapRate}) on asking price ({askFmt}). Expense estimates are rule-of-thumb; verify with actual T-12 operating statement.
+              {" "}Revenue assumptions: {boe.vacancyPct}% vacancy · {boe.badDebtPct}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income.
             </Text>
+
+            {/* Revenue sub-header */}
+            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 4 }}>REVENUE</Text>
             <View style={s.tableWrap}>
-              {/* Revenue */}
-              <Row label="Gross Potential Revenue (GPR)"
-                value={fmt$(boe.gpr) + "/yr" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo implied)" : "")} />
-              <Row label={"Effective Gross Income (EGI)"}
-                value={fmt$(boe.egi) + "/yr  (at " + Math.round(boe.occupancyRate * 100) + "% economic occupancy)"}
-                alt />
-              {/* Expenses */}
+              <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo)" : "")}
+                value={fmt$(boe.gpr) + "/yr"} />
+              <Row label={"  Less Vacancy (" + boe.vacancyPct + "%)"}
+                value={"– " + fmt$(boe.vacancyAmt) + "/yr"} alt />
+              <Row label={"  Less Bad Debt / Collection Loss (" + boe.badDebtPct + "%)"}
+                value={"– " + fmt$(boe.badDebtAmt) + "/yr"} />
+              <Row label={"  Plus Other Income (" + boe.otherIncomePct + "% of 1 mo. rent)"}
+                value={"+ " + fmt$(boe.otherIncomeAmt) + "/yr"} alt />
+              <Row label="Effective Gross Income (EGI)"
+                value={fmt$(boe.egi) + "/yr"} />
+            </View>
+
+            {/* Expenses sub-header */}
+            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>OPERATING EXPENSES</Text>
+            <View style={s.tableWrap}>
               <Row label="Est. Property Taxes"
                 value={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr  (" + boe.taxesSource + ")" : "Not available"} />
               <Row label="Est. Insurance"
@@ -899,18 +952,26 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 value={fmt$(boe.maintenance) + "/yr  (~$" + (yrBuilt >= 2000 ? "500" : yrBuilt >= 1980 ? "750" : "1,000") + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : "pre-1980") + " vintage)"} />
               <Row label="Est. Water/Sewer/Trash"
                 value={fmt$(boe.utilities) + "/yr  (~$250/unit)"} alt />
-              <Row label="Est. Mgmt (8% of EGI)"
+              <Row label="Est. Property Management (8% of EGI)"
                 value={fmt$(boe.management) + "/yr"} />
-              <Row label="Est. Total OpEx"
+              <Row label="Est. Total Operating Expenses"
                 value={fmt$(boe.totalOpEx) + "/yr"} alt />
-              {/* Bottom line */}
-              <Row label="Est. NOI  (EGI – OpEx)"
+            </View>
+
+            {/* Bottom line */}
+            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
+            <View style={s.tableWrap}>
+              <Row label="Est. In-Place NOI  (EGI – OpEx)"
                 value={fmt$(boe.estNoi) + "/yr"} />
               <Row label="Broker-Implied NOI"
                 value={fmt$(boe.brokerNoi) + "/yr  (at " + data.brokerCapRate + " cap on " + askFmt + ")"} alt />
+              <Row label="Breakeven Occupancy  (OpEx ÷ Revenue)"
+                value={fmtPct(boe.breakevenOcc) + "  — physical occ. at which EGI covers all operating expenses (pre-debt)"} />
             </View>
+
             <Text style={s.note}>
-              Management fee not included in broker's NOI if gross management is excluded — verify. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
+              Management fee may not be included in broker's stated NOI — verify with seller. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
+              {boe.breakevenOcc > 0 ? " Breakeven occupancy calculated as total OpEx divided by total revenue potential (GPR + other income)." : ""}
             </Text>
           </>
         )}

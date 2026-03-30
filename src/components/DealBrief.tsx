@@ -143,6 +143,9 @@ export default function DealBrief() {
   const [selectedLtvs, setSelectedLtvs] = useState(["75", "50"]);
   const [amortYears, setAmortYears] = useState("30");
   const [ioPeriod, setIoPeriod] = useState("0");
+  const [vacancyPct, setVacancyPct] = useState("5.0");
+  const [badDebtPct, setBadDebtPct] = useState("1.0");
+  const [otherIncomePct, setOtherIncomePct] = useState("50");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -163,6 +166,9 @@ export default function DealBrief() {
     body.ltvs = selectedLtvs;
     body.amortYears = amortYears;
     body.ioPeriod = ioPeriod;
+    body.vacancyPct = vacancyPct;
+    body.badDebtPct = badDebtPct;
+    body.otherIncomePct = otherIncomePct;
     if (data?._pipeline) body._pipeline = data._pipeline;
 
     try {
@@ -335,6 +341,59 @@ export default function DealBrief() {
             </span>
           </div>
           <div style={{ padding: "16px 24px", display: "flex", gap: 32, flexWrap: "wrap" }}>
+            {/* Revenue Assumptions */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
+                Revenue Assumptions
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="text"
+                    value={vacancyPct}
+                    onChange={e => setVacancyPct(e.target.value)}
+                    style={{
+                      width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                      border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                      fontFamily: "inherit", outline: "none",
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                    onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+                  />
+                  <span style={{ fontSize: 13, color: "#6B7280" }}>% vacancy</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="text"
+                    value={badDebtPct}
+                    onChange={e => setBadDebtPct(e.target.value)}
+                    style={{
+                      width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                      border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                      fontFamily: "inherit", outline: "none",
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                    onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+                  />
+                  <span style={{ fontSize: 13, color: "#6B7280" }}>% bad debt</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="text"
+                    value={otherIncomePct}
+                    onChange={e => setOtherIncomePct(e.target.value)}
+                    style={{
+                      width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                      border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                      fontFamily: "inherit", outline: "none",
+                    }}
+                    onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                    onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+                  />
+                  <span style={{ fontSize: 13, color: "#6B7280" }}>% other income<br/><span style={{ fontSize: 11, color: "#9CA3AF" }}>(% of 1 mo. rent)</span></span>
+                </div>
+              </div>
+            </div>
             {/* Rates */}
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
