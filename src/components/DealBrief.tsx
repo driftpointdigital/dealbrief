@@ -603,11 +603,13 @@ export default function DealBrief() {
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "12px 0 0" }}>
+          <p style={{ fontSize: 11, color: "#C4C9D4", margin: "10px 0 0" }}>
             Don&apos;t see your market?{" "}
             <button
               onClick={() => setSuggestOpen(true)}
-              style={{ background: "none", border: "none", color: "#457B9D", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>
+              style={{ background: "none", border: "none", color: "#C4C9D4", fontSize: 11, cursor: "pointer", padding: 0, fontFamily: "inherit", textDecoration: "none" }}
+              onMouseEnter={e => e.currentTarget.style.color = "#9CA3AF"}
+              onMouseLeave={e => e.currentTarget.style.color = "#C4C9D4"}>
               Request it →
             </button>
           </p>
