@@ -612,18 +612,18 @@ export default function DealBrief() {
         </div>
 
         {/* FOOTER */}
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <p style={{ fontSize: 11, color: "#C4C7CC", margin: 0 }}>
-            Public data aggregation for informational purposes only. Not investment advice.
-          </p>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <a
             href="mailto:info@getdealbrief.com"
-            style={{ fontSize: 11, color: "#9CA3AF", textDecoration: "none", whiteSpace: "nowrap" }}
+            style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", fontWeight: 500 }}
             onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
-            onMouseLeave={e => e.currentTarget.style.color = "#9CA3AF"}
+            onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
           >
             Contact Us
           </a>
+          <p style={{ fontSize: 11, color: "#C4C7CC", margin: 0 }}>
+            Public data aggregation for informational purposes only. Not investment advice.
+          </p>
         </div>
       </div>
     </div>
