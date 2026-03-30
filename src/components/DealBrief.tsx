@@ -526,7 +526,7 @@ export default function DealBrief() {
 
         {/* DFW NOTE */}
         <p style={{ fontSize: 13, color: "#9CA3AF", margin: "0 0 48px", paddingLeft: 2 }}>
-          Currently covering the full DFW and Houston metros.
+          Currently covering the full DFW and Houston metros, plus Tampa, Orlando, Jacksonville, and South Florida.
         </p>
 
         {/* FEATURES — card grid */}
