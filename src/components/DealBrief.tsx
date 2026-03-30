@@ -476,7 +476,7 @@ export default function DealBrief() {
             The research brief you'd build yourself — if you had 3 hours.
           </h1>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6, margin: 0, fontWeight: 300 }}>
-            Enter a multifamily address.  Get tax assessment, permit records, flood zone, crime, demographics, and debt service analysis in one report.
+            Enter a multifamily address. Get tax assessment, permit records, flood zone, crime, demographics, debt service analysis, and more in one report.
           </p>
         </div>
 
@@ -519,7 +519,7 @@ export default function DealBrief() {
 
         {/* DFW NOTE */}
         <p style={{ fontSize: 13, color: "#9CA3AF", margin: "0 0 48px", paddingLeft: 2 }}>
-          Currently covering Dallas, Denton, Tarrant & Collin counties.
+          Currently covering Dallas-Ft Worth (Dallas, Denton, Tarrant & Collin counties) and Houston (Harris, Fort Bend & Montgomery counties).
         </p>
 
         {/* FEATURES — card grid */}
