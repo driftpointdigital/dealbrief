@@ -1167,13 +1167,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
             {/* Bottom line */}
             <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
-            <View style={s.tableWrap}>
+            <SubtotalRow label="Est. In-Place NOI  (EGI – OpEx)" value={fmt$(boe.estNoi) + "/yr"} />
+            <View style={[s.tableWrap, { marginTop: 4 }]}>
               <Row label="Broker-Implied NOI"
                 value={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
               <Row label="Breakeven Occupancy  (OpEx / Revenue)"
                 value={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"} />
             </View>
-            <SubtotalRow label="Est. In-Place NOI  (EGI – OpEx)" value={fmt$(boe.estNoi) + "/yr"} />
 
             <Text style={s.note}>
               Management fee may not be included in broker's stated NOI — verify with seller. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
