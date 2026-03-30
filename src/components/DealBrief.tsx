@@ -592,6 +592,8 @@ export default function DealBrief() {
             {[
               "Dallas – Fort Worth, TX",
               "Houston, TX",
+              "Phoenix – Scottsdale, AZ",
+              "Charlotte, NC",
               "Tampa – St. Petersburg, FL",
               "Orlando, FL",
               "Jacksonville, FL",
