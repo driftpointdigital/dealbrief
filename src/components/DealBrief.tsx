@@ -583,10 +583,35 @@ export default function DealBrief() {
           </div>
         </div>
 
-        {/* DFW NOTE */}
-        <p style={{ fontSize: 13, color: "#9CA3AF", margin: "0 0 48px", paddingLeft: 2 }}>
-          Currently covering the full DFW and Houston metros, plus Tampa, Orlando, Jacksonville, and South Florida.
-        </p>
+        {/* COVERAGE */}
+        <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", textTransform: "uppercase", display: "block", marginBottom: 12 }}>
+            Markets covered
+          </span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 32px" }}>
+            {[
+              { flag: "🤠", label: "Dallas – Fort Worth, TX" },
+              { flag: "🤠", label: "Houston, TX" },
+              { flag: "🌴", label: "Tampa – St. Petersburg, FL" },
+              { flag: "🌴", label: "Orlando, FL" },
+              { flag: "🌴", label: "Jacksonville, FL" },
+              { flag: "🌴", label: "Miami – Fort Lauderdale – West Palm, FL" },
+            ].map(({ flag, label }) => (
+              <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+                <span style={{ fontSize: 14 }}>{flag}</span>
+                <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: "#9CA3AF", margin: "12px 0 0" }}>
+            Don&apos;t see your market?{" "}
+            <button
+              onClick={() => setSuggestOpen(true)}
+              style={{ background: "none", border: "none", color: "#457B9D", fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "inherit", textDecoration: "underline" }}>
+              Request it →
+            </button>
+          </p>
+        </div>
 
         {/* FEATURES — card grid */}
         <div style={{ marginBottom: 48 }}>
