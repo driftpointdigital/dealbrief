@@ -590,15 +590,15 @@ export default function DealBrief() {
           </span>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 32px" }}>
             {[
-              { flag: "🤠", label: "Dallas – Fort Worth, TX" },
-              { flag: "🤠", label: "Houston, TX" },
-              { flag: "🌴", label: "Tampa – St. Petersburg, FL" },
-              { flag: "🌴", label: "Orlando, FL" },
-              { flag: "🌴", label: "Jacksonville, FL" },
-              { flag: "🌴", label: "Miami – Fort Lauderdale – West Palm, FL" },
-            ].map(({ flag, label }) => (
+              "Dallas – Fort Worth, TX",
+              "Houston, TX",
+              "Tampa – St. Petersburg, FL",
+              "Orlando, FL",
+              "Jacksonville, FL",
+              "Miami – Fort Lauderdale – West Palm, FL",
+            ].map((label) => (
               <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
-                <span style={{ fontSize: 14 }}>{flag}</span>
+                <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
                 <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
               </div>
             ))}
