@@ -115,10 +115,30 @@ export default function ReportPage() {
               }}>
                 Retry
               </button>
+              <p style={{ fontSize: 13, color: "#6B7280", marginTop: 24 }}>
+                Problem with your report?{" "}
+                <a href="mailto:info@getdealbrief.com" style={{ color: "#1D3557", textDecoration: "none", fontWeight: 500 }}>
+                  Contact us
+                </a>{" "}
+                and we'll make it right.
+              </p>
             </>
           )}
 
         </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: "16px 28px", borderTop: "1px solid #E5E7EB", display: "flex", justifyContent: "center", gap: 20 }}>
+        <span style={{ fontSize: 12, color: "#9CA3AF" }}>
+          Questions or issues?{" "}
+          <a
+            href="mailto:info@getdealbrief.com"
+            style={{ color: "#1D3557", textDecoration: "none", fontWeight: 500 }}
+          >
+            info@getdealbrief.com
+          </a>
+        </span>
       </div>
     </div>
   );
