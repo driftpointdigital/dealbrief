@@ -200,43 +200,37 @@ export default function DealBrief() {
         body: JSON.stringify({ address }),
       });
       const pipeline = await res.json();
-      if (!res.ok || pipeline.error) {
-        // Fall back to mock data so the UI still works during development
-        setData({ ...MOCK_RETURN_DATA, address });
-      } else {
-        const a = pipeline.assessor ?? {};
-        const geo = pipeline.geo ?? {};
-        setData({
-          address: pipeline.geo?.formattedAddress || address,
-          propertyType: a.propertyType || MOCK_RETURN_DATA.propertyType,
-          yearBuilt: a.yearBuilt || MOCK_RETURN_DATA.yearBuilt,
-          buildingArea: a.buildingArea || MOCK_RETURN_DATA.buildingArea,
-          lotSize: a.lotSize || MOCK_RETURN_DATA.lotSize,
-          units: a.units || MOCK_RETURN_DATA.units,
-          unitMix: MOCK_RETURN_DATA.unitMix, // assessor rarely has unit mix
-          zoning: MOCK_RETURN_DATA.zoning,
-          assessedValue: a.assessedValue || "",
-          landValue: a.landValue || "",
-          improvementValue: a.improvements || "",
-          taxRate: a.taxRate || "",
-          femaFloodZone: pipeline.fema?.floodZone || "",
-          walkScore: pipeline.walkscore?.walk?.toString() || "",
-          bikeScore: pipeline.walkscore?.bike?.toString() || "",
-          crimeGrade: pipeline.crime?.overallGrade || "",
-          crimeRate: pipeline.crime?.ratePerThousand
-            ? `${pipeline.crime.ratePerThousand} per 1,000`
-            : "",
-          medianHHIncome: pipeline.census?.medianIncome || "",
-          population: pipeline.census?.population?.toString() || "",
-          medianAge: pipeline.census?.medianAge?.toString() || "",
-          medianHomeValue: pipeline.census?.medianHomeValue || "",
-          medianRent: pipeline.census?.medianRent || "",
-          // Store full pipeline for PDF generation
-          _pipeline: pipeline,
-        } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
-      }
+      const a = (!res.ok || pipeline.error) ? {} : (pipeline.assessor ?? {});
+      const pipelineData = (!res.ok || pipeline.error) ? null : pipeline;
+      setData({
+        address: pipeline?.geo?.formattedAddress || address,
+        propertyType: a.propertyType || "",
+        yearBuilt:    a.yearBuilt    || "",
+        buildingArea: a.buildingArea || "",
+        lotSize:      a.lotSize      || "",
+        units:        a.units        || "",
+        unitMix:      "",
+        zoning:       "",
+        assessedValue:    a.assessedValue  || "",
+        landValue:        a.landValue      || "",
+        improvementValue: a.improvements   || "",
+        taxRate:          a.taxRate        || "",
+        femaFloodZone:    pipelineData?.fema?.floodZone || "",
+        walkScore:        pipelineData?.walkscore?.walk?.toString() || "",
+        bikeScore:        pipelineData?.walkscore?.bike?.toString() || "",
+        crimeGrade:       pipelineData?.crime?.overallGrade || "",
+        crimeRate:        pipelineData?.crime?.ratePerThousand
+          ? `${pipelineData.crime.ratePerThousand} per 1,000`
+          : "",
+        medianHHIncome:  pipelineData?.census?.medianIncome || "",
+        population:      pipelineData?.census?.population?.toString() || "",
+        medianAge:       pipelineData?.census?.medianAge?.toString() || "",
+        medianHomeValue: pipelineData?.census?.medianHomeValue || "",
+        medianRent:      pipelineData?.census?.medianRent || "",
+        _pipeline: pipelineData,
+      } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
     } catch {
-      setData({ ...MOCK_RETURN_DATA, address });
+      setData({ ...MOCK_RETURN_DATA, address: "" } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
     }
     setView("confirm");
   };
