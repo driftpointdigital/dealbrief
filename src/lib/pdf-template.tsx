@@ -45,6 +45,7 @@ export interface ReportData {
   hudNearbyProps: string; hudNearbyUnits: string; hudSection8Count: string; hudPropNames: string;
   // BLS employment
   blsData: string;
+  opexOverrides: string;
 }
 
 // ── color palette ─────────────────────────────────────────────────────────────
@@ -115,6 +116,36 @@ function fmtDol(str: string): string {
   return "$" + Math.round(n).toLocaleString("en-US");
 }
 
+// Format a string containing an SF number as "32,765 SF"
+function fmtSFStr(str: string): string {
+  if (!str) return str;
+  const n = parseFloat(str.replace(/[^0-9.]/g, ""));
+  if (!n) return str;
+  return Math.round(n).toLocaleString("en-US") + " SF";
+}
+
+// Format a percentage string to "X.XX%"
+function fmtPctDisplay(str: string): string {
+  if (!str) return str;
+  const n = parseFloat(str.replace(/%/g, ""));
+  if (isNaN(n)) return str;
+  return n.toFixed(2) + "%";
+}
+
+// Parse a rent-per-unit from user input like "$1,975" or "1975"
+// Returns null if the string has multiple rent tiers (e.g. "3BR: $1,100 / 4BR: $1,300")
+function parseRentPerUnit(str: string): number | null {
+  if (!str) return null;
+  // Reject multi-tier strings
+  if (str.includes("/") && str.toLowerCase().includes("br")) return null;
+  const match = str.replace(/,/g, "").match(/\$?([\d]+(?:\.\d+)?)/);
+  if (match) {
+    const val = parseFloat(match[1]);
+    if (val > 100 && val < 50000) return val;
+  }
+  return null;
+}
+
 // Alias kept for existing usage
 const fmtAskingPrice = fmtDol;
 
@@ -127,6 +158,8 @@ interface BoeEst {
   taxes: number; taxesSource: string;
   insurance: number; maintenance: number;
   utilities: number; management: number; totalOpEx: number;
+  marketing: number; admin: number; reserves: number;
+  opexInputs: BoeInputs;
   egi: number; gpr: number; gprPerUnitPerMonth: number;
   occupancyRate: number;
   estNoi: number;
@@ -135,6 +168,30 @@ interface BoeEst {
   vacancyPct: number; badDebtPct: number; otherIncomePct: number;
   // Breakeven
   breakevenOcc: number;   // physical occupancy % at which EGI = OpEx (no debt)
+}
+
+interface BoeInputs {
+  insurancePerUnit: number;
+  maintenancePerUnit: number;
+  utilitiesPerUnit: number;
+  managementPct: number;
+  marketingPerUnit: number;
+  adminPerUnit: number;
+  reservesPerUnit: number;
+}
+
+function parseOpexOverrides(str: string, yr: number): BoeInputs {
+  const parts = (str || "").split(",");
+  const maintDefault = yr >= 2000 ? 500 : yr >= 1980 ? 750 : 1000;
+  return {
+    insurancePerUnit:   parseFloat(parts[0]) || 800,
+    maintenancePerUnit: parseFloat(parts[1]) || maintDefault,
+    utilitiesPerUnit:   parseFloat(parts[2]) || 250,
+    managementPct:      parseFloat(parts[3]) || 8.0,
+    marketingPerUnit:   parseFloat(parts[4]) || 150,
+    adminPerUnit:       parseFloat(parts[5]) || 100,
+    reservesPerUnit:    parseFloat(parts[6]) || 250,
+  };
 }
 
 function computeBoe(data: ReportData): BoeEst | null {
@@ -154,46 +211,59 @@ function computeBoe(data: ReportData): BoeEst | null {
     if (av && rate) { taxes = Math.round(av * rate); taxesSource = "est. from assessment × tax rate"; }
   }
 
-  const insurance = units > 0 ? units * 800 : Math.round(brokerNoi * 0.08);
-  const maintPerUnit = yr >= 2000 ? 500 : yr >= 1980 ? 750 : 1000;
-  const maintenance = units > 0 ? units * maintPerUnit : Math.round(brokerNoi * 0.10);
-  const utilities = units > 0 ? units * 250 : Math.round(brokerNoi * 0.04);
-  const opExExMgmt = taxes + insurance + maintenance + utilities;
+  const opexInputs = parseOpexOverrides(data.opexOverrides || "", yr);
+  const mgmtPct = opexInputs.managementPct / 100;
+
+  const insurance  = units > 0 ? units * opexInputs.insurancePerUnit   : Math.round(brokerNoi * 0.08);
+  const maintenance= units > 0 ? units * opexInputs.maintenancePerUnit  : Math.round(brokerNoi * 0.10);
+  const utilities  = units > 0 ? units * opexInputs.utilitiesPerUnit    : Math.round(brokerNoi * 0.04);
+  const marketing  = units > 0 ? units * opexInputs.marketingPerUnit    : Math.round(brokerNoi * 0.02);
+  const admin      = units > 0 ? units * opexInputs.adminPerUnit        : Math.round(brokerNoi * 0.02);
+  const reserves   = units > 0 ? units * opexInputs.reservesPerUnit     : Math.round(brokerNoi * 0.04);
+  const opExExMgmt = taxes + insurance + maintenance + utilities + marketing + admin + reserves;
 
   // Revenue assumptions
   const vacPct  = parseFloat(data.vacancyPct  || "5.0")  || 5.0;
   const bdPct   = parseFloat(data.badDebtPct  || "1.0")  || 1.0;
   const othPct  = parseFloat(data.otherIncomePct || "50") || 50;
 
-  // EGI backward from broker NOI + OpEx (management included):
-  // EGI = (brokerNoi + opExExMgmt) / 0.92  so that mgmt = EGI × 8%
-  const egi = (brokerNoi + opExExMgmt) / 0.92;
-  const management = egi * 0.08;
-  const totalOpEx = opExExMgmt + management;
+  // GPR: use in-place rents if provided, otherwise derive from broker NOI
+  let gpr: number, egi: number, management: number, totalOpEx: number;
+  const rentPerUnit = parseRentPerUnit(data.inPlaceRents);
+  if (rentPerUnit && units > 0) {
+    gpr = rentPerUnit * units * 12;
+    const vacancyAmt  = gpr * (vacPct / 100);
+    const badDebtAmt  = gpr * (bdPct / 100);
+    const otherIncome = gpr / 12 * (othPct / 100);
+    egi = gpr - vacancyAmt - badDebtAmt + otherIncome;
+    management = egi * mgmtPct;
+    totalOpEx = opExExMgmt + management;
+  } else {
+    // Backward from broker NOI: EGI = (brokerNoi + opExExMgmt) / (1 - mgmtPct)
+    egi = (brokerNoi + opExExMgmt) / (1 - mgmtPct);
+    management = egi * mgmtPct;
+    totalOpEx = opExExMgmt + management;
+    const revenueMultiplier = 1 - vacPct / 100 - bdPct / 100 + othPct / 1200;
+    gpr = revenueMultiplier > 0 ? egi / revenueMultiplier : egi / 0.94;
+  }
 
-  // GPR forward: EGI = GPR × (1 - vac/100 - bd/100) + GPR/12 × oth/100
-  // → GPR = EGI / (1 - vacPct/100 - bdPct/100 + othPct/1200)
-  const revenueMultiplier = 1 - vacPct / 100 - bdPct / 100 + othPct / 1200;
-  const gpr = revenueMultiplier > 0 ? egi / revenueMultiplier : egi / 0.94;
-  const vacancyAmt    = gpr * (vacPct / 100);
-  const badDebtAmt    = gpr * (bdPct / 100);
+  const vacancyAmt     = gpr * (vacPct / 100);
+  const badDebtAmt     = gpr * (bdPct / 100);
   const otherIncomeAmt = gpr / 12 * (othPct / 100);
   const gprPerUnitPerMonth = units > 0 ? gpr / 12 / units : 0;
 
-  // Occupancy: parse from user input (e.g. "93%") or derive from vacancy %
   const occupancyRaw = parseFloat((data.occupancy || "").replace(/%/g, ""));
   const occupancyRate = occupancyRaw > 0 ? occupancyRaw / 100 : Math.max(0, 1 - vacPct / 100);
 
   const estNoi = egi - totalOpEx;
 
-  // Breakeven physical occupancy = OpEx / (GPR + otherIncomeAmt) × 100
-  // The occupancy at which rental revenue + other income exactly covers OpEx (pre-debt)
   const breakevenOcc = (gpr + otherIncomeAmt) > 0
     ? (totalOpEx / (gpr + otherIncomeAmt)) * 100
     : 0;
 
   return {
     brokerNoi, taxes, taxesSource, insurance, maintenance, utilities,
+    marketing, admin, reserves, opexInputs,
     management, totalOpEx, egi, gpr, gprPerUnitPerMonth, occupancyRate, estNoi,
     vacancyAmt, badDebtAmt, otherIncomeAmt,
     vacancyPct: vacPct, badDebtPct: bdPct, otherIncomePct: othPct,
@@ -257,15 +327,18 @@ function computeFlags(data: ReportData, model: FinancialSummary): Flag[] {
   if (av > 0 && ask > 0) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
-    if (ratio > 0.95) {
-      flags.push({ level: "amber", title: `Assessment Already Near Ask — ${pct}% of Ask Price`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Property is already assessed near the purchase price — minimal additional reassessment exposure, but current tax burden will carry forward and may step up modestly at next cycle.` });
+    if (ratio > 1.0) {
+      flags.push({ level: "amber", title: `Assessment Exceeds Ask — ${pct}% of Ask Price`,
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). You are purchasing below the assessed value. The current tax burden is based on this higher assessment — a property tax consultant may be able to challenge it downward after purchase. Do not assume taxes will increase; they may decrease.` });
+    } else if (ratio > 0.90) {
+      flags.push({ level: "amber", title: `Assessment Near Ask — ${pct}% of Ask Price`,
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Minimal reassessment risk — assessment is already close to purchase price, so the tax burden is unlikely to change materially at next cycle.` });
     } else if (ratio > 0.75) {
       flags.push({ level: "amber", title: `Reassessment Risk — Assessed at ${pct}% of Ask`,
         body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward at next cycle, increasing annual taxes. Model the delta in your pro forma.` });
-    } else if (ratio <= 0.75) {
+    } else {
       flags.push({ level: "amber", title: `Significant Reassessment Risk — Assessed at Only ${pct}% of Ask`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment at next cycle — model a tax increase of ${fmtDol(String((ask - av) * 0.023))}+/yr in your pro forma.` });
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment — model a meaningful tax increase in your pro forma before LOI.` });
     }
   }
 
@@ -295,16 +368,17 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
     parts.push(`Broker represents: "${data.brokerClaims}." These claims require independent verification during due diligence.`);
   }
   if (permitNum === 0 && age > 25) {
-    parts.push(`Zero permits on record for a ${age}-year-old building is consistent with a deferred-maintenance profile — a potential value-add play if a buyer can systematically renovate and push rents, but capex risk is asymmetric.`);
+    parts.push(`Zero permits on record for a ${age}-year-old building. Verify condition of all major systems during inspection and cross-reference against any broker capital improvement claims.`);
   } else if (permitNum > 0) {
     parts.push(`${permitNum} permit record${permitNum > 1 ? "s" : ""} found — verify scope and quality of documented improvements during inspection.`);
   }
   if (av > 0 && ask > 0) {
-    const ratio = Math.round((av / ask) * 100);
-    if (ratio < 80) {
-      parts.push(`County assessment (${data.assessedValue}) is ${ratio}% of ask, suggesting the seller is pricing in upside. A purchase at or near ask will likely trigger full reassessment at next cycle.`);
-    } else {
-      parts.push(`Assessment-to-ask ratio of ${ratio}% is elevated — limited buffer before a tax reassessment materializes.`);
+    const ratio = av / ask;
+    const pct = Math.round(ratio * 100);
+    if (ratio > 1.0) {
+      parts.push(`County assessment (${fmtDol(data.assessedValue)}) exceeds the asking price by ${pct - 100}% — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile.`);
+    } else if (pct < 80) {
+      parts.push(`County assessment (${fmtDol(data.assessedValue)}) is ${pct}% of ask, suggesting the seller is pricing in upside. A purchase at or near ask will likely trigger reassessment at the higher price at next cycle.`);
     }
   }
   const _thesisCrimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
@@ -316,10 +390,10 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
     const rent = parseDol(data.censusRent);
     if (inc > 0 && rent > 0) {
       const rentToIncome = Math.round((rent * 12 / inc) * 100);
-      parts.push(`Area median HH income of ${data.censusIncome} vs. median gross rent of ${data.censusRent}/mo implies a rent-to-income ratio of ~${rentToIncome}% for the median resident — a relevant stress indicator for collections.`);
+      parts.push(`Area median HH income of ${data.censusIncome} vs. median gross rent of ${data.censusRent}/mo implies a rent-to-income ratio of ~${rentToIncome}% for the median resident.`);
     }
   }
-  return parts.join(" ") || "Insufficient data to generate thesis. Enter deal inputs above and rerun.";
+  return parts.join(" ") || "Insufficient data to generate analysis. Enter deal inputs and rerun.";
 }
 
 // ── deal verdict ──────────────────────────────────────────────────────────────
@@ -384,9 +458,9 @@ const NAT_RATES = {
 };
 
 interface ParsedCrime {
-  source: string; yearRange: string; population: number;
+  source: string; yearRange: string; population: number; agencyName: string;
   overallGrade: string; violentGrade: string; propertyGrade: string; pct: number | null;
-  // CrimeGrade path
+  // CrimeGrade / FBI CDE path
   crateTotal: number | null; crateViolent: number | null;
   // Dallas Open Data path — local rates per 1,000 (annual avg)
   vr: number | null; mr: number | null; rr: number | null; ar: number | null;
@@ -401,6 +475,7 @@ function parseCrimeData(raw: string): ParsedCrime | null {
       source: d.src || "",
       yearRange: d.yr || "",
       population: d.pop || 0,
+      agencyName: d.ag || "",
       overallGrade: d.og || "",
       violentGrade: d.vg || "",
       propertyGrade: d.pg || "",
@@ -470,6 +545,15 @@ function Bullet({ bold, rest }: { bold: string; rest: string }) {
     <View style={s.bullet}>
       <Text style={s.bulletDot}>•</Text>
       <Text style={s.bulletText}><Text style={s.bulletBold}>{bold}</Text>{rest}</Text>
+    </View>
+  );
+}
+
+function SubtotalRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={{ flexDirection: "row", paddingVertical: 5, paddingHorizontal: 0, borderTopWidth: 1.5, borderTopColor: NAVY, backgroundColor: LIGHT }}>
+      <Text style={{ width: 168, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY }}>{value}</Text>
     </View>
   );
 }
@@ -547,7 +631,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Address"          value={data.address} />
           <Row label="Property Type"    value={data.propertyType} alt />
           <Row label="Year Built"       value={data.yearBuilt + (age > 0 ? ` (${age} years old)` : "")} />
-          <Row label="Building Area"    value={data.buildingArea} alt />
+          <Row label="Building Area"    value={data.buildingArea && data.buildingArea.toUpperCase().includes("SF") ? fmtSFStr(data.buildingArea) : data.buildingArea} alt />
           <Row label="Lot Size"         value={data.lotSize} />
           <Row label="Units"            value={data.units + (data.unitMix ? ": " + data.unitMix : "")} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
@@ -568,9 +652,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               <Row label="Asking Price"         value={askFmt} />
               {pricePerUnit && <Row label="Price per Unit"      value={pricePerUnit} alt />}
               {pricePerSF   && <Row label="Price per SF"        value={pricePerSF} />}
-              {data.brokerCapRate && <Row label="Broker Cap Rate"  value={data.brokerCapRate} alt />}
+              {data.brokerCapRate && <Row label="Broker Cap Rate"  value={fmtPctDisplay(data.brokerCapRate)} alt />}
               {model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
-              {data.occupancy     && <Row label="Current Occupancy" value={data.occupancy} alt />}
+              {data.occupancy     && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
               {data.inPlaceRents  && <Row label="In-Place Rents"    value={data.inPlaceRents} />}
               {hasCensus && data.censusRent && (
                 <Row label={"Area Median Rent" + (zip ? " (ZIP " + zip + ")" : "")}
@@ -614,8 +698,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                       const av = parseDol(data.assessedValue);
                       const ask = parseDol(data.askingPrice);
                       if (!av || !ask) return "";
-                      const pct = Math.round((av / ask) * 100);
-                      const flag = pct >= 95 ? " — already near ask, limited further exposure" : pct >= 80 ? " — expect upward reassessment at next cycle" : " — significant reassessment risk";
+                      const ratio = av / ask;
+                      const pct = Math.round(ratio * 100);
+                      const flag = ratio > 1.0
+                        ? ` — assessed ABOVE asking; buyer may be able to appeal taxes downward`
+                        : ratio >= 0.90 ? ` — near asking price, minimal reassessment exposure`
+                        : ratio >= 0.80 ? ` — expect upward reassessment at next cycle`
+                        : ` — significant upward reassessment risk`;
                       return `${fmtDol(data.assessedValue)} / ${askFmt} = ${pct}% assessment ratio${flag}`;
                     })()} />
                   {unitsNum > 0 && (data.annualTaxes || (data.assessedValue && data.taxRate)) && (
@@ -633,12 +722,21 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </>
               )}
             </View>
-            <Text style={s.note}>Source: County appraisal district. Tax amounts reflect current assessment and may increase upon sale.</Text>
+            <Text style={s.note}>
+              {(() => {
+                const av2 = parseDol(data.assessedValue);
+                const ask2 = parseDol(data.askingPrice);
+                if (av2 > 0 && ask2 > 0 && av2 > ask2) {
+                  return "Source: County appraisal district. Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.";
+                }
+                return "Source: County appraisal district. Tax amounts reflect current assessment; upon sale, county may reassess to the purchase price.";
+              })()}
+            </Text>
           </>
         )}
 
         {/* LOCATION & RISK */}
-        {(hasFema || hasWalk) && (
+        {(hasFema || hasWalk || !!data.proximityMiles) && (
           <>
             <SectionHead title="LOCATION & RISK" />
             <View style={s.tableWrap}>
@@ -656,8 +754,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.transitScore && (
                 <Row label="Transit Score" value={data.transitScore + "/100"} alt />
               )}
-              {!hasWalk && (
-                <Row label="Walk / Transit Scores" value="Not retrieved — Walk Score API key not configured" />
+              {!hasWalk && hasFema && (
+                <Row label="Walk / Transit Scores" value="Not retrieved — will populate on next run" />
               )}
               {data.proximityMiles && (
                 <Row label={`Drive to Downtown ${data.proximityCity || ""}`}
@@ -688,7 +786,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </>
             )}
             {!hasSchools && (
-              <Text style={s.note}>School ratings not retrieved — GREATSCHOOLS_API_KEY not yet set on server.</Text>
+              <Text style={s.note}>School ratings not available for this address.</Text>
             )}
             <Text style={s.note}>Source: GreatSchools NearbySchools API (School Quality plan). Rating bands: Above Average / Average / Below Average.</Text>
           </>
@@ -730,8 +828,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           ))
         )}
 
-        {/* VALUE-ADD THESIS */}
-        <SectionHead title="VALUE-ADD THESIS" />
+        {/* DEAL CONTEXT & ANALYSIS */}
+        <SectionHead title="DEAL CONTEXT & ANALYSIS" />
         <Text style={[s.val, { lineHeight: 1.6, marginBottom: 6, fontSize: 8.5 }]}>{thesis}</Text>
 
         {/* CRIME & SAFETY */}
@@ -807,7 +905,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 <Row label="Property Crime Grade" value={parsedCrime?.propertyGrade || data.crimeProp} />
               )}
             </View>
-            <Text style={s.note}>Source: CrimeGrade.org (ZIP-level aggregates). High crime may limit lender options, increase insurance premiums, and affect tenant quality.</Text>
+            <Text style={s.note}>
+              {parsedCrime?.source === "fbi_cde"
+                ? `Source: FBI Crime Data Explorer (NIBRS)${parsedCrime.yearRange ? ", " + parsedCrime.yearRange + " avg" : ""}${parsedCrime.agencyName ? " — " + parsedCrime.agencyName : ""}. Grades computed vs. FBI UCR 2022 national averages.`
+                : "Source: CrimeGrade.org (ZIP-level aggregates)."}
+              {" "}High crime may limit lender options, increase insurance premiums, and affect tenant quality.
+            </Text>
           </>
         ) : (
           <Text style={[s.note, { marginBottom: 6 }]}>
@@ -947,20 +1050,45 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <SectionHead title="CITY PERMIT HISTORY" />
         {permitNum === 0 ? (
           <View style={{ marginBottom: 8 }}>
-            <Bullet
-              bold="No permits found at this address. "
-              rest={age > 0
-                ? `On a ${age}-year-old building marketed as value-add, this is consistent with deferred maintenance. Major systems — plumbing, electrical, HVAC, and roofing — may be original or replaced without documentation.`
-                : "Major systems may be original or replaced without documentation."}
-            />
-            <Bullet
-              bold="Assume all major systems as original or near end-of-life. "
-              rest="Cast iron drain lines, legacy electrical panels, aging HVAC, and unknown roofing vintage. A thorough inspection is non-negotiable before committing to purchase."
-            />
-            {unitsNum > 0 && (
+            {age > 0 && age <= 5 ? (
+              <>
+                <Bullet
+                  bold="No permits found in city records. "
+                  rest={`On a ${age}-year-old building, original construction permits are typically filed under the developer or general contractor — not the current property address. This is normal for new construction. Contact the city building department directly if you need to verify CO issuance and punch-list completion.`}
+                />
+                <Bullet
+                  bold="Verify certificates of occupancy and warranties. "
+                  rest="Confirm all COs were issued for the units and common areas. Request builder warranties for structure, roof, mechanical systems, and appliances — many carry 1–10 year manufacturer coverage on a new asset."
+                />
+              </>
+            ) : age > 30 ? (
+              <>
+                <Bullet
+                  bold="No permits found at this address. "
+                  rest={`On a ${age}-year-old building, zero permits suggests major systems — plumbing, electrical, HVAC, and roofing — may be original or replaced without documentation. Budget aggressively for systems replacement.`}
+                />
+                <Bullet
+                  bold="Assume major systems are aging or original. "
+                  rest="Cast iron drain lines, legacy electrical panels, aging HVAC, and unknown roofing vintage are common on pre-1990 stock. A thorough inspection is non-negotiable before committing to purchase."
+                />
+                {unitsNum > 0 && (
+                  <Bullet
+                    bold="Budget for capital expenditures. "
+                    rest={`Systems replacement and deferred maintenance on a ${age}-year-old building can run $10K–$20K/unit = ${fmt$(10000 * unitsNum)}–${fmt$(20000 * unitsNum)} total. Reflect this in your acquisition pricing.`}
+                  />
+                )}
+              </>
+            ) : age > 10 ? (
+              <>
+                <Bullet
+                  bold="No permits found. "
+                  rest={`No building permits on record for this ${age}-year-old property. Verify any broker claims about capital improvements during due diligence — request receipts, warranties, and contractor invoices.`}
+                />
+              </>
+            ) : (
               <Bullet
-                bold="Budget for renovation capex. "
-                rest={`Interior value-add renovations typically run $8K–$15K/unit = ${fmt$(8000 * unitsNum)}–${fmt$(15000 * unitsNum)} total for ${unitsNum} units. This should be reflected in your acquisition pricing.`}
+                bold="No permits found. "
+                rest="No building permits on record. This may reflect permits filed under a prior owner, developer, or contractor. Verify with the city building department if you need a complete permit history."
               />
             )}
             <Text style={s.note}>Source: {data.permitSource || "City building permit portal"}. Absence of permits does not confirm no work was done — only that no permits were pulled.</Text>
@@ -998,7 +1126,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
             <Text style={[s.note, { marginBottom: 6 }]}>
               Uses broker-stated cap rate ({data.brokerCapRate}) on asking price ({askFmt}). Expense estimates are rule-of-thumb; verify with actual T-12 operating statement.
-              {" "}Revenue assumptions: {boe.vacancyPct}% vacancy · {boe.badDebtPct}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income.
+              {" "}Revenue assumptions: {boe.vacancyPct.toFixed(2)}% vacancy · {boe.badDebtPct.toFixed(2)}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income.
             </Text>
 
             {/* Revenue sub-header */}
@@ -1006,43 +1134,46 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <View style={s.tableWrap}>
               <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo)" : "")}
                 value={fmt$(boe.gpr) + "/yr"} />
-              <Row label={"  Less Vacancy (" + boe.vacancyPct + "%)"}
+              <Row label={"  Less Vacancy (" + boe.vacancyPct.toFixed(2) + "%)"}
                 value={"– " + fmt$(boe.vacancyAmt) + "/yr"} alt />
-              <Row label={"  Less Bad Debt / Collection Loss (" + boe.badDebtPct + "%)"}
+              <Row label={"  Less Bad Debt / Collection Loss (" + boe.badDebtPct.toFixed(2) + "%)"}
                 value={"– " + fmt$(boe.badDebtAmt) + "/yr"} />
               <Row label={"  Plus Other Income (" + boe.otherIncomePct + "% of 1 mo. rent)"}
                 value={"+ " + fmt$(boe.otherIncomeAmt) + "/yr"} alt />
-              <Row label="Effective Gross Income (EGI)"
-                value={fmt$(boe.egi) + "/yr"} />
             </View>
+            <SubtotalRow label="Effective Gross Income (EGI)" value={fmt$(boe.egi) + "/yr"} />
 
             {/* Expenses sub-header */}
             <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>OPERATING EXPENSES</Text>
             <View style={s.tableWrap}>
               <Row label="Est. Property Taxes"
                 value={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr  (" + boe.taxesSource + ")" : "Not available"} />
-              <Row label="Est. Insurance"
-                value={fmt$(boe.insurance) + "/yr  (~$800/unit)"} alt />
-              <Row label="Est. Maintenance"
-                value={fmt$(boe.maintenance) + "/yr  (~$" + (yrBuilt >= 2000 ? "500" : yrBuilt >= 1980 ? "750" : "1,000") + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : "pre-1980") + " vintage)"} />
-              <Row label="Est. Water/Sewer/Trash"
-                value={fmt$(boe.utilities) + "/yr  (~$250/unit)"} alt />
-              <Row label="Est. Property Management (8% of EGI)"
-                value={fmt$(boe.management) + "/yr"} />
-              <Row label="Est. Total Operating Expenses"
-                value={fmt$(boe.totalOpEx) + "/yr"} alt />
+              <Row label={"Est. Insurance  (~$" + Math.round(boe.opexInputs.insurancePerUnit) + "/unit)"}
+                value={fmt$(boe.insurance) + "/yr"} alt />
+              <Row label={"Est. Maintenance  (~$" + Math.round(boe.opexInputs.maintenancePerUnit) + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : "pre-1980") + " vintage)"}
+                value={fmt$(boe.maintenance) + "/yr"} />
+              <Row label={"Est. Utilities  (~$" + Math.round(boe.opexInputs.utilitiesPerUnit) + "/unit)"}
+                value={fmt$(boe.utilities) + "/yr"} alt />
+              <Row label={"Est. Marketing & Leasing  (~$" + Math.round(boe.opexInputs.marketingPerUnit) + "/unit)"}
+                value={fmt$(boe.marketing) + "/yr"} />
+              <Row label={"Est. Administrative  (~$" + Math.round(boe.opexInputs.adminPerUnit) + "/unit)"}
+                value={fmt$(boe.admin) + "/yr"} alt />
+              <Row label={"Est. Reserves / Other  (~$" + Math.round(boe.opexInputs.reservesPerUnit) + "/unit)"}
+                value={fmt$(boe.reserves) + "/yr"} />
+              <Row label={"Est. Property Management (" + boe.opexInputs.managementPct.toFixed(1) + "% of EGI)"}
+                value={fmt$(boe.management) + "/yr"} alt />
             </View>
+            <SubtotalRow label="Est. Total Operating Expenses" value={fmt$(boe.totalOpEx) + "/yr"} />
 
             {/* Bottom line */}
             <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
             <View style={s.tableWrap}>
-              <Row label="Est. In-Place NOI  (EGI – OpEx)"
-                value={fmt$(boe.estNoi) + "/yr"} />
               <Row label="Broker-Implied NOI"
-                value={fmt$(boe.brokerNoi) + "/yr  (at " + data.brokerCapRate + " cap on " + askFmt + ")"} alt />
-              <Row label="Breakeven Occupancy  (OpEx ÷ Revenue)"
-                value={fmtPct(boe.breakevenOcc) + "  — physical occ. at which EGI covers all operating expenses (pre-debt)"} />
+                value={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
+              <Row label="Breakeven Occupancy  (OpEx / Revenue)"
+                value={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"} />
             </View>
+            <SubtotalRow label="Est. In-Place NOI  (EGI – OpEx)" value={fmt$(boe.estNoi) + "/yr"} />
 
             <Text style={s.note}>
               Management fee may not be included in broker's stated NOI — verify with seller. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
@@ -1141,7 +1272,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <Bullet bold="Request T-12 operating statement and current rent roll. "
           rest="The broker's cap rate is an assertion, not a fact. Verify every line of income and expenses against trailing-12-month actuals before underwriting." />
         <Bullet bold="Order a thorough property inspection. "
-          rest={`On a ${age > 0 ? age + "-year-old" : "older"} building${permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (cast iron drain lines), electrical panels (load capacity and age), and foundation.`} />
+          rest={age > 0 && age <= 5
+            ? `On a ${age}-year-old building, verify construction quality, confirm certificates of occupancy are in order, and check for any outstanding punch-list items. Request builder warranties for structural, mechanical, and appliance systems.`
+            : `On a ${age > 0 ? age + "-year-old" : "older"} building${permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (including drain lines), electrical panels (load capacity and age), and foundation.`
+          } />
         {hasCrime && ["F","D-","D","D+"].includes(crimeGrade) && (
           <Bullet bold="Speak with local portfolio lenders before making an offer. "
             rest={`The crime profile (${data.crimeOverall}) may limit conventional financing options. Regional banks and credit unions familiar with the submarket are more likely to lend here than national platforms.`} />
@@ -1150,10 +1284,20 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           rest="Get actual utility bills for the trailing 12 months. Determine which utilities are landlord-paid vs. tenant-paid — this has a direct, significant impact on actual NOI vs. broker-stated NOI." />
         <Bullet bold="Verify occupancy, lease terms, and any concessions. "
           rest="Confirm the occupancy claim with a current rent roll. Note lease expiration dates — a property with all leases expiring at closing carries significant rollover risk." />
-        {hasAssessor && data.assessedValue && data.askingPrice && (
-          <Bullet bold="Model post-acquisition tax reassessment. "
-            rest={`Current assessment is ${fmtDol(data.assessedValue)}. A purchase at ${askFmt} will likely trigger reassessment to the purchase price at next cycle, increasing annual taxes materially. Factor this into your pro forma.`} />
-        )}
+        {hasAssessor && data.assessedValue && data.askingPrice && (() => {
+          const av3 = parseDol(data.assessedValue);
+          const ask3 = parseDol(data.askingPrice);
+          if (av3 > ask3) {
+            return (
+              <Bullet bold="Consider a property tax appeal. "
+                rest={`Current county assessment (${fmtDol(data.assessedValue)}) exceeds the purchase price (${askFmt}). Purchasing below assessed value is a strong basis to challenge the assessment downward. Engage a property tax consultant after closing — a successful appeal could reduce annual taxes materially.`} />
+            );
+          }
+          return (
+            <Bullet bold="Model post-acquisition tax reassessment. "
+              rest={`Current assessment is ${fmtDol(data.assessedValue)}. A purchase at ${askFmt} will likely trigger reassessment upward at next cycle. Model the additional tax burden in your pro forma before submitting an LOI.`} />
+          );
+        })()}
         <Bullet bold="Get quotes from local insurance brokers. "
           rest={`Insurance estimates in this report are rule-of-thumb. Actual premiums depend on building age, condition, claims history, crime data, and flood zone${hasFema && !data.femaZone.includes("X") ? ` (flood insurance will be required for this property)` : ""}. Get a real quote before LOI.`} />
 

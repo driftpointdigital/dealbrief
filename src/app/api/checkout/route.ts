@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   for (const f of [
     "address","propertyType","yearBuilt","buildingArea","lotSize",
     "units","unitMix","zoning","assessedValue","landValue","improvements",
-    "taxRate","askingPrice","brokerCapRate","occupancy","inPlaceRents",
+    "annualTaxes","askingPrice","brokerCapRate","occupancy","inPlaceRents",
     "brokerClaims","amortYears","ioPeriod",
   ]) {
     if (body[f]) metadata[f] = String(body[f]).slice(0, 500);
@@ -49,9 +49,9 @@ export async function POST(req: NextRequest) {
   const bd  = body.badDebtPct     ? String(body.badDebtPct)     : "1.0";
   const oth = body.otherIncomePct ? String(body.otherIncomePct) : "50";
   metadata.revAssumptions = `${vac},${bd},${oth}`.slice(0, 50);
+  if (body.opexOverrides) metadata.opexOverrides = String(body.opexOverrides).slice(0, 100);
 
   // Pipeline — Assessor extras
-  if (assessor.annualTaxes) metadata.annualTaxes   = String(assessor.annualTaxes).slice(0, 50);
   if (assessor.parcelId)    metadata.parcelId      = String(assessor.parcelId).slice(0, 100);
   if (assessor.source)      metadata.assessorSource = String(assessor.source).slice(0, 100);
   // Sale history — packed as "price|year" (pipe separator avoids clash with dollar-formatted price)

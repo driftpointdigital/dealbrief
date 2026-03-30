@@ -109,6 +109,7 @@ export async function GET(req: NextRequest) {
     hudPropNames:     m.hudPropNames     ?? "",
     // BLS employment
     blsData: m.blsData ?? "",
+    opexOverrides: m.opexOverrides ?? "",
   };
 
   let pdfBuffer: Buffer;

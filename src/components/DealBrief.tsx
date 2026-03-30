@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from "react";
 
 const MOCK_RETURN_DATA = {
   address: "2718 Cleveland St, Dallas, TX 75215",
-  propertyType: "Multifamily Apartment",
   yearBuilt: "1961",
   buildingArea: "8,000 SF",
   lotSize: "0.29 AC",
@@ -13,7 +12,7 @@ const MOCK_RETURN_DATA = {
   assessedValue: "$925,000",
   landValue: "$125,000",
   improvementValue: "$800,000",
-  taxRate: "2.3%",
+  annualTaxes: "$21,000",
   femaFloodZone: "Zone X",
   walkScore: "72",
   bikeScore: "54",
@@ -146,6 +145,13 @@ export default function DealBrief() {
   const [vacancyPct, setVacancyPct] = useState("5.0");
   const [badDebtPct, setBadDebtPct] = useState("1.0");
   const [otherIncomePct, setOtherIncomePct] = useState("50");
+  const [insurancePerUnit, setInsurancePerUnit] = useState("800");
+  const [maintenancePerUnit, setMaintenancePerUnit] = useState("500");
+  const [utilitiesPerUnit, setUtilitiesPerUnit] = useState("250");
+  const [managementPct, setManagementPct] = useState("8.0");
+  const [marketingPerUnit, setMarketingPerUnit] = useState("150");
+  const [adminPerUnit, setAdminPerUnit] = useState("100");
+  const [reservesPerUnit, setReservesPerUnit] = useState("250");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -169,6 +175,7 @@ export default function DealBrief() {
     body.vacancyPct = vacancyPct;
     body.badDebtPct = badDebtPct;
     body.otherIncomePct = otherIncomePct;
+    body.opexOverrides = [insurancePerUnit, maintenancePerUnit, utilitiesPerUnit, managementPct, marketingPerUnit, adminPerUnit, reservesPerUnit].join(",");
     if (data?._pipeline) body._pipeline = data._pipeline;
 
     try {
@@ -204,7 +211,6 @@ export default function DealBrief() {
       const pipelineData = (!res.ok || pipeline.error) ? null : pipeline;
       setData({
         address: pipeline?.geo?.formattedAddress || address,
-        propertyType: a.propertyType || "",
         yearBuilt:    a.yearBuilt    || "",
         buildingArea: a.buildingArea || "",
         lotSize:      a.lotSize      || "",
@@ -214,7 +220,7 @@ export default function DealBrief() {
         assessedValue:    a.assessedValue  || "",
         landValue:        a.landValue      || "",
         improvementValue: a.improvements   || "",
-        taxRate:          a.taxRate        || "",
+        annualTaxes:      a.annualTaxes    || "",
         femaFloodZone:    pipelineData?.fema?.floodZone || "",
         walkScore:        pipelineData?.walkscore?.walk?.toString() || "",
         bikeScore:        pipelineData?.walkscore?.bike?.toString() || "",
@@ -229,6 +235,10 @@ export default function DealBrief() {
         medianRent:      pipelineData?.census?.medianRent || "",
         _pipeline: pipelineData,
       } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
+      // Auto-set maintenance default from year built
+      const yrStr = a.yearBuilt || "";
+      const yr = parseInt(yrStr) || 0;
+      setMaintenancePerUnit(yr >= 2000 ? "500" : yr >= 1980 ? "750" : yr > 0 ? "1000" : "500");
     } catch {
       setData({ ...MOCK_RETURN_DATA, address: "" } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
     }
@@ -296,25 +306,41 @@ export default function DealBrief() {
 
         <input type="hidden" name="address" value={data.address} />
 
+        <input type="hidden" name="propertyType" value="Multifamily" />
         <SectionCard title="Property">
-          <FieldRow label="Type" name="propertyType" value={data.propertyType} />
           <FieldRow label="Year Built" name="yearBuilt" value={data.yearBuilt} />
           <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea} />
           <FieldRow label="Lot Size" name="lotSize" value={data.lotSize} />
           <FieldRow label="Units" name="units" value={data.units} />
           <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
-          <FieldRow label="Zoning" name="zoning" value={data.zoning} placeholder="e.g. MF-2, R-3" />
+          {data.zoning && (
+            <>
+              <input type="hidden" name="zoning" value={data.zoning} />
+              <FieldRow label="Zoning" value={data.zoning} editable={false} />
+            </>
+          )}
         </SectionCard>
 
-        {/* Tax Assessment — only shown when auto-fetch failed */}
-        {!data.assessedValue && (
-          <SectionCard title="Tax Assessment · Not Found">
-            <FieldRow label="Assessed Value" name="assessedValue" value="" placeholder="e.g. $925,000" />
-            <FieldRow label="Land Value" name="landValue" value="" placeholder="e.g. $125,000" />
-            <FieldRow label="Improvements" name="improvements" value="" placeholder="e.g. $800,000" />
-            <FieldRow label="Effective Tax Rate" name="taxRate" value="" placeholder="e.g. 2.3%" />
-          </SectionCard>
-        )}
+        {/* Tax Assessment — always shown; pre-populated when auto-fetched */}
+        <SectionCard title={data.assessedValue ? "Tax Assessment" : "Tax Assessment · Not Found"}>
+          <FieldRow label="Assessed Value" name="assessedValue" value={data.assessedValue} placeholder="e.g. $925,000" />
+          <FieldRow label="Land Value" name="landValue" value={data.landValue} placeholder="e.g. $125,000" />
+          <FieldRow label="Improvements" name="improvements" value={data.improvementValue} placeholder="e.g. $800,000" />
+          <FieldRow label="Annual Taxes ($)" name="annualTaxes" value={data.annualTaxes} placeholder="e.g. $21,000" />
+          {(() => {
+            const parseNum = (s: string) => parseFloat((s || "").replace(/[$,]/g, ""));
+            const av = parseNum(data.assessedValue);
+            const t  = parseNum(data.annualTaxes);
+            if (av > 0 && t > 0) {
+              return (
+                <div style={{ padding: "8px 24px 4px", fontSize: 12, color: "#6B7280" }}>
+                  Effective tax rate: <strong style={{ color: "#374151" }}>{(t / av * 100).toFixed(2)}%</strong> (computed)
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </SectionCard>
 
         <SectionCard title="Deal Inputs · Optional">
           <FieldRow label="Asking Price" name="askingPrice" value="" placeholder="$995,000" />
@@ -386,6 +412,40 @@ export default function DealBrief() {
                   />
                   <span style={{ fontSize: 13, color: "#6B7280" }}>% other income<br/><span style={{ fontSize: 11, color: "#9CA3AF" }}>(% of 1 mo. rent)</span></span>
                 </div>
+              </div>
+            </div>
+            {/* OpEx Assumptions */}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
+                OpEx Assumptions ($/unit/yr)
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                {([
+                  ["Insurance", insurancePerUnit, setInsurancePerUnit, "$/unit"],
+                  ["Maintenance", maintenancePerUnit, setMaintenancePerUnit, "$/unit"],
+                  ["Utilities", utilitiesPerUnit, setUtilitiesPerUnit, "$/unit"],
+                  ["Mgmt", managementPct, setManagementPct, "% EGI"],
+                  ["Marketing", marketingPerUnit, setMarketingPerUnit, "$/unit"],
+                  ["Admin", adminPerUnit, setAdminPerUnit, "$/unit"],
+                  ["Reserves", reservesPerUnit, setReservesPerUnit, "$/unit"],
+                ] as [string, string, (v: string) => void, string][]).map(([lbl, val, setter, unit]) => (
+                  <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ width: 72, fontSize: 12, color: "#6B7280", flexShrink: 0 }}>{lbl}</span>
+                    <input
+                      type="text"
+                      value={val}
+                      onChange={e => setter(e.target.value)}
+                      style={{
+                        width: 52, padding: "5px 8px", fontSize: 13, color: "#111827",
+                        border: "1.5px solid #D1D5DB", borderRadius: 4, textAlign: "center",
+                        fontFamily: "inherit", outline: "none",
+                      }}
+                      onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                      onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+                    />
+                    <span style={{ fontSize: 12, color: "#9CA3AF" }}>{unit}</span>
+                  </div>
+                ))}
               </div>
             </div>
             {/* Rates */}
