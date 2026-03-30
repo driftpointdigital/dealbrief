@@ -237,9 +237,16 @@ export default function DealBrief() {
 
   const submitSuggest = () => {
     if (!suggestVal.trim()) return;
+    const market = suggestVal.trim();
     setSuggestDone(true);
     setSuggestVal("");
     setTimeout(() => { setSuggestDone(false); setSuggestOpen(false); }, 2500);
+    // Fire-and-forget — don't block UI on Airtable response
+    fetch("/api/suggest-market", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ market }),
+    }).catch(() => { /* silently ignore network errors */ });
   };
 
   const features = [
