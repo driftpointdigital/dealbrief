@@ -199,7 +199,12 @@ function computeBoe(data: ReportData): BoeEst | null {
   const cap  = parseFloat(data.brokerCapRate) || 0;
   const units = parseInt(data.units) || 0;
   const yr    = parseInt(data.yearBuilt) || 0;
-  if (!ask || !cap) return null;
+  if (!ask) return null;
+  // Broker cap rate is a comparison point only — analysis runs from rents or census median
+  const hasRevenue = cap > 0
+    || !!parseRentPerUnit(data.inPlaceRents)
+    || parseDol(data.censusRent) > 0;
+  if (!hasRevenue) return null;
   const brokerNoi = ask * (cap / 100);
 
   // Taxes: use actual if available, compute from assessment × rate as fallback
@@ -1211,10 +1216,14 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     <Text style={[s.tHCell, { width: 48 }]}>Signal</Text>
                   </View>
                   {ltvScs.map((sc, i) => {
-                    const cf = model.noi !== null ? model.noi - sc.annualDebtService : null;
-                    const sig = sc.dscr === null ? "—"
-                      : sc.dscr >= 1.10 && sc.coc !== null && sc.coc >= 0.07 ? "GO"
-                      : sc.dscr >= 1.0 ? "WATCH"
+                    // Broker cap rate is comparison only — always use BOE estimated NOI
+                    const estNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
+                    const cf = estNoi !== null ? estNoi - sc.annualDebtService : null;
+                    const dscr = estNoi !== null && sc.annualDebtService > 0 ? estNoi / sc.annualDebtService : null;
+                    const coc = cf !== null ? cf / (equity * 1.015) : null;
+                    const sig = dscr === null ? "—"
+                      : dscr >= 1.10 && coc !== null && coc >= 0.07 ? "GO"
+                      : dscr >= 1.0 ? "WATCH"
                       : "STOP";
                     const sigColor = sig === "GO" ? GREEN : sig === "WATCH" ? AMBER : sig === "STOP" ? RED : GRAY;
                     return (
@@ -1224,11 +1233,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                         <Text style={[s.tCell, { width: 88, color: cf !== null ? (cf >= 0 ? GREEN : RED) : "#1F2937" }]}>
                           {cf !== null ? (cf >= 0 ? "+" : "") + fmt$(cf) : "—"}
                         </Text>
-                        <Text style={[s.tCell, { width: 56, color: dscrColor(sc.dscr) }]}>
-                          {sc.dscr !== null ? fmtX(sc.dscr) : "—"}
+                        <Text style={[s.tCell, { width: 56, color: dscrColor(dscr) }]}>
+                          {dscr !== null ? fmtX(dscr) : "—"}
                         </Text>
-                        <Text style={[s.tCell, { flex: 1, color: cocColor(sc.coc) }]}>
-                          {sc.coc !== null ? fmtPct(sc.coc * 100) : "—"}
+                        <Text style={[s.tCell, { flex: 1, color: cocColor(coc) }]}>
+                          {coc !== null ? fmtPct(coc * 100) : "—"}
                         </Text>
                         <Text style={[s.tCell, { width: 48, fontFamily: "Helvetica-Bold", color: sigColor }]}>{sig}</Text>
                       </View>
@@ -1239,7 +1248,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             })}
 
             {/* All-cash */}
-            {model.noi !== null && askNum > 0 && (
+            {boe && boe.estNoi !== 0 && askNum > 0 && (
               <View style={{ marginTop: 4, marginBottom: 10 }}>
                 <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
                   All-Cash — {askFmt} equity | No debt | No I/O consideration
@@ -1250,14 +1259,18 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   <Text style={[s.tHCell, { flex: 1 }]}>Unleveraged CoC</Text>
                 </View>
                 <View style={s.tRow}>
-                  <Text style={[s.tCell, { width: 130 }]}>Broker-stated (in-place)</Text>
-                  <Text style={[s.tCell, { width: 100, color: GREEN }]}>+{fmt$(model.noi)}</Text>
-                  <Text style={[s.tCell, { flex: 1, color: GREEN }]}>{fmtPct((model.noi / askNum) * 100)}</Text>
+                  <Text style={[s.tCell, { width: 130 }]}>Est. NOI (rent-based)</Text>
+                  <Text style={[s.tCell, { width: 100, color: boe.estNoi >= 0 ? GREEN : RED }]}>
+                    {(boe.estNoi >= 0 ? "+" : "") + fmt$(boe.estNoi)}
+                  </Text>
+                  <Text style={[s.tCell, { flex: 1, color: (boe.estNoi / askNum) >= 0 ? GREEN : RED }]}>
+                    {fmtPct((boe.estNoi / askNum) * 100)}
+                  </Text>
                 </View>
               </View>
             )}
             <Text style={s.note}>
-              DSCR and CoC calculated using broker cap rate to derive NOI. GO = 1.10x+ DSCR and 7%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
+              DSCR and CoC calculated using estimated NOI (rents – operating expenses). Broker cap rate shown for reference only. GO = 1.10x+ DSCR and 7%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
             </Text>
           </>
         )}
