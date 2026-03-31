@@ -786,7 +786,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </>
             )}
             {!hasSchools && (
-              <Text style={s.note}>School ratings not available for this address.</Text>
+              <Text style={s.note}>School ratings temporarily unavailable — verify at greatschools.org using the property ZIP code.</Text>
             )}
             <Text style={s.note}>Source: GreatSchools NearbySchools API (School Quality plan). Rating bands: Above Average / Average / Below Average.</Text>
           </>
