@@ -635,7 +635,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Lot Size"         value={data.lotSize} />
           <Row label="Units"            value={data.units + (data.unitMix ? ": " + data.unitMix : "")} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
-          {data.assessorSource && <Row label="Assessor Source"  value={data.assessorSource} alt />}
           {data.parcelId      && <Row label="Parcel ID"        value={data.parcelId} />}
           {(data.salePrice || data.saleYear) && (
             <Row label="Last Recorded Sale"
@@ -656,7 +655,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
               {data.occupancy     && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
               {data.inPlaceRents  && <Row label="In-Place Rents"    value={data.inPlaceRents} />}
-              {hasCensus && data.censusRent && (
+              {data.censusRent && (
                 <Row label={"Area Median Rent" + (zip ? " (ZIP " + zip + ")" : "")}
                   value={data.censusRent + "/mo  (Census ACS 5-yr)"} alt />
               )}
@@ -726,10 +725,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {(() => {
                 const av2 = parseDol(data.assessedValue);
                 const ask2 = parseDol(data.askingPrice);
+                const src = data.assessorSource ? `Source: ${data.assessorSource}.` : "Source: County appraisal district.";
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
-                  return "Source: County appraisal district. Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.";
+                  return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.`;
                 }
-                return "Source: County appraisal district. Tax amounts reflect current assessment; upon sale, county may reassess to the purchase price.";
+                return `${src} Tax amounts reflect current assessment; upon sale, county may reassess to the purchase price.`;
               })()}
             </Text>
           </>
