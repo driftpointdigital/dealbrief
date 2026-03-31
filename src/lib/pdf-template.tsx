@@ -227,9 +227,10 @@ function computeBoe(data: ReportData): BoeEst | null {
   const bdPct   = parseFloat(data.badDebtPct  || "1.0")  || 1.0;
   const othPct  = parseFloat(data.otherIncomePct || "50") || 50;
 
-  // GPR: use in-place rents if provided, otherwise derive from broker NOI
+  // GPR: use in-place rents if provided, fall back to ZIP median rent, then derive from broker NOI
   let gpr: number, egi: number, management: number, totalOpEx: number;
-  const rentPerUnit = parseRentPerUnit(data.inPlaceRents);
+  const rentPerUnit = parseRentPerUnit(data.inPlaceRents)
+    || (units > 0 && parseDol(data.censusRent) > 0 ? parseDol(data.censusRent) : null);
   if (rentPerUnit && units > 0) {
     gpr = rentPerUnit * units * 12;
     const vacancyAmt  = gpr * (vacPct / 100);
@@ -766,7 +767,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {hasSchools && (
               <>
                 <Text style={[s.note, { marginTop: 4, marginBottom: 3, fontFamily: "Helvetica-Bold", color: NAVY, fontStyle: "normal" }]}>
-                  Nearby Public Schools (GreatSchools)
+                  GreatSchools Rating Bands
                 </Text>
                 <View style={s.tableWrap}>
                   {schoolsList.map((sc, i) => (
@@ -788,7 +789,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {!hasSchools && (
               <Text style={s.note}>School ratings temporarily unavailable — verify at greatschools.org using the property ZIP code.</Text>
             )}
-            <Text style={s.note}>Source: GreatSchools NearbySchools API (School Quality plan). Rating bands: Above Average / Average / Below Average.</Text>
+            <Text style={s.note}>School data provided by GreatSchools.org © 2025. All rights reserved.</Text>
           </>
         )}
 
@@ -1132,7 +1133,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {/* Revenue sub-header */}
             <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 4 }}>REVENUE</Text>
             <View style={s.tableWrap}>
-              <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo)" : "")}
+              <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo" + (!data.inPlaceRents && data.censusRent ? ", area median est." : "") + ")" : "")}
                 value={fmt$(boe.gpr) + "/yr"} />
               <Row label={"  Less Vacancy (" + boe.vacancyPct.toFixed(2) + "%)"}
                 value={"– " + fmt$(boe.vacancyAmt) + "/yr"} alt />
