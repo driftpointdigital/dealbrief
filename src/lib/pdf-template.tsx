@@ -1174,6 +1174,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {/* Bottom line */}
             <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
             <SubtotalRow label="Est. In-Place NOI  (EGI – OpEx)" value={fmt$(boe.estNoi) + "/yr"} />
+            {boe.egi > 0 && (
+              <View style={[s.tableWrap, { marginTop: 2, marginBottom: 0 }]}>
+                <Row label="NOI Margin" value={(boe.estNoi / boe.egi * 100).toFixed(1) + "%"} alt />
+              </View>
+            )}
             <View style={[s.tableWrap, { marginTop: 4 }]}>
               <Row label="Broker-Implied NOI"
                 value={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
