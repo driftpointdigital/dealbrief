@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     landValue:      pick("landValue"),
     improvements:   pick("improvements"),
     taxRate:        assessor.taxRate != null
-                      ? (Number(assessor.taxRate) * 100).toFixed(2) + "%"
+                      ? String(assessor.taxRate).slice(0, 20)
                       : pick("taxRate"),
     annualTaxes:    pick("annualTaxes"),
     parcelId:       str(assessor.parcelId,    100),

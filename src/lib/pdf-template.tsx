@@ -575,11 +575,37 @@ function Bullet({ bold, rest }: { bold: string; rest: string }) {
   );
 }
 
-function SubtotalRow({ label, value }: { label: string; value: string }) {
+function SubtotalRow({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
     <View style={{ flexDirection: "row", paddingVertical: 5, paddingHorizontal: 0, borderTopWidth: 1.5, borderTopColor: NAVY, backgroundColor: LIGHT }}>
-      <Text style={{ width: 168, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={{ width: 148, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
       <Text style={{ flex: 1, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY }}>{value}</Text>
+      <Text style={{ width: 92, fontSize: 8, color: GRAY, textAlign: "right" }}>{unit || ""}</Text>
+    </View>
+  );
+}
+
+function BoeRow({ label, total, unit, alt }: { label: string; total: string; unit?: string; alt?: boolean }) {
+  return (
+    <View style={alt ? s.rowAlt : s.row}>
+      <Text style={{ width: 148, fontSize: 8, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 8.5, color: "#374151" }}>{total}</Text>
+      <Text style={{ width: 92, fontSize: 8, color: GRAY, textAlign: "right" }}>{unit || ""}</Text>
+    </View>
+  );
+}
+
+function CrimeGradeBox({ grades }: { grades: Array<{ label: string; grade: string }> }) {
+  const visible = grades.filter(g => g.grade);
+  if (!visible.length) return null;
+  return (
+    <View style={{ flexDirection: "row", borderWidth: 1.5, borderColor: NAVY, borderRadius: 4, paddingVertical: 8, paddingHorizontal: 12, marginVertical: 6, justifyContent: "space-around", backgroundColor: LIGHT }}>
+      {visible.map((g, i) => (
+        <View key={i} style={{ alignItems: "center", flex: 1 }}>
+          <Text style={{ fontSize: 7.5, color: GRAY, marginBottom: 3 }}>{g.label}</Text>
+          <Text style={{ fontSize: 18, fontFamily: "Helvetica-Bold", color: crimeGradeColor(g.grade) }}>{g.grade}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -622,6 +648,21 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const askNum        = parseDol(data.askingPrice);          // user's stated price only
   const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
   const unitsNum    = parseInt(data.units) || 0;
+
+  // Tax-adjusted NOI — computed here so both BOE and debt service sections can use it
+  const effTaxRate = (() => {
+    if (!boe) return 0;
+    const taxes = parseDol(data.annualTaxes);
+    const av    = parseDol(data.assessedValue);
+    if (taxes > 0 && av > 0) return taxes / av;
+    const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
+    if (!isNaN(tr) && tr > 0) return tr / 100;
+    return 0;
+  })();
+  const taxAdjTaxes = boe && effTaxRate > 0 && askNum > 0 ? Math.round(askNum * effTaxRate) : 0;
+  const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi - boe.taxes + taxAdjTaxes : 0;
+  const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && Math.abs(taxAdjTaxes - boe.taxes) > 500;
+
   const bldgSF      = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
   const pricePerUnit = unitsNum > 0 && effectiveAskNum > 0 ? fmt$(effectiveAskNum / unitsNum) + " / unit" : "";
   const pricePerSF   = bldgSF > 0  && effectiveAskNum > 0 ? fmt$(effectiveAskNum / bldgSF)   + " / SF"   : "";
@@ -707,7 +748,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 );
               })()}
               {data.occupancy    && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
-              {data.inPlaceRents && <Row label="In-Place Rents"    value={data.inPlaceRents} />}
+              {data.inPlaceRents && <Row label="In-Place Rents"    value={fmtDol(data.inPlaceRents) + "/mo"} />}
               {data.censusRent && (
                 <Row label={"Area Median Rent" + (zip ? " (ZIP " + zip + ")" : "")}
                   value={data.censusRent + "/mo  (Census ACS 5-yr)"} alt />
@@ -926,38 +967,30 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </View>
               ))}
             </View>
-            <View style={{ flexDirection: "row", marginBottom: 3 }}>
-              {[
-                { label: "Overall Grade", grade: parsedCrime.overallGrade },
-                { label: "Violent Grade", grade: parsedCrime.violentGrade },
-                { label: "Property Grade", grade: parsedCrime.propertyGrade },
-              ].filter(g => g.grade).map((g, i) => (
-                <View key={i} style={{ flexDirection: "row" }}>
-                  <Text style={{ fontSize: 8, color: GRAY }}>{g.label}:</Text>
-                  <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: crimeGradeColor(g.grade) }}>{g.grade}</Text>
-                </View>
-              ))}
-            </View>
+            <CrimeGradeBox grades={[
+              { label: "Overall Grade",  grade: parsedCrime.overallGrade  || "" },
+              { label: "Violent Grade",  grade: parsedCrime.violentGrade  || "" },
+              { label: "Property Grade", grade: parsedCrime.propertyGrade || "" },
+            ]} />
             <Text style={s.note}>
               Source: Dallas Open Data (NIBRS-coded incidents), {parsedCrime.yearRange} annual average. National comparison: FBI UCR 2022.
             </Text>
           </>
         ) : hasCrime ? (
           <>
-            <View style={s.tableWrap}>
-              <Row label="Overall Crime Grade"
-                value={crimeGrade
-                  + (data.crimeRate ? " — " + data.crimeRate + " per 1,000 residents" : "")
-                  + (data.crimePct ? " (safer than " + data.crimePct + "% of U.S. ZIPs)" : "")} />
-              {(parsedCrime?.violentGrade || data.crimeViolent) && (
-                <Row label="Violent Crime Grade"
-                  value={(parsedCrime?.violentGrade || data.crimeViolent)
-                    + (data.crimeViolentRate ? " — " + data.crimeViolentRate + " per 1,000" : "")} alt />
-              )}
-              {(parsedCrime?.propertyGrade || data.crimeProp) && (
-                <Row label="Property Crime Grade" value={parsedCrime?.propertyGrade || data.crimeProp} />
-              )}
-            </View>
+            <CrimeGradeBox grades={[
+              { label: "Overall Grade",   grade: parsedCrime?.overallGrade  || data.crimeOverall  || "" },
+              { label: "Violent Grade",   grade: parsedCrime?.violentGrade  || data.crimeViolent  || "" },
+              { label: "Property Grade",  grade: parsedCrime?.propertyGrade || data.crimeProp     || "" },
+            ]} />
+            {(data.crimeRate || data.crimePct) && (
+              <View style={s.tableWrap}>
+                <Row label="Overall Crime Grade"
+                  value={crimeGrade
+                    + (data.crimeRate ? " — " + data.crimeRate + " per 1,000 residents" : "")
+                    + (data.crimePct ? " (safer than " + data.crimePct + "% of U.S. ZIPs)" : "")} />
+              </View>
+            )}
             <Text style={s.note}>
               {parsedCrime?.source === "fbi_cde"
                 ? `Source: FBI Crime Data Explorer (NIBRS)${parsedCrime.yearRange ? ", " + parsedCrime.yearRange + " avg" : ""}${parsedCrime.agencyName ? " — " + parsedCrime.agencyName : ""}. Grades computed vs. FBI UCR 2022 national averages.`
@@ -1174,79 +1207,94 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         )}
 
         {/* BACK-OF-ENVELOPE ANALYSIS */}
-        {boe !== null && (
-          <>
-            <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
-            <Text style={[s.note, { marginBottom: 6 }]}>
-              {data.brokerCapRate
-                ? `Revenue derived from broker-stated cap rate (${data.brokerCapRate}) on asking price (${askFmt}).`
-                : data.inPlaceRents
-                  ? `Revenue derived from in-place rents (${data.inPlaceRents}).`
-                  : `Revenue derived from ZIP area median rent (Census ACS) — no in-place rents provided.`}
-              {" "}Expense estimates are rule-of-thumb; verify with actual T-12 operating statement.
-              {" "}Revenue assumptions: {boe.vacancyPct.toFixed(2)}% vacancy · {boe.badDebtPct.toFixed(2)}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income.
-            </Text>
+        {boe !== null && (() => {
+            // Per-unit helpers (only when units > 0)
+            const pu    = (v: number) => unitsNum > 0 ? fmt$(Math.round(v / unitsNum)) + "/unit/yr" : "";
+            const puMo  = (v: number) => unitsNum > 0 ? fmt$(Math.round(v / unitsNum / 12)) + "/unit/mo" : "";
 
-            {/* Revenue sub-header */}
-            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 4 }}>REVENUE</Text>
-            <View style={s.tableWrap}>
-              <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + (isSFR ? "/mo" : "/unit/mo") + (!data.inPlaceRents && data.censusRent ? ", area median est." : "") + ")" : "")}
-                value={fmt$(boe.gpr) + "/yr"} />
-              <Row label={"  Less Vacancy (" + boe.vacancyPct.toFixed(2) + "%)"}
-                value={"– " + fmt$(boe.vacancyAmt) + "/yr"} alt />
-              <Row label={"  Less Bad Debt / Collection Loss (" + boe.badDebtPct.toFixed(2) + "%)"}
-                value={"– " + fmt$(boe.badDebtAmt) + "/yr"} />
-              <Row label={"  Plus Other Income (" + boe.otherIncomePct + "% of 1 mo. rent)"}
-                value={"+ " + fmt$(boe.otherIncomeAmt) + "/yr"} alt />
-            </View>
-            <SubtotalRow label="Effective Gross Income (EGI)" value={fmt$(boe.egi) + "/yr"} />
+            return (
+              <>
+                <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
+                <Text style={s.note}>
+                  Assumptions: {boe.vacancyPct.toFixed(1)}% vacancy · {boe.badDebtPct.toFixed(1)}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income. Verify with actual T-12.
+                </Text>
 
-            {/* Expenses sub-header */}
-            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>OPERATING EXPENSES</Text>
-            <View style={s.tableWrap}>
-              <Row label="Est. Property Taxes"
-                value={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr  (" + boe.taxesSource + ")" : "Not available"} />
-              <Row label={"Est. Insurance  (~$" + Math.round(boe.opexInputs.insurancePerUnit) + "/unit)"}
-                value={fmt$(boe.insurance) + "/yr"} alt />
-              <Row label={"Est. Maintenance  (~$" + Math.round(boe.opexInputs.maintenancePerUnit) + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : yrBuilt > 0 ? "pre-1980" : "unknown") + " vintage)"}
-                value={fmt$(boe.maintenance) + "/yr"} />
-              <Row label={"Est. Utilities  (~$" + Math.round(boe.opexInputs.utilitiesPerUnit) + "/unit)"}
-                value={fmt$(boe.utilities) + "/yr"} alt />
-              <Row label={"Est. Marketing & Leasing  (~$" + Math.round(boe.opexInputs.marketingPerUnit) + "/unit)"}
-                value={fmt$(boe.marketing) + "/yr"} />
-              <Row label={"Est. Administrative  (~$" + Math.round(boe.opexInputs.adminPerUnit) + "/unit)"}
-                value={fmt$(boe.admin) + "/yr"} alt />
-              <Row label={"Est. Reserves / Other  (~$" + Math.round(boe.opexInputs.reservesPerUnit) + "/unit)"}
-                value={fmt$(boe.reserves) + "/yr"} />
-              <Row label={"Est. Property Management (" + boe.opexInputs.managementPct.toFixed(1) + "% of EGI)"}
-                value={fmt$(boe.management) + "/yr"} alt />
-            </View>
-            <SubtotalRow label="Est. Total Operating Expenses" value={fmt$(boe.totalOpEx) + "/yr"} />
+                {/* Column header */}
+                <View style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 0, marginTop: 6 }}>
+                  <Text style={{ width: 148, fontSize: 7, color: GRAY }} />
+                  <Text style={{ flex: 1, fontSize: 7, color: GRAY }}>Annual Total</Text>
+                  <Text style={{ width: 92, fontSize: 7, color: GRAY, textAlign: "right" }}>Per Unit</Text>
+                </View>
 
-            {/* Bottom line */}
-            <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
-            <SubtotalRow label="Est. In-Place NOI  (EGI – OpEx)" value={fmt$(boe.estNoi) + "/yr"} />
-            {boe.egi > 0 && (
-              <View style={[s.tableWrap, { marginTop: 2, marginBottom: 0 }]}>
-                <Row label="NOI Margin" value={(boe.estNoi / boe.egi * 100).toFixed(1) + "%"} alt />
-              </View>
-            )}
-            <View style={[s.tableWrap, { marginTop: 4 }]}>
-              {data.brokerCapRate && (
-                <Row label="Broker-Implied NOI"
-                  value={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
-              )}
-              <Row label="Breakeven Occupancy  (OpEx / Revenue)"
-                value={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"}
-                alt={!data.brokerCapRate} />
-            </View>
+                {/* Revenue sub-header */}
+                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2 }}>REVENUE</Text>
+                <View style={s.tableWrap}>
+                  <BoeRow label={"Gross Potential Revenue (GPR)" + (!data.inPlaceRents && data.censusRent ? "  (area median est.)" : "")}
+                    total={fmt$(boe.gpr) + "/yr"}
+                    unit={unitsNum > 0 ? fmt$(boe.gprPerUnitPerMonth) + (isSFR ? "/mo" : "/unit/mo") : ""} />
+                  <BoeRow label={"  Less Vacancy (" + boe.vacancyPct.toFixed(1) + "%)"}
+                    total={"– " + fmt$(boe.vacancyAmt) + "/yr"} alt />
+                  <BoeRow label={"  Less Bad Debt (" + boe.badDebtPct.toFixed(1) + "%)"}
+                    total={"– " + fmt$(boe.badDebtAmt) + "/yr"} />
+                  <BoeRow label={"  Plus Other Income (" + boe.otherIncomePct + "% of 1 mo. rent)"}
+                    total={"+ " + fmt$(boe.otherIncomeAmt) + "/yr"} alt />
+                </View>
+                <SubtotalRow label="Effective Gross Income (EGI)" value={fmt$(boe.egi) + "/yr"} unit={puMo(boe.egi)} />
 
-            <Text style={s.note}>
-              Management fee may not be included in broker's stated NOI — verify with seller. Insurance, maintenance, and utility estimates are approximate; request actual trailing-12 from seller.
-              {boe.breakevenOcc > 0 ? " Breakeven occupancy calculated as total OpEx divided by total revenue potential (GPR + other income)." : ""}
-            </Text>
-          </>
-        )}
+                {/* Expenses sub-header */}
+                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>OPERATING EXPENSES</Text>
+                <View style={s.tableWrap}>
+                  <BoeRow label={"Est. Property Taxes  (" + boe.taxesSource + ")"}
+                    total={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr" : "Not available"}
+                    unit={boe.taxes > 0 ? pu(boe.taxes) : ""} />
+                  <BoeRow label={"Est. Insurance  (~$" + Math.round(boe.opexInputs.insurancePerUnit) + "/unit)"}
+                    total={fmt$(boe.insurance) + "/yr"} unit={pu(boe.insurance)} alt />
+                  <BoeRow label={"Est. Maintenance  (~$" + Math.round(boe.opexInputs.maintenancePerUnit) + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : yrBuilt > 0 ? "pre-1980" : "unknown") + " vintage)"}
+                    total={fmt$(boe.maintenance) + "/yr"} unit={pu(boe.maintenance)} />
+                  <BoeRow label={"Est. Utilities  (~$" + Math.round(boe.opexInputs.utilitiesPerUnit) + "/unit)"}
+                    total={fmt$(boe.utilities) + "/yr"} unit={pu(boe.utilities)} alt />
+                  <BoeRow label={"Est. Marketing & Leasing  (~$" + Math.round(boe.opexInputs.marketingPerUnit) + "/unit)"}
+                    total={fmt$(boe.marketing) + "/yr"} unit={pu(boe.marketing)} />
+                  <BoeRow label={"Est. Administrative  (~$" + Math.round(boe.opexInputs.adminPerUnit) + "/unit)"}
+                    total={fmt$(boe.admin) + "/yr"} unit={pu(boe.admin)} alt />
+                  <BoeRow label={"Est. Reserves / Other  (~$" + Math.round(boe.opexInputs.reservesPerUnit) + "/unit)"}
+                    total={fmt$(boe.reserves) + "/yr"} unit={pu(boe.reserves)} />
+                  <BoeRow label={"Est. Property Management (" + boe.opexInputs.managementPct.toFixed(1) + "% of EGI)"}
+                    total={fmt$(boe.management) + "/yr"} unit={pu(boe.management)} alt />
+                </View>
+                <SubtotalRow label="Est. Total Operating Expenses" value={fmt$(boe.totalOpEx) + "/yr"} unit={pu(boe.totalOpEx)} />
+
+                {/* Bottom line */}
+                <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
+                <SubtotalRow label="Est. In-Place NOI  (current taxes)" value={fmt$(boe.estNoi) + "/yr"} unit={pu(boe.estNoi)} />
+                {showTaxAdj && (
+                  <SubtotalRow
+                    label={"Est. Tax-Adjusted NOI  (" + (effTaxRate * 100).toFixed(2) + "% × ask)"}
+                    value={fmt$(taxAdjNoi) + "/yr"}
+                    unit={pu(taxAdjNoi)} />
+                )}
+                {boe.egi > 0 && (
+                  <View style={[s.tableWrap, { marginTop: 2, marginBottom: 0 }]}>
+                    <BoeRow label="NOI Margin (in-place)" total={(boe.estNoi / boe.egi * 100).toFixed(1) + "%"} alt />
+                  </View>
+                )}
+                <View style={[s.tableWrap, { marginTop: 4 }]}>
+                  {data.brokerCapRate && (
+                    <BoeRow label="Broker-Implied NOI"
+                      total={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
+                  )}
+                  <BoeRow label="Breakeven Occupancy  (OpEx / Revenue)"
+                    total={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"}
+                    alt={!data.brokerCapRate} />
+                </View>
+
+                <Text style={s.note}>
+                  Management fee may not be included in broker&apos;s stated NOI — verify with seller. Insurance, maintenance, and utility estimates are approximate; request T-12 from seller.
+                  {showTaxAdj ? ` Tax-adjusted NOI assumes taxes reassess to ${(effTaxRate * 100).toFixed(2)}% × ask price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr).` : ""}
+                </Text>
+              </>
+            );
+          })()}
 
         {/* DEBT SERVICE SCENARIOS */}
         {model.scenarios.length > 0 && (
@@ -1259,14 +1307,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             </Text>
 
             {[...new Set(model.scenarios.map(sc => sc.ltv))].map(ltv => {
-              const ltvScs = model.scenarios.filter(sc => sc.ltv === ltv);
+              const ltvScs  = model.scenarios.filter(sc => sc.ltv === ltv);
               const loanAmt = ltvScs[0]?.loanAmount ?? 0;
               const equity  = askNum * (1 - ltv / 100);
-              return (
-                <View key={ltv} style={{ marginBottom: 14 }}>
-                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
-                    {fmtPct(ltv, 0)} LTV — {fmt$(loanAmt)} loan | {fmt$(equity)} down | {ioLabel}
-                  </Text>
+
+              // Helper: render one rate table given a base NOI value
+              const renderRateTable = (noiForCalc: number | null) => (
+                <>
                   <View style={s.tHead}>
                     <Text style={[s.tHCell, { width: 46 }]}>Rate</Text>
                     <Text style={[s.tHCell, { width: 88 }]}>Annual D/S{isIO ? " (I/O)" : ""}</Text>
@@ -1276,12 +1323,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     <Text style={[s.tHCell, { width: 48 }]}>Signal</Text>
                   </View>
                   {ltvScs.map((sc, i) => {
-                    // Broker cap rate is comparison only — always use BOE estimated NOI
-                    const estNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
-                    const cf = estNoi !== null ? estNoi - sc.annualDebtService : null;
-                    const dscr = estNoi !== null && sc.annualDebtService > 0 ? estNoi / sc.annualDebtService : null;
-                    const coc = cf !== null && equity > 0 ? cf / (equity * 1.015) : null;
-                    const sig = dscr === null ? "—"
+                    const cf   = noiForCalc !== null ? noiForCalc - sc.annualDebtService : null;
+                    const dscr = noiForCalc !== null && sc.annualDebtService > 0 ? noiForCalc / sc.annualDebtService : null;
+                    const coc  = cf !== null && equity > 0 ? cf / (equity * 1.015) : null;
+                    const sig  = dscr === null ? "—"
                       : dscr >= 1.10 && coc !== null && coc >= 0.07 ? "GO"
                       : dscr >= 1.0 ? "WATCH"
                       : "STOP";
@@ -1303,6 +1348,35 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                       </View>
                     );
                   })}
+                </>
+              );
+
+              const inPlaceNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
+              const adjNoi     = showTaxAdj && taxAdjNoi > 0 ? taxAdjNoi : null;
+
+              return (
+                <View key={ltv} style={{ marginBottom: 14 }}>
+                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
+                    {fmtPct(ltv, 0)} LTV — {fmt$(loanAmt)} loan | {fmt$(equity)} down | {ioLabel}
+                  </Text>
+
+                  {/* In-place taxes sub-table */}
+                  {showTaxAdj && (
+                    <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2 }}>
+                      In-Place Taxes — NOI: {inPlaceNoi !== null ? fmt$(inPlaceNoi) + "/yr" : "—"}
+                    </Text>
+                  )}
+                  {renderRateTable(inPlaceNoi)}
+
+                  {/* Tax-adjusted sub-table */}
+                  {showTaxAdj && adjNoi !== null && (
+                    <>
+                      <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: SLATE, marginTop: 6, marginBottom: 2 }}>
+                        Tax-Adjusted — NOI: {fmt$(adjNoi)}/yr  ({(effTaxRate * 100).toFixed(2)}% × ask, taxes reassessed at purchase price)
+                      </Text>
+                      {renderRateTable(adjNoi)}
+                    </>
+                  )}
                 </View>
               );
             })}
