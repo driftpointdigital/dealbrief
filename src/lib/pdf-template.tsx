@@ -183,7 +183,8 @@ interface BoeInputs {
 
 function parseOpexOverrides(str: string, yr: number): BoeInputs {
   const parts = (str || "").split(",");
-  const maintDefault = yr >= 2000 ? 500 : yr >= 1980 ? 750 : yr > 0 ? 1000 : 750;
+  const maintDefault    = yr >= 2000 ? 500 : yr >= 1980 ? 750 : yr > 0 ? 1000 : 750;
+  const reservesDefault = yr >= 2000 ? 250 : yr >= 1980 ? 400 : yr > 0 ?  500 :  400;
   // Use NaN-safe helper so user-entered 0 is respected (|| would silently swap to default)
   const p = (i: number, def: number) => { const v = parseFloat(parts[i]); return isNaN(v) ? def : v; };
   return {
@@ -193,7 +194,7 @@ function parseOpexOverrides(str: string, yr: number): BoeInputs {
     managementPct:      p(3, 8.0),
     marketingPerUnit:   p(4, 150),
     adminPerUnit:       p(5, 100),
-    reservesPerUnit:    p(6, 250),
+    reservesPerUnit:    p(6, reservesDefault),
   };
 }
 
