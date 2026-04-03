@@ -313,11 +313,7 @@ export default function DealBrief() {
             <select
               name="propertyType"
               value={propertyType}
-              onChange={e => {
-                const val = e.target.value;
-                setPropertyType(val);
-                if (val === "Single Family Rental") setOtherIncomePct("0");
-              }}
+              onChange={e => setPropertyType(e.target.value)}
               style={{ flex: 1, padding: "5px 8px", fontSize: 13, color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 4, fontFamily: "inherit", outline: "none", background: "white", cursor: "pointer" }}
             >
               <option value="Multifamily">Multifamily</option>
