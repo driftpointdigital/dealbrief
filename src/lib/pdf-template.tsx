@@ -889,42 +889,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 2: FLAGS + THESIS + CRIME + DEMOGRAPHICS ════════ */}
+      {/* ════════ PAGE 2: CRIME + DEMOGRAPHICS ════════ */}
       <Page size="LETTER" style={s.page}>
         <PageHeader address={data.address} page={2} />
-
-        {/* KEY FLAGS & OBSERVATIONS */}
-        <SectionHead title="KEY FLAGS & OBSERVATIONS" />
-
-        {/* Verdict box */}
-        <View style={[s.verdictBox, { backgroundColor: verdict.bg, borderColor: verdict.color }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[s.verdictLabel, { color: verdict.color }]}>{verdict.label}</Text>
-            <Text style={[s.verdictDesc, { color: verdict.color }]}>{verdict.desc}</Text>
-          </View>
-        </View>
-
-        {flags.length === 0 ? (
-          <Text style={s.note}>No significant flags identified from available data. Standard due diligence applies.</Text>
-        ) : (
-          flags.map((f, i) => (
-            <View key={i} style={s.flagItem}>
-              <Text style={[s.flagDot, { color: f.level === "red" ? RED : f.level === "amber" ? AMBER : GREEN }]}>
-                {f.level === "red" ? "!" : f.level === "amber" ? "~" : "o"}
-              </Text>
-              <View style={s.flagContent}>
-                <Text style={[s.flagTitle, { color: f.level === "red" ? RED : f.level === "amber" ? AMBER : NAVY }]}>
-                  {f.title}
-                </Text>
-                <Text style={s.flagBody}>{f.body}</Text>
-              </View>
-            </View>
-          ))
-        )}
-
-        {/* DEAL CONTEXT & ANALYSIS */}
-        <SectionHead title="DEAL CONTEXT & ANALYSIS" />
-        <Text style={[s.val, { lineHeight: 1.6, marginBottom: 6, fontSize: 8.5 }]}>{thesis}</Text>
 
         {/* CRIME & SAFETY */}
         <SectionHead title="CRIME & SAFETY" />
@@ -1409,12 +1376,45 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </>
         )}
 
+        {/* DEAL CONTEXT & ANALYSIS */}
+        <SectionHead title="DEAL CONTEXT & ANALYSIS" />
+        <Text style={[s.val, { lineHeight: 1.6, marginBottom: 6, fontSize: 8.5 }]}>{thesis}</Text>
+
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 4: NEXT STEPS + DISCLAIMER ════════ */}
+      {/* ════════ PAGE 4: FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
       <Page size="LETTER" style={s.page}>
         <PageHeader address={data.address} page={4} />
+
+        {/* KEY FLAGS & OBSERVATIONS */}
+        <SectionHead title="KEY FLAGS & OBSERVATIONS" />
+
+        {/* Verdict box */}
+        <View style={[s.verdictBox, { backgroundColor: verdict.bg, borderColor: verdict.color }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.verdictLabel, { color: verdict.color }]}>{verdict.label}</Text>
+            <Text style={[s.verdictDesc, { color: verdict.color }]}>{verdict.desc}</Text>
+          </View>
+        </View>
+
+        {flags.length === 0 ? (
+          <Text style={s.note}>No significant flags identified from available data. Standard due diligence applies.</Text>
+        ) : (
+          flags.map((f, i) => (
+            <View key={i} style={s.flagItem}>
+              <Text style={[s.flagDot, { color: f.level === "red" ? RED : f.level === "amber" ? AMBER : GREEN }]}>
+                {f.level === "red" ? "!" : f.level === "amber" ? "~" : "o"}
+              </Text>
+              <View style={s.flagContent}>
+                <Text style={[s.flagTitle, { color: f.level === "red" ? RED : f.level === "amber" ? AMBER : NAVY }]}>
+                  {f.title}
+                </Text>
+                <Text style={s.flagBody}>{f.body}</Text>
+              </View>
+            </View>
+          ))
+        )}
 
         <SectionHead title="RECOMMENDED NEXT STEPS" />
         <Bullet bold="Request T-12 operating statement and current rent roll. "
