@@ -152,6 +152,7 @@ export default function DealBrief() {
   const [marketingPerUnit, setMarketingPerUnit] = useState("150");
   const [adminPerUnit, setAdminPerUnit] = useState("100");
   const [reservesPerUnit, setReservesPerUnit] = useState("250");
+  const [propertyType, setPropertyType] = useState("Multifamily");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -306,13 +307,30 @@ export default function DealBrief() {
 
         <input type="hidden" name="address" value={data.address} />
 
-        <input type="hidden" name="propertyType" value="Multifamily" />
         <SectionCard title="Property">
+          <div style={{ display: "flex", alignItems: "center", padding: "0 24px", height: 44, borderBottom: "1px solid #F3F4F6" }}>
+            <span style={{ width: 180, fontSize: 13, color: "#6B7280", flexShrink: 0, letterSpacing: "-0.1px" }}>Property Type</span>
+            <select
+              name="propertyType"
+              value={propertyType}
+              onChange={e => {
+                const val = e.target.value;
+                setPropertyType(val);
+                if (val === "Single Family Rental") setOtherIncomePct("0");
+              }}
+              style={{ flex: 1, padding: "5px 8px", fontSize: 13, color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 4, fontFamily: "inherit", outline: "none", background: "white", cursor: "pointer" }}
+            >
+              <option value="Multifamily">Multifamily</option>
+              <option value="Single Family Rental">Single Family Rental</option>
+            </select>
+          </div>
           <FieldRow label="Year Built" name="yearBuilt" value={data.yearBuilt} />
           <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea} />
           <FieldRow label="Lot Size" name="lotSize" value={data.lotSize} />
           <FieldRow label="Units" name="units" value={data.units} />
-          <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
+          {propertyType !== "Single Family Rental" && (
+            <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
+          )}
           {data.zoning && (
             <>
               <input type="hidden" name="zoning" value={data.zoning} />

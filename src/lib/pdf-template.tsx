@@ -622,6 +622,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const age        = yrBuilt > 0 ? new Date().getFullYear() - yrBuilt : 0;
   const permitNum  = parseInt(data.permitCount) || 0;
   const permits    = parsePermits(data.permitDetails || "[]");
+  const isSFR      = !!(data.propertyType?.toLowerCase().includes("single"));
 
   const hasAssessor = !!(data.assessedValue || data.annualTaxes);
   const hasFema     = !!data.femaZone;
@@ -664,7 +665,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Year Built"       value={data.yearBuilt ? data.yearBuilt + (age > 0 ? ` (${age} years old)` : "") : "Not available"} />
           <Row label="Building Area"    value={data.buildingArea ? (data.buildingArea.toUpperCase().includes("SF") ? fmtSFStr(data.buildingArea) : data.buildingArea) : "Not available"} alt />
           <Row label="Lot Size"         value={data.lotSize || "Not available"} />
-          <Row label="Units"            value={data.units ? data.units + (data.unitMix ? ": " + data.unitMix : "") : "Not available"} alt />
+          <Row label="Units"            value={data.units ? data.units + (!isSFR && data.unitMix ? ": " + data.unitMix : "") : "Not available"} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
           {data.parcelId      && <Row label="Parcel ID"        value={data.parcelId} />}
           {(data.salePrice || data.saleYear) && (
@@ -1168,7 +1169,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {/* Revenue sub-header */}
             <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 4 }}>REVENUE</Text>
             <View style={s.tableWrap}>
-              <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + "/unit/mo" + (!data.inPlaceRents && data.censusRent ? ", area median est." : "") + ")" : "")}
+              <Row label={"Gross Potential Revenue (GPR)" + (unitsNum > 0 ? "  (" + fmt$(boe.gprPerUnitPerMonth) + (isSFR ? "/mo" : "/unit/mo") + (!data.inPlaceRents && data.censusRent ? ", area median est." : "") + ")" : "")}
                 value={fmt$(boe.gpr) + "/yr"} />
               <Row label={"  Less Vacancy (" + boe.vacancyPct.toFixed(2) + "%)"}
                 value={"– " + fmt$(boe.vacancyAmt) + "/yr"} alt />
