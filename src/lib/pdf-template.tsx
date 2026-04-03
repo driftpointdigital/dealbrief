@@ -1315,7 +1315,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <Bullet bold="Order a thorough property inspection. "
           rest={age > 0 && age <= 5
             ? `On a ${age}-year-old building, verify construction quality, confirm certificates of occupancy are in order, and check for any outstanding punch-list items. Request builder warranties for structural, mechanical, and appliance systems.`
-            : `On a ${age > 0 ? age + "-year-old" : "older"} building${permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (including drain lines), electrical panels (load capacity and age), and foundation.`
+            : `On ${age > 0 ? "a " + age + "-year-old" : "an older"} building${permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (including drain lines), electrical panels (load capacity and age), and foundation.`
           } />
         {hasCrime && ["F","D-","D","D+"].includes(crimeGrade) && (
           <Bullet bold="Speak with local portfolio lenders before making an offer. "
