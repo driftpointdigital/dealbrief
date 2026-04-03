@@ -375,10 +375,7 @@ export default function DealBrief() {
             <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
           )}
           {data.zoning && (
-            <>
-              <input type="hidden" name="zoning" value={data.zoning} />
-              <FieldRow label="Zoning" value={data.zoning} editable={false} />
-            </>
+            <input type="hidden" name="zoning" value={data.zoning} />
           )}
         </SectionCard>
 
@@ -408,7 +405,7 @@ export default function DealBrief() {
           <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%" />
           <FieldRow label="Buyer Cap Rate" name="buyerCapRate" value="" placeholder="7.0%" />
           <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%" />
-          <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="3BR: $1,100 / 4BR: $1,300" />
+          <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="$1,250" />
           <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units" />
         </SectionCard>
 
