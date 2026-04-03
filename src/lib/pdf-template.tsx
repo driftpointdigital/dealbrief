@@ -5,7 +5,7 @@ import { runFinancialModel, FinancialSummary, fmt$, fmtPct, fmtX } from "./finan
 export interface ReportData {
   // Property
   address: string; propertyType: string; yearBuilt: string;
-  buildingArea: string; lotSize: string; units: string; unitMix: string;
+  buildingArea: string; lotSize: string; units: string;
   zoning: string;
   // Assessor
   assessedValue: string; landValue: string; improvements: string;
@@ -388,7 +388,7 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
   const ask = parseDol(data.askingPrice);
 
   if (units > 0 && age > 0) {
-    parts.push(`${age}-year-old, ${units}-unit${data.propertyType ? " " + data.propertyType.toLowerCase() : " multifamily asset"}${data.unitMix ? " (" + data.unitMix + ")" : ""}.`);
+    parts.push(`${age}-year-old, ${units}-unit${data.propertyType ? " " + data.propertyType.toLowerCase() : " multifamily asset"}.`);
   }
   if (data.brokerClaims) {
     parts.push(`Broker represents: "${data.brokerClaims}." These claims require independent verification during due diligence.`);
@@ -712,7 +712,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Year Built"       value={data.yearBuilt ? data.yearBuilt + (age > 0 ? ` (${age} years old)` : "") : "Not available"} />
           <Row label="Building Area"    value={data.buildingArea ? (data.buildingArea.toUpperCase().includes("SF") ? fmtSFStr(data.buildingArea) : data.buildingArea) : "Not available"} alt />
           <Row label="Lot Size"         value={data.lotSize || "Not available"} />
-          <Row label="Units"            value={data.units ? data.units + (!isSFR && data.unitMix ? ": " + data.unitMix : "") : "Not available"} alt />
+          <Row label="Units"            value={data.units || "Not available"} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
           {data.parcelId      && <Row label="Parcel ID"        value={data.parcelId} />}
           {(data.salePrice || data.saleYear) && (

@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
     buildingArea:   m.buildingArea   ?? "",
     lotSize:        m.lotSize        ?? "",
     units:          m.units          ?? "",
-    unitMix:        m.unitMix        ?? "",
     zoning:         m.zoning         ?? "",
     // Assessor
     assessedValue:  m.assessedValue  ?? "",

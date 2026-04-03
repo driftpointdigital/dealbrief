@@ -92,7 +92,6 @@ export async function POST(req: NextRequest) {
     buildingArea:   pick("buildingArea"),
     lotSize:        pick("lotSize"),
     units:          pick("units"),
-    unitMix:        pick("unitMix"),
     zoning:         pick("zoning"),
     // Assessor
     assessedValue:  pick("assessedValue"),

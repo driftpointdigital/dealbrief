@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   // Form fields
   for (const f of [
     "address","propertyType","yearBuilt","buildingArea","lotSize",
-    "units","unitMix","zoning","assessedValue","landValue","improvements",
+    "units","zoning","assessedValue","landValue","improvements",
     "annualTaxes","askingPrice","brokerCapRate","buyerCapRate","occupancy","inPlaceRents",
     "brokerClaims","amortYears","ioPeriod",
   ]) {

@@ -371,9 +371,6 @@ export default function DealBrief() {
           <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea} />
           <FieldRow label="Lot Size" name="lotSize" value={data.lotSize} />
           <FieldRow label="Units" name="units" value={data.units} />
-          {propertyType !== "Single Family Rental" && (
-            <FieldRow label="Unit Mix" name="unitMix" value={data.unitMix} />
-          )}
           {data.zoning && (
             <input type="hidden" name="zoning" value={data.zoning} />
           )}
