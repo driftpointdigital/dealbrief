@@ -789,8 +789,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 <Row label="Walk / Transit Scores" value="Not retrieved — will populate on next run" />
               )}
               {data.proximityMiles && (
-                <Row label={`Drive to Downtown ${data.proximityCity || ""}`}
-                  value={`${data.proximityMiles} mi — ${data.proximityMinutes} min drive`}
+                <Row label={data.proximityCity ? `Drive to Downtown ${data.proximityCity}` : "Drive to Downtown"}
+                  value={data.proximityMinutes ? `${data.proximityMiles} mi — ${data.proximityMinutes} min drive` : `${data.proximityMiles} mi`}
                   alt />
               )}
             </View>
