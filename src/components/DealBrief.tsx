@@ -379,26 +379,11 @@ export default function DealBrief() {
           )}
         </SectionCard>
 
-        {/* Tax Assessment — always shown; pre-populated when auto-fetched */}
-        <SectionCard title={data.assessedValue ? "Tax Assessment" : "Tax Assessment · Not Found"}>
-          <FieldRow label="Assessed Value" name="assessedValue" value={data.assessedValue} placeholder="e.g. $925,000" />
-          <FieldRow label="Land Value" name="landValue" value={data.landValue} placeholder="e.g. $125,000" />
-          <FieldRow label="Improvements" name="improvements" value={data.improvementValue} placeholder="e.g. $800,000" />
-          <FieldRow label="Annual Taxes ($)" name="annualTaxes" value={data.annualTaxes} placeholder="e.g. $21,000" />
-          {(() => {
-            const parseNum = (s: string) => parseFloat((s || "").replace(/[$,]/g, ""));
-            const av = parseNum(data.assessedValue);
-            const t  = parseNum(data.annualTaxes);
-            if (av > 0 && t > 0) {
-              return (
-                <div style={{ padding: "8px 24px 4px", fontSize: 12, color: "#6B7280" }}>
-                  Effective tax rate: <strong style={{ color: "#374151" }}>{(t / av * 100).toFixed(2)}%</strong> (computed)
-                </div>
-              );
-            }
-            return null;
-          })()}
-        </SectionCard>
+        {/* Tax Assessment — hidden; passed through to report only */}
+        <input type="hidden" name="assessedValue"  value={data.assessedValue  || ""} />
+        <input type="hidden" name="landValue"      value={data.landValue      || ""} />
+        <input type="hidden" name="improvements"   value={data.improvementValue || ""} />
+        <input type="hidden" name="annualTaxes"    value={data.annualTaxes    || ""} />
 
         <SectionCard title="Deal Inputs · Optional">
           <FieldRow label="Asking Price" name="askingPrice" value="" placeholder="$995,000" />
