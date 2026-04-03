@@ -57,11 +57,11 @@ export async function GET(req: NextRequest) {
     saleYear:  m.saleInfo ? (m.saleInfo.split("|")[1] ?? "") : "",
     // FEMA
     femaZone:    m.femaZone   ?? "",
-    // Walk Score
-    walkScore:   m.walkScore   ?? "",
-    bikeScore:   m.bikeScore   ?? "",
-    transitScore: m.transitScore ?? "",
-    walkDesc:    m.walkDesc    ?? "",
+    // Walk Score — new: wsData="walk|bike|transit|desc"; fallback to old individual keys
+    walkScore:    m.wsData ? (m.wsData.split("|")[0] ?? "") : (m.walkScore    ?? ""),
+    bikeScore:    m.wsData ? (m.wsData.split("|")[1] ?? "") : (m.bikeScore    ?? ""),
+    transitScore: m.wsData ? (m.wsData.split("|")[2] ?? "") : (m.transitScore ?? ""),
+    walkDesc:     m.wsData ? (m.wsData.split("|")[3] ?? "") : (m.walkDesc     ?? ""),
     // Crime — new compact JSON format (crimeData) replaces old individual fields.
     // Old fields kept for backward compat with reports purchased before this change.
     crimeData:     m.crimeData     ?? "",
@@ -89,25 +89,35 @@ export async function GET(req: NextRequest) {
     permitDetails: (m.permitDetails ?? "") + (m.permitDetails2 ?? ""),
     // Schools
     schoolsData:   m.schoolsData   ?? "",
-    // Proximity
-    proximityMiles:   m.proximityMiles   ?? "",
-    proximityMinutes: m.proximityMinutes ?? "",
-    proximityCity:    m.proximityCity    ?? "",
-    // MSA comparison
-    msaName:    m.msaName    ?? "",
-    msaIncome:  m.msaIncome  ?? "",
-    msaHomeVal: m.msaHomeVal ?? "",
-    msaRent:    m.msaRent    ?? "",
-    msaPoverty: m.msaPoverty ?? "",
-    // Census HH
-    censusHouseholds:    m.censusHouseholds    ?? "",
-    censusAvgHHSize:     m.censusAvgHHSize     ?? "",
-    censusAvgRenterSize: m.censusAvgRenterSize ?? "",
-    // HUD
-    hudNearbyProps:   m.hudNearbyProps   ?? "",
-    hudNearbyUnits:   m.hudNearbyUnits   ?? "",
-    hudSection8Count: m.hudSection8Count ?? "",
-    hudPropNames:     m.hudPropNames     ?? "",
+    // Proximity — new: proxData="miles|minutes|city"; fallback to old individual keys
+    proximityMiles:   m.proxData ? (m.proxData.split("|")[0] ?? "") : (m.proximityMiles   ?? ""),
+    proximityMinutes: m.proxData ? (m.proxData.split("|")[1] ?? "") : (m.proximityMinutes ?? ""),
+    proximityCity:    m.proxData ? (m.proxData.split("|")[2] ?? "") : (m.proximityCity    ?? ""),
+    // MSA comparison — new: msaJ=JSON; fallback to old individual keys
+    ...(() => {
+      const msa = m.msaJ ? (() => { try { return JSON.parse(m.msaJ); } catch { return {}; } })() : {};
+      return {
+        msaName:    msa.n ?? m.msaName    ?? "",
+        msaIncome:  msa.i ?? m.msaIncome  ?? "",
+        msaHomeVal: msa.h ?? m.msaHomeVal ?? "",
+        msaRent:    msa.r ?? m.msaRent    ?? "",
+        msaPoverty: msa.p ?? m.msaPoverty ?? "",
+      };
+    })(),
+    // Census HH — new: censusHH="households|avgHH|avgRenter"; fallback to old individual keys
+    censusHouseholds:    m.censusHH ? (m.censusHH.split("|")[0] ?? "") : (m.censusHouseholds    ?? ""),
+    censusAvgHHSize:     m.censusHH ? (m.censusHH.split("|")[1] ?? "") : (m.censusAvgHHSize     ?? ""),
+    censusAvgRenterSize: m.censusHH ? (m.censusHH.split("|")[2] ?? "") : (m.censusAvgRenterSize ?? ""),
+    // HUD — new: hudJ=JSON; fallback to old individual keys
+    ...(() => {
+      const hud = m.hudJ ? (() => { try { return JSON.parse(m.hudJ); } catch { return {}; } })() : {};
+      return {
+        hudNearbyProps:   hud.p  != null ? String(hud.p)  : (m.hudNearbyProps   ?? ""),
+        hudNearbyUnits:   hud.u  != null ? String(hud.u)  : (m.hudNearbyUnits   ?? ""),
+        hudSection8Count: hud.s8 != null ? String(hud.s8) : (m.hudSection8Count ?? ""),
+        hudPropNames:     hud.n  != null ? String(hud.n)  : (m.hudPropNames     ?? ""),
+      };
+    })(),
     // BLS employment
     blsData: m.blsData ?? "",
     opexOverrides: m.opexOverrides ?? "",

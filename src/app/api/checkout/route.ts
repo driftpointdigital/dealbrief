@@ -64,11 +64,15 @@ export async function POST(req: NextRequest) {
   // Pipeline — FEMA
   if (fema.floodZone) metadata.femaZone = String(fema.floodZone).slice(0, 100);
 
-  // Pipeline — Walk Score
-  if (ws.walk != null)       metadata.walkScore    = String(ws.walk);
-  if (ws.bike != null)       metadata.bikeScore    = String(ws.bike);
-  if (ws.transit != null)    metadata.transitScore = String(ws.transit);
-  if (ws.walkDescription)    metadata.walkDesc     = String(ws.walkDescription).slice(0, 100);
+  // Pipeline — Walk Score (packed as "walk|bike|transit|desc" to save 3 keys)
+  if (ws.walk != null || ws.bike != null || ws.transit != null) {
+    metadata.wsData = [
+      ws.walk    != null ? String(ws.walk)    : "",
+      ws.bike    != null ? String(ws.bike)    : "",
+      ws.transit != null ? String(ws.transit) : "",
+      ws.walkDescription ? String(ws.walkDescription).slice(0, 80) : "",
+    ].join("|");
+  }
 
   // Pipeline — Crime (compact JSON covers both CrimeGrade and Dallas Open Data)
   if (crime.crimeDataJson) metadata.crimeData = String(crime.crimeDataJson).slice(0, 490);
@@ -108,32 +112,45 @@ export async function POST(req: NextRequest) {
     if (fullJson.length > 490) metadata.permitDetails2 = fullJson.slice(490, 980);
   }
 
-  // Proximity to downtown
-  if (proximityData.distanceMiles != null) metadata.proximityMiles   = String(proximityData.distanceMiles);
-  if (proximityData.driveMinutes  != null) metadata.proximityMinutes = String(proximityData.driveMinutes);
-  if (proximityData.downtownCity)          metadata.proximityCity    = String(proximityData.downtownCity).slice(0, 50);
+  // Proximity to downtown (packed as "miles|minutes|city" to save 2 keys)
+  if (proximityData.distanceMiles != null || proximityData.driveMinutes != null || proximityData.downtownCity) {
+    metadata.proxData = [
+      proximityData.distanceMiles != null ? String(proximityData.distanceMiles) : "",
+      proximityData.driveMinutes  != null ? String(proximityData.driveMinutes)  : "",
+      proximityData.downtownCity  ? String(proximityData.downtownCity).slice(0, 50) : "",
+    ].join("|");
+  }
 
-  // MSA comparison
-  if (msaData.msaName)       metadata.msaName      = String(msaData.msaName).slice(0, 80);
-  if (msaData.medianIncome)  metadata.msaIncome    = String(msaData.medianIncome).slice(0, 20);
-  if (msaData.medianHomeValue) metadata.msaHomeVal = String(msaData.medianHomeValue).slice(0, 20);
-  if (msaData.medianRent)    metadata.msaRent      = String(msaData.medianRent).slice(0, 20);
-  if (msaData.povertyRate)   metadata.msaPoverty   = String(msaData.povertyRate).slice(0, 10);
+  // MSA comparison (packed as compact JSON to save 4 keys)
+  {
+    const msaC: Record<string, unknown> = {};
+    if (msaData.msaName)         msaC.n = String(msaData.msaName).slice(0, 80);
+    if (msaData.medianIncome)    msaC.i = String(msaData.medianIncome).slice(0, 20);
+    if (msaData.medianHomeValue) msaC.h = String(msaData.medianHomeValue).slice(0, 20);
+    if (msaData.medianRent)      msaC.r = String(msaData.medianRent).slice(0, 20);
+    if (msaData.povertyRate)     msaC.p = String(msaData.povertyRate).slice(0, 10);
+    if (Object.keys(msaC).length > 0) metadata.msaJ = JSON.stringify(msaC).slice(0, 490);
+  }
 
-  // Census HH size
-  if (census.totalHouseholds)        metadata.censusHouseholds    = String(census.totalHouseholds);
-  if (census.avgHouseholdSize)       metadata.censusAvgHHSize     = String(census.avgHouseholdSize);
-  if (census.avgRenterHouseholdSize) metadata.censusAvgRenterSize = String(census.avgRenterHouseholdSize);
+  // Census HH size (packed as "households|avgHH|avgRenter" to save 2 keys)
+  if (census.totalHouseholds || census.avgHouseholdSize || census.avgRenterHouseholdSize) {
+    metadata.censusHH = [
+      census.totalHouseholds        ? String(census.totalHouseholds)        : "",
+      census.avgHouseholdSize       ? String(census.avgHouseholdSize)       : "",
+      census.avgRenterHouseholdSize ? String(census.avgRenterHouseholdSize) : "",
+    ].join("|");
+  }
 
-  // HUD subsidized
-  if (hudData.nearbyAssistedProperties != null)
-    metadata.hudNearbyProps = String(hudData.nearbyAssistedProperties);
-  if (hudData.nearbyAssistedUnits != null)
-    metadata.hudNearbyUnits = String(hudData.nearbyAssistedUnits);
-  if (hudData.section8Properties != null)
-    metadata.hudSection8Count = String(hudData.section8Properties);
-  if (Array.isArray(hudData.propertyNames) && hudData.propertyNames.length > 0)
-    metadata.hudPropNames = (hudData.propertyNames as string[]).slice(0, 3).join("; ").slice(0, 200);
+  // HUD subsidized (packed as compact JSON to save 3 keys)
+  if (hudData.nearbyAssistedProperties != null || hudData.nearbyAssistedUnits != null) {
+    const hudC: Record<string, unknown> = {};
+    if (hudData.nearbyAssistedProperties != null) hudC.p  = hudData.nearbyAssistedProperties;
+    if (hudData.nearbyAssistedUnits != null)      hudC.u  = hudData.nearbyAssistedUnits;
+    if (hudData.section8Properties != null)       hudC.s8 = hudData.section8Properties;
+    if (Array.isArray(hudData.propertyNames) && hudData.propertyNames.length > 0)
+      hudC.n = (hudData.propertyNames as string[]).slice(0, 3).join("; ").slice(0, 150);
+    metadata.hudJ = JSON.stringify(hudC).slice(0, 490);
+  }
 
   // BLS employment — compact JSON
   if (blsData.ok) {
