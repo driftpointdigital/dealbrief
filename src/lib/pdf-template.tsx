@@ -111,8 +111,9 @@ function parseDol(str: string): number {
 
 // Format any dollar string (user input or pipeline) as $X,XXX,XXX
 function fmtDol(str: string): string {
-  const n = parseDol(str);
-  if (!n) return str;
+  if (!str) return str;
+  const n = parseFloat(str.replace(/[$,]/g, ""));
+  if (isNaN(n)) return str;
   return "$" + Math.round(n).toLocaleString("en-US");
 }
 
@@ -120,7 +121,7 @@ function fmtDol(str: string): string {
 function fmtSFStr(str: string): string {
   if (!str) return str;
   const n = parseFloat(str.replace(/[^0-9.]/g, ""));
-  if (!n) return str;
+  if (isNaN(n)) return str;
   return Math.round(n).toLocaleString("en-US") + " SF";
 }
 
@@ -183,14 +184,16 @@ interface BoeInputs {
 function parseOpexOverrides(str: string, yr: number): BoeInputs {
   const parts = (str || "").split(",");
   const maintDefault = yr >= 2000 ? 500 : yr >= 1980 ? 750 : yr > 0 ? 1000 : 750;
+  // Use NaN-safe helper so user-entered 0 is respected (|| would silently swap to default)
+  const p = (i: number, def: number) => { const v = parseFloat(parts[i]); return isNaN(v) ? def : v; };
   return {
-    insurancePerUnit:   parseFloat(parts[0]) || 800,
-    maintenancePerUnit: parseFloat(parts[1]) || maintDefault,
-    utilitiesPerUnit:   parseFloat(parts[2]) || 250,
-    managementPct:      parseFloat(parts[3]) || 8.0,
-    marketingPerUnit:   parseFloat(parts[4]) || 150,
-    adminPerUnit:       parseFloat(parts[5]) || 100,
-    reservesPerUnit:    parseFloat(parts[6]) || 250,
+    insurancePerUnit:   p(0, 800),
+    maintenancePerUnit: p(1, maintDefault),
+    utilitiesPerUnit:   p(2, 250),
+    managementPct:      p(3, 8.0),
+    marketingPerUnit:   p(4, 150),
+    adminPerUnit:       p(5, 100),
+    reservesPerUnit:    p(6, 250),
   };
 }
 
@@ -221,6 +224,8 @@ function computeBoe(data: ReportData): BoeEst | null {
 
   const opexInputs = parseOpexOverrides(data.opexOverrides || "", yr);
   const mgmtPct = opexInputs.managementPct / 100;
+  // Guard: management 100%+ means EGI denominator hits zero — not a valid input
+  if (mgmtPct >= 1) return null;
 
   const insurance  = units > 0 ? units * opexInputs.insurancePerUnit   : Math.round(brokerNoi * 0.08);
   const maintenance= units > 0 ? units * opexInputs.maintenancePerUnit  : Math.round(brokerNoi * 0.10);
@@ -230,10 +235,11 @@ function computeBoe(data: ReportData): BoeEst | null {
   const reserves   = units > 0 ? units * opexInputs.reservesPerUnit     : Math.round(brokerNoi * 0.04);
   const opExExMgmt = taxes + insurance + maintenance + utilities + marketing + admin + reserves;
 
-  // Revenue assumptions
-  const vacPct  = parseFloat(data.vacancyPct  || "5.0")  || 5.0;
-  const bdPct   = parseFloat(data.badDebtPct  || "1.0")  || 1.0;
-  const othPct  = parseFloat(data.otherIncomePct || "50") || 50;
+  // Revenue assumptions — use NaN-safe parse so user-entered 0 is respected
+  const parseRate = (s: string, def: number) => { const n = parseFloat(s); return isNaN(n) ? def : n; };
+  const vacPct  = parseRate(data.vacancyPct,      5.0);
+  const bdPct   = parseRate(data.badDebtPct,      1.0);
+  const othPct  = parseRate(data.otherIncomePct,  50);
 
   // GPR: use in-place rents if provided, fall back to ZIP median rent, then derive from broker NOI
   let gpr: number, egi: number, management: number, totalOpEx: number;
@@ -599,8 +605,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   });
 
   const ioYears    = parseFloat(data.ioPeriod) || 0;
+  const amortYrsNum = parseFloat(data.amortYears) || 30;
   const isIO       = ioYears > 0;
-  const ioLabel    = isIO ? `${ioYears}-yr I/O, then ${data.amortYears}-yr amort` : `${data.amortYears}-yr amortization`;
+  const ioLabel    = isIO
+    ? ioYears >= amortYrsNum
+      ? `${ioYears}-yr I/O (exceeds ${data.amortYears}-yr loan term — verify inputs)`
+      : `${ioYears}-yr I/O, then ${data.amortYears}-yr amort`
+    : `${data.amortYears}-yr amortization`;
   const askFmt     = fmtAskingPrice(data.askingPrice);
   const askNum     = parseDol(data.askingPrice);
   const unitsNum   = parseInt(data.units) || 0;
