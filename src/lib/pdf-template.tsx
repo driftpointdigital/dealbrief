@@ -1258,7 +1258,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     const estNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
                     const cf = estNoi !== null ? estNoi - sc.annualDebtService : null;
                     const dscr = estNoi !== null && sc.annualDebtService > 0 ? estNoi / sc.annualDebtService : null;
-                    const coc = cf !== null ? cf / (equity * 1.015) : null;
+                    const coc = cf !== null && equity > 0 ? cf / (equity * 1.015) : null;
                     const sig = dscr === null ? "—"
                       : dscr >= 1.10 && coc !== null && coc >= 0.07 ? "GO"
                       : dscr >= 1.0 ? "WATCH"
@@ -1330,7 +1330,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           } />
         {hasCrime && ["F","D-","D","D+"].includes(crimeGrade) && (
           <Bullet bold="Speak with local portfolio lenders before making an offer. "
-            rest={`The crime profile (${data.crimeOverall}) may limit conventional financing options. Regional banks and credit unions familiar with the submarket are more likely to lend here than national platforms.`} />
+            rest={`The crime profile (${crimeGrade}) may limit conventional financing options. Regional banks and credit unions familiar with the submarket are more likely to lend here than national platforms.`} />
         )}
         <Bullet bold="Confirm the utility structure. "
           rest="Get actual utility bills for the trailing 12 months. Determine which utilities are landlord-paid vs. tenant-paid — this has a direct, significant impact on actual NOI vs. broker-stated NOI." />
