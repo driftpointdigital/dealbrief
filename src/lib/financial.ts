@@ -57,7 +57,7 @@ export function runFinancialModel(params: {
 
   const askingPrice = parseDollar(askingPriceStr) ?? 0;
   const brokerCapRate = parsePercent(brokerCapRateStr);
-  const amortMonths = (parseFloat(amortYears) || 30) * 12;
+  const amortMonths = Math.max(1, (parseFloat(amortYears) || 30) * 12);
   const ioYears = parseFloat(ioPeriod) || 0;
   const isIO = ioYears > 0;
 

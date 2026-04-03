@@ -182,7 +182,7 @@ interface BoeInputs {
 
 function parseOpexOverrides(str: string, yr: number): BoeInputs {
   const parts = (str || "").split(",");
-  const maintDefault = yr >= 2000 ? 500 : yr >= 1980 ? 750 : 1000;
+  const maintDefault = yr >= 2000 ? 500 : yr >= 1980 ? 750 : yr > 0 ? 1000 : 750;
   return {
     insurancePerUnit:   parseFloat(parts[0]) || 800,
     maintenancePerUnit: parseFloat(parts[1]) || maintDefault,
@@ -205,6 +205,9 @@ function computeBoe(data: ReportData): BoeEst | null {
     || !!parseRentPerUnit(data.inPlaceRents)
     || parseDol(data.censusRent) > 0;
   if (!hasRevenue) return null;
+  // Without a unit count and without a broker cap rate there is no way to derive GPR or
+  // work backwards from NOI — return null so we don't render a section full of $0s.
+  if (units === 0 && !cap) return null;
   const brokerNoi = ask * (cap / 100);
 
   // Taxes: use actual if available, compute from assessment × rate as fallback
@@ -280,7 +283,7 @@ function computeBoe(data: ReportData): BoeEst | null {
 // ── flags ─────────────────────────────────────────────────────────────────────
 interface Flag { level: "red" | "amber" | "green"; title: string; body: string; }
 
-function computeFlags(data: ReportData, model: FinancialSummary): Flag[] {
+function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | null): Flag[] {
   const flags: Flag[] = [];
   const yr = parseInt(data.yearBuilt) || 0;
   const age = yr > 0 ? new Date().getFullYear() - yr : 0;
@@ -306,8 +309,11 @@ function computeFlags(data: ReportData, model: FinancialSummary): Flag[] {
       body: `Property falls in FEMA ${data.femaZone}. Flood insurance is required by lenders and will cost $1,500–$5,000+/yr depending on coverage, adding directly to operating expenses.` });
   }
 
-  // No permits on old building
-  if (permitNum === 0 && age > 30) {
+  // No permits on old building (also flag when age is unknown — can't assume it's new)
+  if (permitNum === 0 && age === 0) {
+    flags.push({ level: "amber", title: "No Permit History — Building Age Unknown",
+      body: `Zero building permits on record and building age could not be determined from available data. Major system conditions are unknown. Budget conservatively and do not rely on broker representations about capital improvements without documentation.` });
+  } else if (permitNum === 0 && age > 30) {
     flags.push({ level: "red", title: `No Permit History on ${age}-Year-Old Building`,
       body: `Zero building permits on record suggests major systems (roof, HVAC, plumbing, electrical) may be original or replaced without documentation. Budget aggressively for systems replacement and do not rely on broker representations about capital improvements.` });
   } else if (permitNum === 0 && age > 15) {
@@ -315,17 +321,25 @@ function computeFlags(data: ReportData, model: FinancialSummary): Flag[] {
       body: `No building permits found. Verify any broker claims about capital improvements during due diligence. Request receipts and warranties.` });
   }
 
-  // Cash flow / DSCR
+  // Cash flow / DSCR — use broker NOI if available; fall back to BOE estimated NOI
   const hiLtvScenarios = model.scenarios.filter(sc => sc.ltv === Math.max(...model.scenarios.map(s => s.ltv)));
   if (hiLtvScenarios.length > 0) {
-    const allNegative = hiLtvScenarios.every(sc => sc.dscr !== null && sc.dscr < 1.0);
-    const someBelow110 = hiLtvScenarios.some(sc => sc.dscr !== null && sc.dscr < 1.10);
+    const boeNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
+    // Per scenario: prefer broker-derived DSCR; if null (no broker cap), compute from BOE NOI
+    const getDscr = (sc: { dscr: number | null; annualDebtService: number }) => {
+      if (sc.dscr !== null) return sc.dscr;
+      return boeNoi !== null && sc.annualDebtService > 0 ? boeNoi / sc.annualDebtService : null;
+    };
+    const usingBoe = hiLtvScenarios.every(sc => sc.dscr === null) && boeNoi !== null;
+    const allNegative = hiLtvScenarios.every(sc => { const d = getDscr(sc); return d !== null && d < 1.0; });
+    const someBelow110 = hiLtvScenarios.some(sc => { const d = getDscr(sc); return d !== null && d < 1.10; });
     if (allNegative) {
-      flags.push({ level: "red", title: "Negative Cash Flow at Broker-Stated NOI",
-        body: `At the highest LTV scenario, DSCR is below 1.0x using the broker's cap rate. The deal does not cover debt service at face value — verify NOI with T-12 actuals before proceeding.` });
+      flags.push({ level: "red",
+        title: usingBoe ? "Negative Cash Flow at Estimated NOI" : "Negative Cash Flow at Broker-Stated NOI",
+        body: `At the highest LTV scenario, DSCR is below 1.0x using ${usingBoe ? "estimated NOI from rents" : "the broker's cap rate"}. The deal does not cover debt service — verify NOI with T-12 actuals before proceeding.` });
     } else if (someBelow110) {
       flags.push({ level: "amber", title: "Thin Coverage — DSCR Below 1.10x",
-        body: `Cash flow coverage is marginal at current rate scenarios. Any NOI shortfall from broker representations could push the deal into negative territory. Stress-test with actual operating statements.` });
+        body: `Cash flow coverage is marginal at current rate scenarios. Any NOI shortfall from ${usingBoe ? "rent estimates" : "broker representations"} could push the deal into negative territory. Stress-test with actual operating statements.` });
     }
   }
 
@@ -619,10 +633,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const zipMatch = data.address.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : "";
 
-  const flags  = computeFlags(data, model);
+  const boe    = computeBoe(data);
+  const flags  = computeFlags(data, model, boe);
   const thesis = buildThesis(data, flags);
   const verdict = dealVerdict(flags);
-  const boe    = computeBoe(data);
 
   return (
     <Document>
@@ -635,11 +649,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <SectionHead title="PROPERTY OVERVIEW" />
         <View style={s.tableWrap}>
           <Row label="Address"          value={data.address} />
-          <Row label="Property Type"    value={data.propertyType} alt />
-          <Row label="Year Built"       value={data.yearBuilt + (age > 0 ? ` (${age} years old)` : "")} />
-          <Row label="Building Area"    value={data.buildingArea && data.buildingArea.toUpperCase().includes("SF") ? fmtSFStr(data.buildingArea) : data.buildingArea} alt />
-          <Row label="Lot Size"         value={data.lotSize} />
-          <Row label="Units"            value={data.units + (data.unitMix ? ": " + data.unitMix : "")} alt />
+          <Row label="Property Type"    value={data.propertyType || "Not available"} alt />
+          <Row label="Year Built"       value={data.yearBuilt ? data.yearBuilt + (age > 0 ? ` (${age} years old)` : "") : "Not available"} />
+          <Row label="Building Area"    value={data.buildingArea ? (data.buildingArea.toUpperCase().includes("SF") ? fmtSFStr(data.buildingArea) : data.buildingArea) : "Not available"} alt />
+          <Row label="Lot Size"         value={data.lotSize || "Not available"} />
+          <Row label="Units"            value={data.units ? data.units + (data.unitMix ? ": " + data.unitMix : "") : "Not available"} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
           {data.parcelId      && <Row label="Parcel ID"        value={data.parcelId} />}
           {(data.salePrice || data.saleYear) && (
@@ -742,7 +756,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         )}
 
         {/* LOCATION & RISK */}
-        {(hasFema || hasWalk || !!data.proximityMiles) && (
+        {(hasFema || hasWalk || !!data.proximityMiles || hasSchools) && (
           <>
             <SectionHead title="LOCATION & RISK" />
             <View style={s.tableWrap}>
@@ -1131,7 +1145,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <>
             <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
             <Text style={[s.note, { marginBottom: 6 }]}>
-              Uses broker-stated cap rate ({data.brokerCapRate}) on asking price ({askFmt}). Expense estimates are rule-of-thumb; verify with actual T-12 operating statement.
+              {data.brokerCapRate
+                ? `Revenue derived from broker-stated cap rate (${data.brokerCapRate}) on asking price (${askFmt}).`
+                : data.inPlaceRents
+                  ? `Revenue derived from in-place rents (${data.inPlaceRents}).`
+                  : `Revenue derived from ZIP area median rent (Census ACS) — no in-place rents provided.`}
+              {" "}Expense estimates are rule-of-thumb; verify with actual T-12 operating statement.
               {" "}Revenue assumptions: {boe.vacancyPct.toFixed(2)}% vacancy · {boe.badDebtPct.toFixed(2)}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income.
             </Text>
 
@@ -1156,7 +1175,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 value={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr  (" + boe.taxesSource + ")" : "Not available"} />
               <Row label={"Est. Insurance  (~$" + Math.round(boe.opexInputs.insurancePerUnit) + "/unit)"}
                 value={fmt$(boe.insurance) + "/yr"} alt />
-              <Row label={"Est. Maintenance  (~$" + Math.round(boe.opexInputs.maintenancePerUnit) + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : "pre-1980") + " vintage)"}
+              <Row label={"Est. Maintenance  (~$" + Math.round(boe.opexInputs.maintenancePerUnit) + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : yrBuilt > 0 ? "pre-1980" : "unknown") + " vintage)"}
                 value={fmt$(boe.maintenance) + "/yr"} />
               <Row label={"Est. Utilities  (~$" + Math.round(boe.opexInputs.utilitiesPerUnit) + "/unit)"}
                 value={fmt$(boe.utilities) + "/yr"} alt />
@@ -1180,10 +1199,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </View>
             )}
             <View style={[s.tableWrap, { marginTop: 4 }]}>
-              <Row label="Broker-Implied NOI"
-                value={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
+              {data.brokerCapRate && (
+                <Row label="Broker-Implied NOI"
+                  value={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
+              )}
               <Row label="Breakeven Occupancy  (OpEx / Revenue)"
-                value={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"} />
+                value={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"}
+                alt={!data.brokerCapRate} />
             </View>
 
             <Text style={s.note}>
