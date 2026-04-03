@@ -12,7 +12,7 @@ export interface ReportData {
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
-  inPlaceRents: string; brokerClaims: string;
+  inPlaceRents: string; brokerClaims: string; buyerCapRate: string;
   // Assumptions
   rates: string[]; ltvs: string[]; amortYears: string; ioPeriod: string;
   // Revenue assumptions
@@ -595,8 +595,14 @@ function PageFooter() {
 
 // ── main component ────────────────────────────────────────────────────────────
 export function DealBriefPDF({ data }: { data: ReportData }) {
+  // BOE computed first so buyer cap rate can back-calculate an implied acquisition price
+  const boe        = computeBoe(data);
+  const buyerCR    = parseFloat((data.buyerCapRate || "").replace(/%/g, "")) / 100;
+  const impliedPrice = boe && boe.estNoi > 0 && buyerCR > 0 ? Math.round(boe.estNoi / buyerCR) : 0;
+  const effectiveAskStr = data.askingPrice || (impliedPrice > 0 ? String(impliedPrice) : "");
+
   const model = runFinancialModel({
-    askingPriceStr: data.askingPrice,
+    askingPriceStr: effectiveAskStr,
     brokerCapRateStr: data.brokerCapRate,
     rates: data.rates,
     ltvs: data.ltvs,
@@ -604,20 +610,21 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     ioPeriod: data.ioPeriod,
   });
 
-  const ioYears    = parseFloat(data.ioPeriod) || 0;
+  const ioYears     = parseFloat(data.ioPeriod) || 0;
   const amortYrsNum = parseFloat(data.amortYears) || 30;
-  const isIO       = ioYears > 0;
-  const ioLabel    = isIO
+  const isIO        = ioYears > 0;
+  const ioLabel     = isIO
     ? ioYears >= amortYrsNum
       ? `${ioYears}-yr I/O (exceeds ${data.amortYears}-yr loan term — verify inputs)`
       : `${ioYears}-yr I/O, then ${data.amortYears}-yr amort`
     : `${data.amortYears}-yr amortization`;
-  const askFmt     = fmtAskingPrice(data.askingPrice);
-  const askNum     = parseDol(data.askingPrice);
-  const unitsNum   = parseInt(data.units) || 0;
-  const bldgSF     = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
-  const pricePerUnit = unitsNum > 0 && askNum > 0 ? fmt$(askNum / unitsNum) + " / unit" : "";
-  const pricePerSF   = bldgSF > 0 && askNum > 0 ? fmt$(askNum / bldgSF) + " / SF" : "";
+  const askFmt        = fmtAskingPrice(data.askingPrice);   // user's stated price only
+  const askNum        = parseDol(data.askingPrice);          // user's stated price only
+  const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
+  const unitsNum    = parseInt(data.units) || 0;
+  const bldgSF      = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
+  const pricePerUnit = unitsNum > 0 && effectiveAskNum > 0 ? fmt$(effectiveAskNum / unitsNum) + " / unit" : "";
+  const pricePerSF   = bldgSF > 0  && effectiveAskNum > 0 ? fmt$(effectiveAskNum / bldgSF)   + " / SF"   : "";
   const yrBuilt    = parseInt(data.yearBuilt) || 0;
   const age        = yrBuilt > 0 ? new Date().getFullYear() - yrBuilt : 0;
   const permitNum  = parseInt(data.permitCount) || 0;
@@ -645,7 +652,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const zipMatch = data.address.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : "";
 
-  const boe    = computeBoe(data);
   const flags  = computeFlags(data, model, boe);
   const thesis = buildThesis(data, flags);
   const verdict = dealVerdict(flags);
@@ -676,17 +682,32 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         </View>
 
         {/* PRICING & MARKET CONTEXT */}
-        {!!data.askingPrice && (
+        {(!!data.askingPrice || impliedPrice > 0) && (
           <>
             <SectionHead title="PRICING & MARKET CONTEXT" />
             <View style={s.tableWrap}>
-              <Row label="Asking Price"         value={askFmt} />
-              {pricePerUnit && <Row label="Price per Unit"      value={pricePerUnit} alt />}
-              {pricePerSF   && <Row label="Price per SF"        value={pricePerSF} />}
-              {data.brokerCapRate && <Row label="Broker Cap Rate"  value={fmtPctDisplay(data.brokerCapRate)} alt />}
-              {model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
-              {data.occupancy     && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
-              {data.inPlaceRents  && <Row label="In-Place Rents"    value={data.inPlaceRents} />}
+              {data.askingPrice
+                ? <Row label="Asking Price" value={askFmt} />
+                : <Row label="Implied Acquisition Price"
+                    value={fmt$(impliedPrice) + "  (BOE NOI ÷ " + fmtPctDisplay(data.buyerCapRate) + " buyer cap)"} />
+              }
+              {pricePerUnit && <Row label="Price per Unit" value={pricePerUnit} alt />}
+              {pricePerSF   && <Row label="Price per SF"   value={pricePerSF} />}
+              {data.brokerCapRate && <Row label="Broker Cap Rate" value={fmtPctDisplay(data.brokerCapRate)} alt />}
+              {data.askingPrice && model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
+              {data.buyerCapRate && impliedPrice > 0 && data.askingPrice && (() => {
+                const gap = askNum - impliedPrice;
+                const gapPct = Math.abs(gap / impliedPrice * 100).toFixed(1);
+                return (
+                  <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
+                    value={gap > 0
+                      ? fmt$(impliedPrice) + "  (ask is " + gapPct + "% above your target — gap: " + fmt$(gap) + ")"
+                      : fmt$(impliedPrice) + "  (ask is within your target return)"}
+                    alt />
+                );
+              })()}
+              {data.occupancy    && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
+              {data.inPlaceRents && <Row label="In-Place Rents"    value={data.inPlaceRents} />}
               {data.censusRent && (
                 <Row label={"Area Median Rent" + (zip ? " (ZIP " + zip + ")" : "")}
                   value={data.censusRent + "/mo  (Census ACS 5-yr)"} alt />

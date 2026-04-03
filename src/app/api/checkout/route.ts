@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   for (const f of [
     "address","propertyType","yearBuilt","buildingArea","lotSize",
     "units","unitMix","zoning","assessedValue","landValue","improvements",
-    "annualTaxes","askingPrice","brokerCapRate","occupancy","inPlaceRents",
+    "annualTaxes","askingPrice","brokerCapRate","buyerCapRate","occupancy","inPlaceRents",
     "brokerClaims","amortYears","ioPeriod",
   ]) {
     if (body[f]) metadata[f] = String(body[f]).slice(0, 500);

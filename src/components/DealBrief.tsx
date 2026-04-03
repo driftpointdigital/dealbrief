@@ -359,6 +359,7 @@ export default function DealBrief() {
         <SectionCard title="Deal Inputs · Optional">
           <FieldRow label="Asking Price" name="askingPrice" value="" placeholder="$995,000" />
           <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%" />
+          <FieldRow label="Buyer Cap Rate" name="buyerCapRate" value="" placeholder="7.0%" />
           <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%" />
           <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="3BR: $1,100 / 4BR: $1,300" />
           <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units" />

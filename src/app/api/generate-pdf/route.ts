@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     occupancy:      m.occupancy      ?? "",
     inPlaceRents:   m.inPlaceRents   ?? "",
     brokerClaims:   m.brokerClaims   ?? "",
+    buyerCapRate:   m.buyerCapRate   ?? "",
     // Assumptions
     rates:       (() => { try { return m.rates ? JSON.parse(m.rates) : ["8.5","7.5","6.5","5.0"]; } catch { return ["8.5","7.5","6.5","5.0"]; } })(),
     ltvs:        (() => { try { return m.ltvs  ? JSON.parse(m.ltvs)  : ["75","50"]; } catch { return ["75","50"]; } })(),
