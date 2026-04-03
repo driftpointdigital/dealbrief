@@ -1144,7 +1144,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 rest="No building permits on record. This may reflect permits filed under a prior owner, developer, or contractor. Verify with the city building department if you need a complete permit history."
               />
             )}
-            <Text style={s.note}>Source: {data.permitSource || "City building permit portal"}. Absence of permits does not confirm no work was done — only that no permits were pulled.</Text>
+            <Text style={s.note}>Source: {data.permitSource || "City building permit portal"}. Absence of permits does not confirm no work was done — only that no permits were pulled, permits were pulled under different names/addresses, or permits were not found in our source data.</Text>
           </View>
         ) : (
           <View style={{ marginBottom: 8 }}>
@@ -1182,9 +1182,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             return (
               <>
                 <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
-                <Text style={s.note}>
-                  Assumptions: {boe.vacancyPct.toFixed(1)}% vacancy · {boe.badDebtPct.toFixed(1)}% bad debt · {boe.otherIncomePct}% of 1 mo. rent as other income. Verify with actual T-12.
-                </Text>
+                <Text style={s.note}>Verify with actual T-12.</Text>
 
                 {/* Column header */}
                 <View style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 0, marginTop: 6 }}>
