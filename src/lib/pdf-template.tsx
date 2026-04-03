@@ -660,7 +660,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     return 0;
   })();
   const taxAdjTaxes = boe && effTaxRate > 0 && askNum > 0 ? Math.round(askNum * effTaxRate) : 0;
-  const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi - boe.taxes + taxAdjTaxes : 0;
+  const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
   const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && Math.abs(taxAdjTaxes - boe.taxes) > 500;
 
   const bldgSF      = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
