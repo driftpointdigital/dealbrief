@@ -153,9 +153,15 @@ export default function DealBrief() {
   const [adminPerUnit, setAdminPerUnit] = useState("100");
   const [reservesPerUnit, setReservesPerUnit] = useState("250");
   const [propertyType, setPropertyType] = useState("Multifamily");
+  const [devKey, setDevKey] = useState("");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
+    // Read ?dev=KEY from URL — enables the dev bypass button
+    if (typeof window !== "undefined") {
+      const k = new URLSearchParams(window.location.search).get("dev") || "";
+      setDevKey(k);
+    }
   }, []);
 
   const [generating, setGenerating] = useState(false);
@@ -194,6 +200,47 @@ export default function DealBrief() {
       window.location.href = url;
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setGenerating(false);
+    }
+  };
+
+  const handleDevGenerate = async () => {
+    if (!formRef.current || !devKey) return;
+    setGenerating(true);
+    setGenerateError("");
+    const fd = new FormData(formRef.current);
+    const body: Record<string, unknown> = {};
+    fd.forEach((val, key) => { body[key] = val; });
+    body.rates = selectedRates;
+    body.ltvs = selectedLtvs;
+    body.amortYears = amortYears;
+    body.ioPeriod = ioPeriod;
+    body.vacancyPct = vacancyPct;
+    body.badDebtPct = badDebtPct;
+    body.otherIncomePct = otherIncomePct;
+    body.opexOverrides = [insurancePerUnit, maintenancePerUnit, utilitiesPerUnit, managementPct, marketingPerUnit, adminPerUnit, reservesPerUnit].join(",");
+    if (data?._pipeline) body._pipeline = data._pipeline;
+
+    try {
+      const res = await fetch(`/api/dev-report?key=${encodeURIComponent(devKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as {error?: string}).error || `Server error ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dealbrief-dev.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setGenerateError(err instanceof Error ? err.message : "Dev generation failed.");
+    } finally {
       setGenerating(false);
     }
   };
@@ -556,6 +603,22 @@ export default function DealBrief() {
           {generateError && (
             <p style={{ fontSize: 13, color: "#C0392B", margin: 0, textAlign: "right" }}>{generateError}</p>
           )}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {devKey && (
+            <button
+              type="button"
+              onClick={handleDevGenerate}
+              disabled={generating}
+              style={{
+                padding: "12px 20px", fontSize: 13, fontWeight: 500,
+                background: generating ? "#9CA3AF" : "#2D6A4F",
+                color: "white", border: "none", borderRadius: 6,
+                cursor: generating ? "not-allowed" : "pointer",
+                fontFamily: "inherit", letterSpacing: "-0.1px",
+              }}>
+              {generating ? "Generating…" : "⚡ Dev PDF"}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleGenerate}
@@ -572,6 +635,7 @@ export default function DealBrief() {
             onMouseLeave={e => { if (!generating) e.currentTarget.style.background = generating ? "#9CA3AF" : "#1D3557"; }}>
             {generating ? "Redirecting to checkout…" : "Generate DealBrief →"}
           </button>
+          </div>
         </div>
       </div>
       </form>
