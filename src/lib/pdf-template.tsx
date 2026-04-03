@@ -404,7 +404,7 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
     if (ratio > 1.0) {
       parts.push(`County assessment (${fmtDol(data.assessedValue)}) exceeds the asking price by ${pct - 100}% — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile.`);
     } else if (pct < 80) {
-      parts.push(`County assessment (${fmtDol(data.assessedValue)}) is ${pct}% of ask, suggesting the seller is pricing in upside. A purchase at or near ask will likely trigger reassessment at the higher price at next cycle.`);
+      parts.push(`County assessment (${fmtDol(data.assessedValue)}) is ${pct}% of ask, suggesting risk of future tax reassessment. A purchase at or near ask will likely trigger reassessment at the higher price at next cycle.`);
     }
   }
   const _thesisCrimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
@@ -737,13 +737,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.brokerCapRate && <Row label="Broker Cap Rate" value={fmtPctDisplay(data.brokerCapRate)} alt />}
               {data.askingPrice && model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
               {data.buyerCapRate && impliedPrice > 0 && data.askingPrice && (() => {
-                const gap = askNum - impliedPrice;
-                const gapPct = Math.abs(gap / impliedPrice * 100).toFixed(1);
+                const impliedPriceAdj = showTaxAdj && taxAdjNoi > 0 && buyerCR > 0
+                  ? Math.round(taxAdjNoi / buyerCR) : 0;
+                const priceParts = [fmt$(impliedPrice) + " w/ in-place taxes"];
+                if (impliedPriceAdj > 0) priceParts.push(fmt$(impliedPriceAdj) + " w/ adj. taxes");
                 return (
                   <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
-                    value={gap > 0
-                      ? fmt$(impliedPrice) + "  (ask is " + gapPct + "% above your target — gap: " + fmt$(gap) + ")"
-                      : fmt$(impliedPrice) + "  (ask is within your target return)"}
+                    value={priceParts.join("  |  ")}
                     alt />
                 );
               })()}
