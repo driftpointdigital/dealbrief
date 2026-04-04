@@ -26,7 +26,9 @@ function parseDollar(s: string): number | null {
 }
 
 function parsePercent(s: string): number | null {
-  const n = parseFloat(s.replace(/%\s*/g, ""));
+  // Strip %, commas, and whitespace. Input is always assumed to be in percent form
+  // (e.g. "10.362" or "10.362%" → 10.362). Never treated as a decimal fraction.
+  const n = parseFloat(s.replace(/%/g, "").replace(/,/g, "").trim());
   return isNaN(n) ? null : n;
 }
 

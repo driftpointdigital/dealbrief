@@ -125,11 +125,22 @@ function fmtSFStr(str: string): string {
   return Math.round(n).toLocaleString("en-US") + " SF";
 }
 
+// Parse a user-entered cap rate / percentage string into a numeric percent value.
+// Input is always assumed to be in percent form (e.g. "10.362" or "10.362%" → 10.362).
+// Never treats the value as a decimal fraction — "7.5" means 7.5%, not 0.75%.
+function parseCapRateInput(str: string): number | null {
+  if (!str) return null;
+  // Strip %, commas (accidental thousands separators), and whitespace
+  const cleaned = str.replace(/%/g, "").replace(/,/g, "").trim();
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? null : n;
+}
+
 // Format a percentage string to "X.XX%"
 function fmtPctDisplay(str: string): string {
   if (!str) return str;
-  const n = parseFloat(str.replace(/%/g, ""));
-  if (isNaN(n)) return str;
+  const n = parseCapRateInput(str);
+  if (n === null) return str;
   return n.toFixed(2) + "%";
 }
 
@@ -200,7 +211,7 @@ function parseOpexOverrides(str: string, yr: number): BoeInputs {
 
 function computeBoe(data: ReportData): BoeEst | null {
   const ask  = parseDol(data.askingPrice);
-  const cap  = parseFloat(data.brokerCapRate) || 0;
+  const cap  = parseCapRateInput(data.brokerCapRate) ?? 0;
   const units = parseInt(data.units) || 0;
   const yr    = parseInt(data.yearBuilt) || 0;
   if (!ask) return null;
@@ -655,7 +666,7 @@ function PageFooter() {
 export function DealBriefPDF({ data }: { data: ReportData }) {
   // BOE computed first so buyer cap rate can back-calculate an implied acquisition price
   const boe        = computeBoe(data);
-  const buyerCR    = parseFloat((data.buyerCapRate || "").replace(/%/g, "")) / 100;
+  const buyerCR    = (parseCapRateInput(data.buyerCapRate) ?? 0) / 100;
   const impliedPrice = boe && boe.estNoi > 0 && buyerCR > 0 ? Math.round(boe.estNoi / buyerCR) : 0;
   const effectiveAskStr = data.askingPrice || (impliedPrice > 0 ? String(impliedPrice) : "");
 
