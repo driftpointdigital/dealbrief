@@ -1373,7 +1373,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     const dscr = noiForCalc !== null && sc.annualDebtService > 0 ? noiForCalc / sc.annualDebtService : null;
                     const coc  = cf !== null && equity > 0 ? cf / (equity * 1.015) : null;
                     const sig  = dscr === null ? "—"
-                      : dscr >= 1.10 && coc !== null && coc >= 0.07 ? "GO"
+                      : dscr >= 1.10 && coc !== null && coc >= 0.06 ? "GO"
                       : dscr >= 1.0 ? "WATCH"
                       : "STOP";
                     const sigColor = sig === "GO" ? GREEN : sig === "WATCH" ? AMBER : sig === "STOP" ? RED : GRAY;
@@ -1450,7 +1450,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </View>
             )}
             <Text style={s.note}>
-              DSCR and CoC calculated using estimated NOI (rents – operating expenses). Broker cap rate shown for reference only. GO = 1.10x+ DSCR and 7%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
+              DSCR and CoC calculated using estimated NOI (rents – operating expenses). Broker cap rate shown for reference only. GO = 1.10x+ DSCR and 6%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
             </Text>
           </>
         )}
