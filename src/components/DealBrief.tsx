@@ -31,13 +31,18 @@ const LOADING_STEPS = [
   "Checking FEMA flood zone",
   "Loading Census demographics",
   "Querying crime data",
+  "Checking school ratings",
+  "Pulling permit history",
+  "Looking up HUD properties",
   "Estimating walk score",
+  "Analyzing employment data",
+  "Building your report",
 ];
 
 function LoadingSequence() {
   const [step, setStep] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 2200);
+    const t = setInterval(() => setStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 1400);
     return () => clearInterval(t);
   }, []);
   return (
