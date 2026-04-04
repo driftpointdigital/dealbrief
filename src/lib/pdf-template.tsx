@@ -363,7 +363,7 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
       if (sc.dscr !== null) return sc.dscr;
       return boeNoi !== null && sc.annualDebtService > 0 ? boeNoi / sc.annualDebtService : null;
     };
-    const usingBoe = hiLtvScenarios.every(sc => sc.dscr === null) && boeNoi !== null;
+    const usingBoe = boeNoi !== null;
     const allNegative = hiLtvScenarios.every(sc => { const d = getDscr(sc); return d !== null && d < 1.0; });
     const someBelow110 = hiLtvScenarios.some(sc => { const d = getDscr(sc); return d !== null && d < 1.10; });
     if (allNegative) {
@@ -737,7 +737,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Address"          value={data.address} />
           <Row label="Property Type"    value={data.propertyType || "Not available"} alt />
           <Row label="Year Built"       value={data.yearBuilt ? data.yearBuilt + (age > 0 ? ` (${age} years old)` : "") : "Not available"} />
-          <Row label="Building Area"    value={data.buildingArea ? (data.buildingArea.toUpperCase().includes("SF") ? fmtSFStr(data.buildingArea) : data.buildingArea) : "Not available"} alt />
+          <Row label="Building Area"    value={data.buildingArea ? fmtSFStr(data.buildingArea) : "Not available"} alt />
           <Row label="Lot Size"         value={data.lotSize || "Not available"} />
           <Row label="Units"            value={data.units || "Not available"} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
@@ -1122,7 +1122,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 3: PERMITS + BOE + DEBT SERVICE ════════ */}
+      {/* ════════ PAGE 3: PERMITS ════════ */}
       <Page size="LETTER" style={s.page}>
         <PageHeader address={data.address} page={3} />
 
@@ -1200,6 +1200,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </View>
         )}
 
+        <PageFooter />
+      </Page>
+
+      {/* ════════ PAGE 4: BOE + DEBT SERVICE + DEAL CONTEXT ════════ */}
+      <Page size="LETTER" style={s.page}>
+        <PageHeader address={data.address} page={4} />
+
         {/* BACK-OF-ENVELOPE ANALYSIS */}
         {boe !== null && (() => {
             // Per-unit helpers (only when units > 0)
@@ -1208,7 +1215,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
             return (
               <>
-                <View break />
                 <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
                 <Text style={s.note}>Verify with actual T-12.</Text>
 
@@ -1413,9 +1419,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 4: FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
+      {/* ════════ PAGE 5: FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
       <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={4} />
+        <PageHeader address={data.address} page={5} />
 
         {/* KEY FLAGS & OBSERVATIONS */}
         <SectionHead title="KEY FLAGS & OBSERVATIONS" />
