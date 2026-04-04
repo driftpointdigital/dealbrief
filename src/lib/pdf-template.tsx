@@ -366,7 +366,11 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
     };
     const usingBoe = boeNoi !== null;
     const allNegative = hiLtvScenarios.every(sc => { const d = getDscr(sc); return d !== null && d < 1.0; });
-    const someBelow110 = hiLtvScenarios.some(sc => { const d = getDscr(sc); return d !== null && d < 1.10; });
+    // Fire "thin coverage" only when a majority (≥ half) of high-LTV scenarios are below 1.10x.
+    // Using some() would falsely flag deals where only the worst-case rate is tight while
+    // most rates are comfortable (common with IO periods or conservative rate grids).
+    const below110Count = hiLtvScenarios.filter(sc => { const d = getDscr(sc); return d !== null && d < 1.10; }).length;
+    const someBelow110 = below110Count >= Math.ceil(hiLtvScenarios.length / 2);
     if (allNegative) {
       flags.push({ level: "red",
         title: usingBoe ? "Negative Cash Flow at Estimated NOI" : "Negative Cash Flow at Broker-Stated NOI",
