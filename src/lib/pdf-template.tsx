@@ -229,9 +229,10 @@ function computeBoe(data: ReportData): BoeEst | null {
     return m ? m[1] : "";
   };
 
-  // Taxes: tier 1 — actual from county assessor
+  // Taxes: tier 1 — actual from county assessor or user input
   let taxes = parseDol(data.annualTaxes);
-  let taxesSource = "from county assessor";
+  const hasAssessorData = parseDol(data.assessedValue) > 0;
+  let taxesSource = taxes > 0 ? (hasAssessorData ? "from county assessor" : "user input") : "from county assessor";
   let taxesIsEstimate = false;
   // Tier 2 — computed from assessed value × tax rate
   if (!taxes && data.assessedValue && data.taxRate) {
@@ -1173,7 +1174,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </View>
         ) : (
           <View style={{ marginBottom: 8 }}>
-            <Text style={[s.val, { marginBottom: 5 }]}>
+            <Text style={[s.val, { marginBottom: 14 }]}>
               {permitNum} permit{permitNum !== 1 ? "s" : ""} found on record. Review scope and quality of documented improvements during inspection.
             </Text>
             {permits.length > 0 && (
