@@ -845,6 +845,15 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {(() => {
                 const av2 = parseDol(data.assessedValue);
                 const ask2 = parseDol(data.askingPrice);
+                const userInputTaxes = !av2 && parseDol(data.annualTaxes) > 0;
+
+                if (userInputTaxes) {
+                  const srcNote = data.assessorSource
+                    ? ` ${data.assessorSource} located the parcel but no assessed value is currently on record (appraisal may be pending for new construction).`
+                    : "";
+                  return `Annual taxes submitted by user.${srcNote} Upon sale, county may reassess to the purchase price.`;
+                }
+
                 const src = data.assessorSource ? `Source: ${data.assessorSource}.` : "Source: County appraisal district.";
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
                   return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.`;
