@@ -705,7 +705,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   })();
   const taxAdjTaxes = boe && effTaxRate > 0 && askNum > 0 ? Math.round(askNum * effTaxRate) : 0;
   const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
-  const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && Math.abs(taxAdjTaxes - boe.taxes) > 500;
+  // Show tax-adjusted section when the reassessment swing is meaningful.
+  // Flat $500 threshold was too coarse for small properties — a $249 swing on
+  // a $219K SFR is 6.3% of the tax bill. Use max($200, 5% of current taxes).
+  const taxAdjThreshold = boe ? Math.max(200, boe.taxes * 0.05) : 500;
+  const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && Math.abs(taxAdjTaxes - boe.taxes) > taxAdjThreshold;
 
   const bldgSF      = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
   const pricePerUnit = unitsNum > 0 && effectiveAskNum > 0 ? fmt$(effectiveAskNum / unitsNum) + " / unit" : "";
