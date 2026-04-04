@@ -156,7 +156,7 @@ function cocColor(v: number | null)  { return v === null ? "#1F2937" : v >= 0.06
 // ── BOE estimate ──────────────────────────────────────────────────────────────
 interface BoeEst {
   brokerNoi: number;
-  taxes: number; taxesSource: string;
+  taxes: number; taxesSource: string; taxesIsEstimate: boolean;
   insurance: number; maintenance: number;
   utilities: number; management: number; totalOpEx: number;
   marketing: number; admin: number; reserves: number;
@@ -214,13 +214,39 @@ function computeBoe(data: ReportData): BoeEst | null {
   if (units === 0 && !cap) return null;
   const brokerNoi = ask * (cap / 100);
 
-  // Taxes: use actual if available, compute from assessment × rate as fallback
+  // State avg effective tax rates — fallback when no parcel data at all
+  const _STATE_TAX_RATES: Record<string, number> = {
+    TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
+    CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
+    NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
+    MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010, KY: 0.009,
+    AL: 0.004, MS: 0.007, LA: 0.006, AR: 0.006, OK: 0.009, KS: 0.013,
+    NE: 0.015, IA: 0.015, ND: 0.009, SD: 0.011, MT: 0.007, ID: 0.007,
+    WY: 0.006, UT: 0.006, NV: 0.006, NM: 0.007, AK: 0.010, HI: 0.003,
+  };
+  const _stateFromAddr = (addr: string): string => {
+    const m = addr.match(/,\s*([A-Z]{2})[, ]/);
+    return m ? m[1] : "";
+  };
+
+  // Taxes: tier 1 — actual from county assessor
   let taxes = parseDol(data.annualTaxes);
   let taxesSource = "from county assessor";
+  let taxesIsEstimate = false;
+  // Tier 2 — computed from assessed value × tax rate
   if (!taxes && data.assessedValue && data.taxRate) {
     const av = parseDol(data.assessedValue);
     const rate = parseFloat(data.taxRate.replace(/%/g, "")) / 100;
     if (av && rate) { taxes = Math.round(av * rate); taxesSource = "est. from assessment × tax rate"; }
+  }
+  // Tier 3 — state avg tax rate × asking price (shown in red as rough estimate)
+  if (!taxes && ask > 0) {
+    const stateRate = _STATE_TAX_RATES[_stateFromAddr(data.address || "")];
+    if (stateRate) {
+      taxes = Math.round(ask * stateRate);
+      taxesSource = "county avg rate × asking price";
+      taxesIsEstimate = true;
+    }
   }
 
   const opexInputs = parseOpexOverrides(data.opexOverrides || "", yr);
@@ -278,7 +304,7 @@ function computeBoe(data: ReportData): BoeEst | null {
     : 0;
 
   return {
-    brokerNoi, taxes, taxesSource, insurance, maintenance, utilities,
+    brokerNoi, taxes, taxesSource, taxesIsEstimate, insurance, maintenance, utilities,
     marketing, admin, reserves, opexInputs,
     management, totalOpEx, egi, gpr, gprPerUnitPerMonth, occupancyRate, estNoi,
     vacancyAmt, badDebtAmt, otherIncomeAmt,
@@ -346,7 +372,7 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
         body: `At the highest LTV scenario, DSCR is below 1.0x using ${usingBoe ? "estimated NOI from rents" : "the broker's cap rate"}. The deal does not cover debt service — verify NOI with T-12 actuals before proceeding.` });
     } else if (someBelow110) {
       flags.push({ level: "amber", title: "Thin Coverage — DSCR Below 1.10x",
-        body: `Cash flow coverage is marginal at current rate scenarios. Any NOI shortfall from ${usingBoe ? "rent estimates" : "broker representations"} could push the deal into negative territory. Stress-test with actual operating statements.` });
+        body: `Cash flow coverage is marginal at current rate scenarios. Any NOI shortfall from ${usingBoe ? "DealBrief estimates" : "broker representations"} could push the deal into negative territory. Stress-test with actual operating statements.` });
     }
   }
 
@@ -586,12 +612,12 @@ function SubtotalRow({ label, value, unit }: { label: string; value: string; uni
   );
 }
 
-function BoeRow({ label, total, unit, alt }: { label: string; total: string; unit?: string; alt?: boolean }) {
+function BoeRow({ label, total, unit, alt, warn }: { label: string; total: string; unit?: string; alt?: boolean; warn?: boolean }) {
   return (
     <View style={alt ? s.rowAlt : s.row}>
-      <Text style={{ width: 148, fontSize: 8, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
-      <Text style={{ flex: 1, fontSize: 8.5, color: "#374151" }}>{total}</Text>
-      <Text style={{ width: 92, fontSize: 8, color: GRAY, textAlign: "right" }}>{unit || ""}</Text>
+      <Text style={{ width: 148, fontSize: 8, fontFamily: "Helvetica-Bold", color: warn ? "#b91c1c" : NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={{ flex: 1, fontSize: 8.5, color: warn ? "#b91c1c" : "#374151" }}>{total}</Text>
+      <Text style={{ width: 92, fontSize: 8, color: warn ? "#b91c1c" : GRAY, textAlign: "right" }}>{unit || ""}</Text>
     </View>
   );
 }
@@ -1182,6 +1208,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
             return (
               <>
+                <View break />
                 <SectionHead title="BACK-OF-ENVELOPE ANALYSIS" />
                 <Text style={s.note}>Verify with actual T-12.</Text>
 
@@ -1210,9 +1237,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 {/* Expenses sub-header */}
                 <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>OPERATING EXPENSES</Text>
                 <View style={s.tableWrap}>
-                  <BoeRow label={"Est. Property Taxes  (" + boe.taxesSource + ")"}
+                  <BoeRow
+                    label={boe.taxesIsEstimate
+                      ? "Est. Property Taxes  (county avg rate × asking price)"
+                      : "Est. Property Taxes  (" + boe.taxesSource + ")"}
                     total={boe.taxes > 0 ? fmt$(boe.taxes) + "/yr" : "Not available"}
-                    unit={boe.taxes > 0 ? pu(boe.taxes) : ""} />
+                    unit={boe.taxes > 0 ? pu(boe.taxes) : ""}
+                    warn={boe.taxesIsEstimate} />
                   <BoeRow label={"Est. Insurance  (~$" + Math.round(boe.opexInputs.insurancePerUnit) + "/unit)"}
                     total={fmt$(boe.insurance) + "/yr"} unit={pu(boe.insurance)} alt />
                   <BoeRow label={"Est. Maintenance  (~$" + Math.round(boe.opexInputs.maintenancePerUnit) + "/unit — " + (yrBuilt >= 2000 ? "post-2000" : yrBuilt >= 1980 ? "1980–2000" : yrBuilt > 0 ? "pre-1980" : "unknown") + " vintage)"}
