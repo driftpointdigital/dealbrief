@@ -755,7 +755,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Property Type"    value={data.propertyType || "Not available"} alt />
           <Row label="Year Built"       value={data.yearBuilt ? data.yearBuilt + (age > 0 ? ` (${age} years old)` : "") : "Not available"} />
           <Row label="Building Area"    value={data.buildingArea ? fmtSFStr(data.buildingArea) : "Not available"} alt />
-          <Row label="Lot Size"         value={data.lotSize || "Not available"} />
+          <Row label="Lot Size"         value={(() => {
+            if (!data.lotSize) return "Not available";
+            const sqft = parseFloat(data.lotSize.replace(/[^0-9.]/g, ""));
+            if (isNaN(sqft) || sqft <= 0) return data.lotSize;
+            const acres = (sqft / 43560).toFixed(2);
+            return `${Math.round(sqft).toLocaleString("en-US")} SF | ${acres} acres`;
+          })()} />
           <Row label="Units"            value={data.units || "Not available"} alt />
           {data.zoning        && <Row label="Zoning"          value={data.zoning} />}
           {data.parcelId      && <Row label="Parcel ID"        value={data.parcelId} />}
