@@ -337,11 +337,18 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
   const ask = parseDol(data.askingPrice);
 
   // Crime
-  const _crimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
+  const _parsedCrime = parseCrimeData(data.crimeData ?? "");
+  const _crimeGrade = _parsedCrime?.overallGrade || data.crimeOverall || "";
   if (_crimeGrade) {
+    const _rateStr = _parsedCrime?.crateTotal != null
+      ? ` (${_parsedCrime.crateTotal.toFixed(2)} per 1,000 residents)`
+      : data.crimeRate ? ` (${data.crimeRate} per 1,000 residents)` : "";
+    const _pctStr = _parsedCrime?.pct != null
+      ? `; safer than only ${_parsedCrime.pct}% of U.S. ZIP codes`
+      : data.crimePct ? `; safer than only ${data.crimePct}% of U.S. ZIP codes` : "";
     if (["F","D-","D"].includes(_crimeGrade)) {
       flags.push({ level: "red", title: `High Crime — Grade ${_crimeGrade}`,
-        body: `Crime grade ${_crimeGrade}${data.crimeRate ? " (" + data.crimeRate + " per 1,000 residents)" : ""}${data.crimePct ? "; safer than only " + data.crimePct + "% of U.S. ZIP codes" : ""}. Expect higher insurance premiums, lender scrutiny, and ongoing tenant quality challenges.` });
+        body: `Crime grade ${_crimeGrade}${_rateStr}${_pctStr}. Expect higher insurance premiums, lender scrutiny, and ongoing tenant quality challenges.` });
     } else if (["D+","C-","C"].includes(_crimeGrade)) {
       flags.push({ level: "amber", title: `Elevated Crime — Grade ${_crimeGrade}`,
         body: `Crime index is ${_crimeGrade}. Factor into tenant screening, insurance budget, and exit cap assumptions.` });
@@ -1020,12 +1027,16 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               { label: "Violent Grade",   grade: parsedCrime?.violentGrade  || data.crimeViolent  || "" },
               { label: "Property Grade",  grade: parsedCrime?.propertyGrade || data.crimeProp     || "" },
             ]} />
-            {(data.crimeRate || data.crimePct) && (
+            {(parsedCrime?.crateTotal != null || parsedCrime?.pct != null || data.crimeRate || data.crimePct) && (
               <View style={s.tableWrap}>
                 <Row label="Overall Crime Grade"
                   value={crimeGrade
-                    + (data.crimeRate ? " — " + data.crimeRate + " per 1,000 residents" : "")
-                    + (data.crimePct ? " (safer than " + data.crimePct + "% of U.S. ZIPs)" : "")} />
+                    + (parsedCrime?.crateTotal != null
+                        ? ` — ${parsedCrime.crateTotal.toFixed(2)} per 1,000 residents`
+                        : data.crimeRate ? " — " + data.crimeRate + " per 1,000 residents" : "")
+                    + (parsedCrime?.pct != null
+                        ? ` (safer than ${parsedCrime.pct}% of U.S. ZIPs)`
+                        : data.crimePct ? " (safer than " + data.crimePct + "% of U.S. ZIPs)" : "")} />
               </View>
             )}
             <Text style={s.note}>
@@ -1237,6 +1248,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     <Text style={[s.tCell, { width: 58 }]}>{p.v ? fmt$(p.v) : "—"}</Text>
                   </View>
                 ))}
+                {permitNum > permits.length && (
+                  <Text style={[s.note, { marginTop: 4 }]}>
+                    {permitNum - permits.length} additional permit{permitNum - permits.length !== 1 ? "s" : ""} not shown (report displays up to 20). Full history available through the city permit portal.
+                  </Text>
+                )}
                 <Text style={s.note}>Source: {data.permitSource || "City permit portal"}. Values shown are permitted job values, not actual cost.</Text>
               </>
             )}

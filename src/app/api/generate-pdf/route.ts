@@ -82,10 +82,10 @@ export async function GET(req: NextRequest) {
     censusPctBlack:    (m.censusRace ? m.censusRace.split(",")[0] : null) ?? m.censusPctBlack    ?? "",
     censusPctHispanic: (m.censusRace ? m.censusRace.split(",")[1] : null) ?? m.censusPctHispanic ?? "",
     censusPctWhite:    (m.censusRace ? m.censusRace.split(",")[2] : null) ?? m.censusPctWhite    ?? "",
-    // Permits — may be split across two keys due to Stripe 500-char limit
+    // Permits — may be split across up to 4 keys due to Stripe 500-char limit
     permitCount:   m.permitCount   ?? "0",
     permitSource:  m.permitSource  ?? "",
-    permitDetails: (m.permitDetails ?? "") + (m.permitDetails2 ?? ""),
+    permitDetails: (m.permitDetails ?? "") + (m.permitDetails2 ?? "") + (m.permitDetails3 ?? "") + (m.permitDetails4 ?? ""),
     // Schools
     schoolsData:   m.schoolsData   ?? "",
     // Proximity — new: proxData="miles|minutes|city"; fallback to old individual keys

@@ -151,14 +151,15 @@ export default function DealBrief() {
   const [badDebtPct, setBadDebtPct] = useState("1.0");
   const [otherIncomePct, setOtherIncomePct] = useState("50");
   const [insurancePerUnit, setInsurancePerUnit] = useState("800");
-  const [maintenancePerUnit, setMaintenancePerUnit] = useState("500");
+  const [maintenancePerUnit, setMaintenancePerUnit] = useState("750");
   const [utilitiesPerUnit, setUtilitiesPerUnit] = useState("250");
   const [managementPct, setManagementPct] = useState("8.0");
   const [marketingPerUnit, setMarketingPerUnit] = useState("150");
   const [adminPerUnit, setAdminPerUnit] = useState("100");
-  const [reservesPerUnit, setReservesPerUnit] = useState("250");
+  const [reservesPerUnit, setReservesPerUnit] = useState("400");
   const [propertyType, setPropertyType] = useState("Multifamily");
   const [devKey, setDevKey] = useState("");
+  const [pipelineError, setPipelineError] = useState("");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -252,6 +253,7 @@ export default function DealBrief() {
 
   const go = async () => {
     if (!address.trim()) return;
+    setPipelineError("");
     setView("loading");
     try {
       const res = await fetch("/api/pipeline", {
@@ -260,8 +262,13 @@ export default function DealBrief() {
         body: JSON.stringify({ address }),
       });
       const pipeline = await res.json();
-      const a = (!res.ok || pipeline.error) ? {} : (pipeline.assessor ?? {});
-      const pipelineData = (!res.ok || pipeline.error) ? null : pipeline;
+      if (!res.ok || pipeline.error) {
+        setPipelineError(pipeline.error || `Server error ${res.status}. Please try again.`);
+        setView("landing");
+        return;
+      }
+      const a = pipeline.assessor ?? {};
+      const pipelineData = pipeline;
       // Prefer the geocoded formatted address for proper commas/casing, but restore
       // hyphenated range prefixes (e.g. "2429-2431") that the geocoder drops.
       const geoAddr = pipeline?.geo?.formattedAddress || address;
@@ -296,14 +303,17 @@ export default function DealBrief() {
         medianRent:      pipelineData?.census?.medianRent || "",
         _pipeline: pipelineData,
       } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
-      // Auto-set maintenance default from year built
+      // Auto-set OpEx defaults from year built
+      // Unknown/missing year defaults to conservative middle estimates
       const yrStr = a.yearBuilt || "";
       const yr = parseInt(yrStr) || 0;
-      setMaintenancePerUnit(yr >= 2000 ? "500" : yr >= 1980 ? "750" : yr > 0 ? "1000" : "500");
-    } catch {
-      setData({ ...MOCK_RETURN_DATA, address: "" } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
+      setMaintenancePerUnit(yr >= 2000 ? "500" : yr >= 1980 ? "750" : yr > 0 ? "1000" : "750");
+      setReservesPerUnit(yr >= 2000 ? "250" : yr >= 1980 ? "400" : yr > 0 ? "500" : "400");
+      setView("confirm");
+    } catch (err) {
+      setPipelineError(err instanceof Error ? err.message : "Unable to reach the server. Please try again.");
+      setView("landing");
     }
-    setView("confirm");
   };
 
   const submitSuggest = () => {
@@ -716,6 +726,13 @@ export default function DealBrief() {
             </button>
           </div>
         </div>
+
+        {/* PIPELINE ERROR */}
+        {pipelineError && (
+          <div style={{ marginBottom: 12, padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, fontSize: 13, color: "#B91C1C" }}>
+            {pipelineError}
+          </div>
+        )}
 
         {/* COVERAGE */}
         <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>

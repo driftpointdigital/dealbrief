@@ -100,16 +100,18 @@ export async function POST(req: NextRequest) {
   // Permit details — compact JSON for up to 5 permits
   const permitList = (permits.permits ?? []) as Array<Record<string, unknown>>;
   if (permitList.length > 0) {
-    const compact = permitList.slice(0, 15).map(p => ({
+    const compact = permitList.slice(0, 20).map(p => ({
       t: String(p.type || "").slice(0, 25),
       d: String(p.description || "").slice(0, 50),
       dt: String(p.fileDate || p.issueDate || "").slice(0, 10),
       v: p.jobValue ? Math.round(Number(p.jobValue)) : null,
     }));
     const fullJson = JSON.stringify(compact);
-    // Stripe metadata: 500 char limit per key — split across two keys if needed
+    // Stripe metadata: 500 char limit per key — split across up to 4 keys (covers ~20 permits)
     metadata.permitDetails  = fullJson.slice(0, 490);
-    if (fullJson.length > 490) metadata.permitDetails2 = fullJson.slice(490, 980);
+    if (fullJson.length >  490) metadata.permitDetails2 = fullJson.slice( 490,  980);
+    if (fullJson.length >  980) metadata.permitDetails3 = fullJson.slice( 980, 1470);
+    if (fullJson.length > 1470) metadata.permitDetails4 = fullJson.slice(1470, 1960);
   }
 
   // Proximity to downtown (packed as "miles|minutes|city" to save 2 keys)

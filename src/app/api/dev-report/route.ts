@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   // Permit details — compact JSON (same format as checkout route)
   const permitList = (permits.permits ?? []) as Array<Record<string, unknown>>;
   const permitDetails = permitList.length > 0
-    ? JSON.stringify(permitList.slice(0, 15).map(p => ({
+    ? JSON.stringify(permitList.slice(0, 20).map(p => ({
         t:  str(p.type        || "", 25),
         d:  str(p.description || "", 50),
         dt: str(p.fileDate || p.issueDate || "", 10),
