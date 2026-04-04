@@ -257,8 +257,16 @@ export default function DealBrief() {
       const pipeline = await res.json();
       const a = (!res.ok || pipeline.error) ? {} : (pipeline.assessor ?? {});
       const pipelineData = (!res.ok || pipeline.error) ? null : pipeline;
+      // Prefer the geocoded formatted address for proper commas/casing, but restore
+      // hyphenated range prefixes (e.g. "2429-2431") that the geocoder drops.
+      const geoAddr = pipeline?.geo?.formattedAddress || address;
+      const userRangeMatch = address.trim().match(/^(\d+-\d+)\b/);
+      const geoNumMatch    = geoAddr.match(/^(\d+)\b/);
+      const displayAddr = userRangeMatch && geoNumMatch
+        ? geoAddr.replace(geoNumMatch[1], userRangeMatch[1])
+        : geoAddr;
       setData({
-        address: pipeline?.geo?.formattedAddress || address,
+        address: displayAddr,
         yearBuilt:    a.yearBuilt    || "",
         buildingArea: a.buildingArea || "",
         lotSize:      a.lotSize      || "",
