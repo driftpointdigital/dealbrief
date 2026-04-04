@@ -37,7 +37,7 @@ const LOADING_STEPS = [
 function LoadingSequence() {
   const [step, setStep] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 420);
+    const t = setInterval(() => setStep(s => Math.min(s + 1, LOADING_STEPS.length - 1)), 2200);
     return () => clearInterval(t);
   }, []);
   return (
