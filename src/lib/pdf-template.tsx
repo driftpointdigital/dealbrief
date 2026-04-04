@@ -681,10 +681,22 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     if (!boe) return 0;
     const taxes = parseDol(data.annualTaxes);
     const av    = parseDol(data.assessedValue);
+    // Tier 1: actual taxes ÷ assessed value = true effective rate
     if (taxes > 0 && av > 0) return taxes / av;
+    // Tier 2: tax rate field passed directly from assessor
     const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
     if (!isNaN(tr) && tr > 0) return tr / 100;
-    return 0;
+    // Tier 3: state average effective rate (same table as BOE tax fallback)
+    // Allows tax-adjusted NOI to show when user entered taxes but no assessor data
+    const _STATE_RATES: Record<string, number> = {
+      TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
+      CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
+      NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
+      MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
+    };
+    const stateM = (data.address || "").match(/,\s*([A-Z]{2})[, ]/);
+    const stateRate = stateM ? (_STATE_RATES[stateM[1]] || 0) : 0;
+    return stateRate;
   })();
   const taxAdjTaxes = boe && effTaxRate > 0 && askNum > 0 ? Math.round(askNum * effTaxRate) : 0;
   const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
@@ -787,7 +799,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </>
         )}
 
-        {/* TAX PROFILE */}
+        {/* TAX PROFILE — kept concise on page 1 to prevent overflow */}
         {hasAssessor && (
           <>
             <SectionHead title="TAX PROFILE" />
@@ -813,20 +825,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               )}
               {data.assessedValue && data.askingPrice && (
                 <>
-                  <Row label="Assessment vs. Ask"
-                    value={(() => {
-                      const av = parseDol(data.assessedValue);
-                      const ask = parseDol(data.askingPrice);
-                      if (!av || !ask) return "";
-                      const ratio = av / ask;
-                      const pct = Math.round(ratio * 100);
-                      const flag = ratio > 1.0
-                        ? ` — assessed ABOVE asking; buyer may be able to appeal taxes downward`
-                        : ratio >= 0.90 ? ` — near asking price, minimal reassessment exposure`
-                        : ratio >= 0.80 ? ` — expect upward reassessment at next cycle`
-                        : ` — significant upward reassessment risk`;
-                      return `${fmtDol(data.assessedValue)} / ${askFmt} = ${pct}% assessment ratio${flag}`;
-                    })()} />
                   {unitsNum > 0 && (data.annualTaxes || (data.assessedValue && data.taxRate)) && (
                     <Row label="Taxes per Unit per Year"
                       value={(() => {
@@ -1189,7 +1187,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 {permits.map((p, i) => (
                   <View key={i} style={i % 2 === 0 ? s.tRow : s.tRowAlt}>
                     <Text style={[s.tCell, { flex: 3 }]}>{p.t || "—"}</Text>
-                    <Text style={[s.tCell, { flex: 5 }]}>{p.d || "—"}</Text>
+                    <Text style={[s.tCell, { flex: 5 }]}>{p.d ? (p.d.length > 48 ? p.d.slice(0, 46) + "…" : p.d) : "—"}</Text>
                     <Text style={[s.tCell, { width: 68 }]}>{p.dt || "—"}</Text>
                     <Text style={[s.tCell, { width: 58 }]}>{p.v ? fmt$(p.v) : "—"}</Text>
                   </View>

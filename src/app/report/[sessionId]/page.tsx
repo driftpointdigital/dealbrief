@@ -97,7 +97,7 @@ export default function ReportPage() {
               <p style={{ fontSize: 12, color: "#9CA3AF", marginTop: 16 }}>
                 You can download this report again using this page URL.
               </p>
-              <p style={{ fontSize: 13, color: "#374151", marginTop: 12, lineHeight: 1.5, maxWidth: 420, textAlign: "center" }}>
+              <p style={{ fontSize: 13, color: "#374151", marginTop: 12, lineHeight: 1.5, maxWidth: 420, textAlign: "center", margin: "12px auto 0" }}>
                 This product is in beta testing. If you have any issues whatsoever, contact us at{" "}
                 <a href="mailto:info@dealbrief.com" style={{ color: "#1D3557", fontWeight: 600 }}>info@dealbrief.com</a>
                 {" "}and we'll make it right.
