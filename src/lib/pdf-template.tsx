@@ -757,7 +757,17 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <Row label="Building Area"    value={data.buildingArea ? fmtSFStr(data.buildingArea) : "Not available"} alt />
           <Row label="Lot Size"         value={(() => {
             if (!data.lotSize) return "Not available";
-            const sqft = parseFloat(data.lotSize.replace(/[^0-9.]/g, ""));
+            // api.py sends "0.91 AC" (acres) or "12,500 SF" (sqft) — detect and normalise to sqft
+            const acMatch = data.lotSize.match(/([\d.]+)\s*[Aa][Cc]/);
+            const sfMatch = data.lotSize.match(/([\d,]+)\s*[Ss][Ff]/);
+            let sqft: number;
+            if (acMatch) {
+              sqft = parseFloat(acMatch[1]) * 43560;
+            } else if (sfMatch) {
+              sqft = parseFloat(sfMatch[1].replace(/,/g, ""));
+            } else {
+              sqft = parseFloat(data.lotSize.replace(/[^0-9.]/g, ""));
+            }
             if (isNaN(sqft) || sqft <= 0) return data.lotSize;
             const acres = (sqft / 43560).toFixed(2);
             return `${Math.round(sqft).toLocaleString("en-US")} SF | ${acres} acres`;
