@@ -210,19 +210,21 @@ function parseOpexOverrides(str: string, yr: number): BoeInputs {
 }
 
 function computeBoe(data: ReportData): BoeEst | null {
-  const ask  = parseDol(data.askingPrice);
-  const cap  = parseCapRateInput(data.brokerCapRate) ?? 0;
+  const ask     = parseDol(data.askingPrice);
+  const cap     = parseCapRateInput(data.brokerCapRate) ?? 0;
+  const buyerCap = parseCapRateInput(data.buyerCapRate) ?? 0;
   const units = parseInt(data.units) || 0;
   const yr    = parseInt(data.yearBuilt) || 0;
-  if (!ask) return null;
+  // Need asking price OR buyer cap rate — buyer cap allows implied-price mode
+  if (!ask && !buyerCap) return null;
   // Broker cap rate is a comparison point only — analysis runs from rents or census median
   const hasRevenue = cap > 0
     || !!parseRentPerUnit(data.inPlaceRents)
     || parseDol(data.censusRent) > 0;
   if (!hasRevenue) return null;
-  // Without a unit count and without a broker cap rate there is no way to derive GPR or
+  // Without a unit count and without any cap rate there is no way to derive GPR or
   // work backwards from NOI — return null so we don't render a section full of $0s.
-  if (units === 0 && !cap) return null;
+  if (units === 0 && !cap && !buyerCap) return null;
   const brokerNoi = ask * (cap / 100);
 
   // State avg effective tax rates — fallback when no parcel data at all
@@ -253,13 +255,23 @@ function computeBoe(data: ReportData): BoeEst | null {
     const rate = parseFloat(data.taxRate.replace(/%/g, "")) / 100;
     if (av && rate) { taxes = Math.round(av * rate); taxesSource = "est. from assessment × tax rate"; }
   }
-  // Tier 3 — state avg tax rate × asking price (shown in red as rough estimate)
-  if (!taxes && ask > 0) {
-    const stateRate = _STATE_TAX_RATES[_stateFromAddr(data.address || "")];
-    if (stateRate) {
-      taxes = Math.round(ask * stateRate);
-      taxesSource = "county avg rate × asking price";
-      taxesIsEstimate = true;
+  // Tier 3 — state avg tax rate × price (shown in red as rough estimate)
+  // When no asking price, derive a rough implied price from rents + buyer cap to estimate taxes.
+  if (!taxes) {
+    const priceForTax = ask > 0 ? ask : (() => {
+      if (!buyerCap) return 0;
+      const rentPU = parseRentPerUnit(data.inPlaceRents) || parseDol(data.censusRent) || 0;
+      if (!rentPU || !units) return 0;
+      // Rough NOI ≈ 42% of GPR (conservative pre-tax multifamily margin)
+      return Math.round((rentPU * units * 12 * 0.42) / (buyerCap / 100));
+    })();
+    if (priceForTax > 0) {
+      const stateRate = _STATE_TAX_RATES[_stateFromAddr(data.address || "")];
+      if (stateRate) {
+        taxes = Math.round(priceForTax * stateRate);
+        taxesSource = ask > 0 ? "county avg rate × asking price" : "county avg rate × est. price";
+        taxesIsEstimate = true;
+      }
     }
   }
 
@@ -719,11 +731,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
       NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
       MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
     };
-    const stateM = (data.address || "").match(/,\s*([A-Z]{2})[, ]/);
+    const stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
     const stateRate = stateM ? (_STATE_RATES[stateM[1]] || 0) : 0;
     return stateRate;
   })();
-  const taxAdjTaxes = boe && effTaxRate > 0 && askNum > 0 ? Math.round(askNum * effTaxRate) : 0;
+  const taxAdjTaxes = boe && effTaxRate > 0 && effectiveAskNum > 0 ? Math.round(effectiveAskNum * effTaxRate) : 0;
   const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
   // Show tax-adjusted section when the reassessment swing is meaningful.
   // Flat $500 threshold was too coarse for small properties — a $249 swing on
@@ -1430,13 +1442,14 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <Text style={[s.note, { marginBottom: 6 }]}>
               {ioLabel.charAt(0).toUpperCase() + ioLabel.slice(1)}.
               {isIO ? ` Year 1 shown as I/O payment; amortizing payment begins year ${ioYears + 1}.` : ""}
+              {askNum === 0 && effectiveAskNum > 0 ? ` Loan sized on implied acquisition price of ${fmt$(effectiveAskNum)} (BOE NOI ÷ ${fmtPctDisplay(data.buyerCapRate)} buyer cap).` : ""}
               {" "}Color: green = DSCR 1.10x+ / CoC 7%+, amber = marginal, red = below threshold.
             </Text>
 
             {[...new Set(model.scenarios.map(sc => sc.ltv))].map(ltv => {
               const ltvScs  = model.scenarios.filter(sc => sc.ltv === ltv);
               const loanAmt = ltvScs[0]?.loanAmount ?? 0;
-              const equity  = askNum * (1 - ltv / 100);
+              const equity  = effectiveAskNum * (1 - ltv / 100);
 
               // Helper: render one rate table given a base NOI value
               const renderRateTable = (noiForCalc: number | null) => (
@@ -1509,10 +1522,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             })}
 
             {/* All-cash */}
-            {boe && boe.estNoi !== 0 && askNum > 0 && (
+            {boe && boe.estNoi !== 0 && effectiveAskNum > 0 && (
               <View style={{ marginTop: 4, marginBottom: 10 }}>
                 <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
-                  All-Cash — {askFmt} equity | No debt | No I/O consideration
+                  All-Cash — {askNum > 0 ? askFmt : fmt$(effectiveAskNum) + " (implied)"} equity | No debt | No I/O consideration
                 </Text>
                 <View style={s.tHead}>
                   <Text style={[s.tHCell, { width: 130 }]}>Scenario</Text>
@@ -1524,8 +1537,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   <Text style={[s.tCell, { width: 100, color: boe.estNoi >= 0 ? GREEN : RED }]}>
                     {(boe.estNoi >= 0 ? "+" : "") + fmt$(boe.estNoi)}
                   </Text>
-                  <Text style={[s.tCell, { flex: 1, color: (boe.estNoi / askNum) >= 0 ? GREEN : RED }]}>
-                    {fmtPct((boe.estNoi / askNum) * 100)}
+                  <Text style={[s.tCell, { flex: 1, color: (boe.estNoi / effectiveAskNum) >= 0 ? GREEN : RED }]}>
+                    {fmtPct((boe.estNoi / effectiveAskNum) * 100)}
                   </Text>
                 </View>
               </View>
