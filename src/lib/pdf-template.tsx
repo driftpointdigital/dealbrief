@@ -686,9 +686,40 @@ function PageFooter() {
 // ── main component ────────────────────────────────────────────────────────────
 export function DealBriefPDF({ data }: { data: ReportData }) {
   // BOE computed first so buyer cap rate can back-calculate an implied acquisition price
-  const boe        = computeBoe(data);
-  const buyerCR    = (parseCapRateInput(data.buyerCapRate) ?? 0) / 100;
-  const impliedPrice = boe && boe.estNoi > 0 && buyerCR > 0 ? Math.round(boe.estNoi / buyerCR) : 0;
+  const boe     = computeBoe(data);
+  const buyerCR = (parseCapRateInput(data.buyerCapRate) ?? 0) / 100;
+
+  // Effective tax rate — computed before impliedPrice so the closed-form can use it
+  const effTaxRate = (() => {
+    if (!boe) return 0;
+    const taxes = parseDol(data.annualTaxes);
+    const av    = parseDol(data.assessedValue);
+    // Tier 1: actual taxes ÷ assessed value = true effective rate
+    if (taxes > 0 && av > 0) return taxes / av;
+    // Tier 2: tax rate field passed directly from assessor
+    const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
+    if (!isNaN(tr) && tr > 0) return tr / 100;
+    // Tier 3: state average effective rate
+    const _STATE_RATES: Record<string, number> = {
+      TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
+      CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
+      NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
+      MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
+    };
+    const stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
+    return stateM ? (_STATE_RATES[stateM[1]] || 0) : 0;
+  })();
+
+  // Implied acquisition price — closed-form so that tax-adj NOI ÷ price = buyer cap exactly.
+  // Derivation: taxAdjNoi = (NOI_inplace + taxes_current) - effTaxRate × price
+  //             price = taxAdjNoi / buyerCR  →  price = (NOI_inplace + taxes) / (buyerCR + effTaxRate)
+  // Falls back to NOI ÷ buyer cap when no effective rate is available.
+  const impliedPrice = (() => {
+    if (!boe || boe.estNoi <= 0 || !buyerCR) return 0;
+    if (effTaxRate > 0) return Math.round((boe.estNoi + boe.taxes) / (buyerCR + effTaxRate));
+    return Math.round(boe.estNoi / buyerCR);
+  })();
+
   const effectiveAskStr = data.askingPrice || (impliedPrice > 0 ? String(impliedPrice) : "");
 
   const model = runFinancialModel({
@@ -713,28 +744,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
   const unitsNum    = parseInt(data.units) || 0;
 
-  // Tax-adjusted NOI — computed here so both BOE and debt service sections can use it
-  const effTaxRate = (() => {
-    if (!boe) return 0;
-    const taxes = parseDol(data.annualTaxes);
-    const av    = parseDol(data.assessedValue);
-    // Tier 1: actual taxes ÷ assessed value = true effective rate
-    if (taxes > 0 && av > 0) return taxes / av;
-    // Tier 2: tax rate field passed directly from assessor
-    const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
-    if (!isNaN(tr) && tr > 0) return tr / 100;
-    // Tier 3: state average effective rate (same table as BOE tax fallback)
-    // Allows tax-adjusted NOI to show when user entered taxes but no assessor data
-    const _STATE_RATES: Record<string, number> = {
-      TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
-      CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
-      NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
-      MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
-    };
-    const stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
-    const stateRate = stateM ? (_STATE_RATES[stateM[1]] || 0) : 0;
-    return stateRate;
-  })();
+  // Tax-adjusted NOI — for DSCR sub-table and reassessment flag
   const taxAdjTaxes = boe && effTaxRate > 0 && effectiveAskNum > 0 ? Math.round(effectiveAskNum * effTaxRate) : 0;
   const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
   // Show tax-adjusted section when the reassessment swing is meaningful.
@@ -832,17 +842,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {pricePerSF   && <Row label="Price per SF"   value={pricePerSF} />}
               {data.brokerCapRate && <Row label="Broker Cap Rate" value={fmtPctDisplay(data.brokerCapRate)} alt />}
               {data.askingPrice && model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
-              {data.buyerCapRate && impliedPrice > 0 && data.askingPrice && (() => {
-                const impliedPriceAdj = showTaxAdj && taxAdjNoi > 0 && buyerCR > 0
-                  ? Math.round(taxAdjNoi / buyerCR) : 0;
-                const priceParts = [fmt$(impliedPrice) + " w/ " + (boe?.taxesIsEstimate ? "est." : "in-place") + " taxes"];
-                if (impliedPriceAdj > 0) priceParts.push(fmt$(impliedPriceAdj) + " w/ adj. taxes");
-                return (
-                  <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
-                    value={priceParts.join("  |  ")}
-                    alt />
-                );
-              })()}
+              {data.buyerCapRate && impliedPrice > 0 && (
+                <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
+                  value={fmt$(impliedPrice) + "  (" + (effTaxRate > 0 ? "Tax Adj. " : "") + "BOE NOI / " + fmtPctDisplay(data.buyerCapRate) + " buyer cap)"}
+                  alt />
+              )}
               {data.occupancy    && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
               {data.inPlaceRents && <Row label="In-Place Rents"    value={fmtDol(data.inPlaceRents) + "/mo"} />}
               {data.censusRent && (
