@@ -236,7 +236,9 @@ function computeBoe(data: ReportData): BoeEst | null {
     WY: 0.006, UT: 0.006, NV: 0.006, NM: 0.007, AK: 0.010, HI: 0.003,
   };
   const _stateFromAddr = (addr: string): string => {
-    const m = addr.match(/,\s*([A-Z]{2})[, ]/);
+    // Match state abbreviation (2 uppercase letters) followed by an optional
+    // separator and a 5-digit ZIP — handles both "City, TX, 76114" and "City TX 76114"
+    const m = addr.match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
     return m ? m[1] : "";
   };
 
@@ -821,7 +823,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.buyerCapRate && impliedPrice > 0 && data.askingPrice && (() => {
                 const impliedPriceAdj = showTaxAdj && taxAdjNoi > 0 && buyerCR > 0
                   ? Math.round(taxAdjNoi / buyerCR) : 0;
-                const priceParts = [fmt$(impliedPrice) + " w/ in-place taxes"];
+                const priceParts = [fmt$(impliedPrice) + " w/ " + (boe?.taxesIsEstimate ? "est." : "in-place") + " taxes"];
                 if (impliedPriceAdj > 0) priceParts.push(fmt$(impliedPriceAdj) + " w/ adj. taxes");
                 return (
                   <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
