@@ -836,7 +836,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.askingPrice
                 ? <Row label="Asking Price" value={askFmt} />
                 : <Row label="Implied Acquisition Price"
-                    value={fmt$(impliedPrice) + "  (BOE NOI ÷ " + fmtPctDisplay(data.buyerCapRate) + " buyer cap)"} />
+                    value={fmt$(impliedPrice) + "  (" + (effTaxRate > 0 ? "Tax Adj. " : "") + "BOE NOI \u00f7 " + fmtPctDisplay(data.buyerCapRate) + " buyer cap)"} />
               }
               {pricePerUnit && <Row label="Price per Unit" value={pricePerUnit} alt />}
               {pricePerSF   && <Row label="Price per SF"   value={pricePerSF} />}
@@ -844,7 +844,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.askingPrice && model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
               {data.buyerCapRate && impliedPrice > 0 && (
                 <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
-                  value={fmt$(impliedPrice) + "  (" + (effTaxRate > 0 ? "Tax Adj. " : "") + "BOE NOI / " + fmtPctDisplay(data.buyerCapRate) + " buyer cap)"}
+                  value={fmt$(impliedPrice) + "  (" + (effTaxRate > 0 ? "Tax Adj. " : "") + "BOE NOI \u00f7 " + fmtPctDisplay(data.buyerCapRate) + " buyer cap)"}
                   alt />
               )}
               {data.occupancy    && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
@@ -1446,7 +1446,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <Text style={[s.note, { marginBottom: 6 }]}>
               {ioLabel.charAt(0).toUpperCase() + ioLabel.slice(1)}.
               {isIO ? ` Year 1 shown as I/O payment; amortizing payment begins year ${ioYears + 1}.` : ""}
-              {askNum === 0 && effectiveAskNum > 0 ? ` Loan sized on implied acquisition price of ${fmt$(effectiveAskNum)} (BOE NOI ÷ ${fmtPctDisplay(data.buyerCapRate)} buyer cap).` : ""}
+              {askNum === 0 && effectiveAskNum > 0 ? ` Loan sized on implied acquisition price of ${fmt$(effectiveAskNum)} (${effTaxRate > 0 ? "Tax Adj. " : ""}BOE NOI \u00f7 ${fmtPctDisplay(data.buyerCapRate)} buyer cap).` : ""}
               {" "}Color: green = DSCR 1.10x+ / CoC 7%+, amber = marginal, red = below threshold.
             </Text>
 
