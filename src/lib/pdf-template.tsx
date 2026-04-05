@@ -1328,7 +1328,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
                 {/* Bottom line */}
                 <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2, marginTop: 8 }}>NET OPERATING INCOME</Text>
-                <SubtotalRow label="Est. In-Place NOI  (current taxes)" value={fmt$(boe.estNoi) + "/yr"} unit={pu(boe.estNoi)} />
+                <SubtotalRow label={"Est. In-Place NOI  (" + (boe.taxesIsEstimate ? "est. taxes" : "current taxes") + ")"} value={fmt$(boe.estNoi) + "/yr"} unit={pu(boe.estNoi)} />
                 {showTaxAdj && (
                   <SubtotalRow
                     label={"Est. Tax-Adjusted NOI  (" + (effTaxRate * 100).toFixed(2) + "% × ask)"}
@@ -1357,6 +1357,69 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </>
             );
           })()}
+
+        {/* PRICE SENSITIVITY */}
+        {boe !== null && boe.estNoi > 0 && (askNum > 0 || impliedPrice > 0) && (() => {
+          const basePrice = askNum > 0 ? askNum : impliedPrice;
+          const baseLabel = askNum > 0 ? "Ask" : "Implied";
+          const steps     = [-5, -2.5, 0, 2.5, 5] as const;
+          const prices    = steps.map(pct => Math.round(basePrice * (1 + pct / 100)));
+          const capColor  = (cr: number) => cr >= 7 ? GREEN : cr >= 5.5 ? AMBER : RED;
+          return (
+            <>
+              <SectionHead title="PRICE SENSITIVITY" />
+              <Text style={[s.note, { marginBottom: 5 }]}>
+                In-place cap rate{showTaxAdj ? " and tax-adjusted cap rate" : ""} at prices ±5% around {baseLabel.toLowerCase()} ({fmtDol(String(basePrice))}). NOI held constant; tax-adjusted NOI recalculated per price.
+              </Text>
+              {/* Header row */}
+              <View style={s.tHead}>
+                <Text style={[s.tHCell, { flex: 1.4 }]}>Metric</Text>
+                {steps.map((pct, i) => (
+                  <Text key={i} style={[s.tHCell, { flex: 1, textAlign: "right" }]}>
+                    {pct === 0 ? baseLabel : (pct > 0 ? "+" : "") + pct + "%"}
+                  </Text>
+                ))}
+              </View>
+              {/* Price row */}
+              <View style={s.tRow}>
+                <Text style={[s.tCell, { flex: 1.4, fontFamily: "Helvetica-Bold" }]}>Price</Text>
+                {prices.map((p, i) => (
+                  <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
+                    {fmtDol(String(p))}
+                  </Text>
+                ))}
+              </View>
+              {/* In-place cap rate row */}
+              <View style={s.tRowAlt}>
+                <Text style={[s.tCell, { flex: 1.4 }]}>In-Place Cap Rate</Text>
+                {prices.map((p, i) => {
+                  const cr = boe.estNoi / p * 100;
+                  return (
+                    <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", color: capColor(cr), fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
+                      {fmtPct(cr, 2)}
+                    </Text>
+                  );
+                })}
+              </View>
+              {/* Tax-adjusted cap rate row — only when reassessment scenario is active */}
+              {showTaxAdj && effTaxRate > 0 && (
+                <View style={s.tRow}>
+                  <Text style={[s.tCell, { flex: 1.4 }]}>Tax-Adj. Cap Rate</Text>
+                  {prices.map((p, i) => {
+                    const adjTaxes = Math.round(p * effTaxRate);
+                    const adjNoi   = boe.estNoi + boe.taxes - adjTaxes;
+                    const cr = adjNoi / p * 100;
+                    return (
+                      <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", color: capColor(cr), fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
+                        {fmtPct(cr, 2)}
+                      </Text>
+                    );
+                  })}
+                </View>
+              )}
+            </>
+          );
+        })()}
 
         {/* DEBT SERVICE SCENARIOS */}
         {model.scenarios.length > 0 && (
