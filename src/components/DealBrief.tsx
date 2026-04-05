@@ -439,7 +439,7 @@ export default function DealBrief() {
           : <FieldRow label="Annual Property Taxes (optional)" name="annualTaxes" value="" placeholder="e.g. $21,500" />
         }
 
-        <SectionCard title="Deal Inputs · At least one required">
+        <SectionCard title="Deal Inputs">
           <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000" />
           <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%" />
           <FieldRow label="Buyer Cap Rate *" name="buyerCapRate" value="" placeholder="7.0%" />
