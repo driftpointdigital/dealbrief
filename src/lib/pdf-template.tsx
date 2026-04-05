@@ -753,6 +753,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const taxAdjThreshold = boe ? Math.max(200, boe.taxes * 0.05) : 500;
   const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && Math.abs(taxAdjTaxes - boe.taxes) > taxAdjThreshold;
 
+  // Breakeven occupancy on tax-adjusted OpEx — when reassessment is material, the
+  // relevant breakeven uses taxes at the likely post-purchase rate, not current taxes.
+  const taxAdjBreakevenOcc = showTaxAdj && boe && (boe.gpr + boe.otherIncomeAmt) > 0
+    ? (boe.totalOpEx - boe.taxes + taxAdjTaxes) / (boe.gpr + boe.otherIncomeAmt) * 100
+    : boe?.breakevenOcc ?? 0;
+
   const bldgSF      = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
   const pricePerUnit = unitsNum > 0 && effectiveAskNum > 0 ? fmt$(effectiveAskNum / unitsNum) + " / unit" : "";
   const pricePerSF   = bldgSF > 0  && effectiveAskNum > 0 ? fmt$(effectiveAskNum / bldgSF)   + " / SF"   : "";
@@ -1363,8 +1369,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     <BoeRow label="Broker-Implied NOI"
                       total={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
                   )}
-                  <BoeRow label="Breakeven Occupancy  (OpEx / Revenue)"
-                    total={boe.breakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses (pre-debt)"}
+                  <BoeRow
+                    label={showTaxAdj
+                      ? "Breakeven Occupancy  (Tax-Adj. OpEx / Revenue)"
+                      : "Breakeven Occupancy  (OpEx / Revenue)"}
+                    total={taxAdjBreakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses" + (showTaxAdj ? " (tax-adjusted, pre-debt)" : " (pre-debt)")}
                     alt={!data.brokerCapRate} />
                 </View>
 

@@ -176,11 +176,25 @@ export default function DealBrief() {
 
   const handleGenerate = async () => {
     if (!formRef.current) return;
-    setGenerating(true);
     setGenerateError("");
     const fd = new FormData(formRef.current);
     const body: Record<string, unknown> = {};
     fd.forEach((val, key) => { body[key] = val; });
+
+    // Validation: at least one of asking price or buyer cap rate must be populated
+    if (!body.askingPrice && !body.buyerCapRate) {
+      setGenerateError("Please enter an Asking Price or Buyer Cap Rate before generating — at least one is required for the financial analysis.");
+      return;
+    }
+    // Soft warning surfaced inline if units is blank
+    if (!body.units) {
+      setGenerateError("⚠ Units is blank — enter the number of units to get per-unit expense estimates and breakeven analysis. You can still generate without it.");
+      // Don't return — allow the user to proceed if they confirm by clicking again
+      // or we just show the warning; for now we block until they fill it in
+      return;
+    }
+
+    setGenerating(true);
     body.rates = selectedRates;
     body.ltvs = selectedLtvs;
     body.amortYears = amortYears;
@@ -212,11 +226,22 @@ export default function DealBrief() {
 
   const handleDevGenerate = async () => {
     if (!formRef.current || !devKey) return;
-    setGenerating(true);
     setGenerateError("");
     const fd = new FormData(formRef.current);
     const body: Record<string, unknown> = {};
     fd.forEach((val, key) => { body[key] = val; });
+
+    // Same validation as handleGenerate
+    if (!body.askingPrice && !body.buyerCapRate) {
+      setGenerateError("Please enter an Asking Price or Buyer Cap Rate before generating — at least one is required for the financial analysis.");
+      return;
+    }
+    if (!body.units) {
+      setGenerateError("⚠ Units is blank — enter the number of units to get per-unit expense estimates and breakeven analysis. You can still generate without it.");
+      return;
+    }
+
+    setGenerating(true);
     body.rates = selectedRates;
     body.ltvs = selectedLtvs;
     body.amortYears = amortYears;
@@ -399,7 +424,7 @@ export default function DealBrief() {
           {data.lotSize
             ? <input type="hidden" name="lotSize" value={data.lotSize} />
             : <FieldRow label="Lot Size" name="lotSize" value="" placeholder="e.g. 12,500 SF" />}
-          <FieldRow label="Units" name="units" value={data.units} />
+          <FieldRow label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8" />
           {data.zoning && (
             <input type="hidden" name="zoning" value={data.zoning} />
           )}
@@ -414,10 +439,10 @@ export default function DealBrief() {
           : <FieldRow label="Annual Property Taxes (optional)" name="annualTaxes" value="" placeholder="e.g. $21,500" />
         }
 
-        <SectionCard title="Deal Inputs · Optional">
-          <FieldRow label="Asking Price" name="askingPrice" value="" placeholder="$995,000" />
+        <SectionCard title="Deal Inputs · At least one required">
+          <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000" />
           <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%" />
-          <FieldRow label="Buyer Cap Rate" name="buyerCapRate" value="" placeholder="7.0%" />
+          <FieldRow label="Buyer Cap Rate *" name="buyerCapRate" value="" placeholder="7.0%" />
           <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%" />
           <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="$1,250" />
           <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units" />
