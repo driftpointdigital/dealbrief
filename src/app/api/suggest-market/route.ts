@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const { market } = await req.json();
+  const { market, email } = await req.json();
 
   if (!market || typeof market !== "string" || !market.trim()) {
     return NextResponse.json({ error: "Missing market" }, { status: 400 });
@@ -26,8 +26,11 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         fields: {
-          Market:       market.trim(),
-          "Submitted At": new Date().toISOString(),
+          Market:           market.trim(),
+          "Submitted At":   new Date().toISOString(),
+          ...(email && typeof email === "string" && email.trim()
+            ? { "Submitted By": email.trim() }
+            : {}),
         },
       }),
     });

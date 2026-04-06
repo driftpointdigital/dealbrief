@@ -140,6 +140,7 @@ export default function DealBrief() {
   const [address, setAddress] = useState("");
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestVal, setSuggestVal] = useState("");
+  const [suggestEmail, setSuggestEmail] = useState("");
   const [suggestDone, setSuggestDone] = useState(false);
   const [data, setData] = useState<typeof MOCK_RETURN_DATA & { _pipeline?: unknown } | null>(null);
   const [heroVisible, setHeroVisible] = useState(false);
@@ -344,14 +345,16 @@ export default function DealBrief() {
   const submitSuggest = () => {
     if (!suggestVal.trim()) return;
     const market = suggestVal.trim();
+    const email  = suggestEmail.trim();
     setSuggestDone(true);
     setSuggestVal("");
+    setSuggestEmail("");
     setTimeout(() => { setSuggestDone(false); setSuggestOpen(false); }, 2500);
     // Fire-and-forget — don't block UI on Airtable response
     fetch("/api/suggest-market", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ market }),
+      body: JSON.stringify({ market, email }),
     }).catch(() => { /* silently ignore network errors */ });
   };
 
@@ -845,27 +848,41 @@ export default function DealBrief() {
             )}
           </div>
           {suggestOpen && !suggestDone && (
-            <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 14 }}>
               <input
                 type="text" placeholder="e.g. Houston, TX" value={suggestVal}
                 onChange={e => setSuggestVal(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && submitSuggest()}
                 autoFocus
                 style={{
-                  flex: 1, padding: "8px 12px", fontSize: 14, border: "1.5px solid #E5E7EB",
+                  padding: "8px 12px", fontSize: 14, border: "1.5px solid #E5E7EB",
                   borderRadius: 5, outline: "none", color: "#111827", background: "#FAFAFA",
                   fontFamily: "inherit",
                 }}
                 onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
                 onBlur={e => e.currentTarget.style.borderColor = "#E5E7EB"}
               />
-              <button onClick={submitSuggest} style={{
-                padding: "8px 18px", fontSize: 13, fontWeight: 500,
-                background: "#1D3557", color: "white", border: "none", borderRadius: 5,
-                cursor: "pointer", fontFamily: "inherit",
-              }}>
-                Submit
-              </button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="email" placeholder="Your email (so we can notify you)" value={suggestEmail}
+                  onChange={e => setSuggestEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && submitSuggest()}
+                  style={{
+                    flex: 1, padding: "8px 12px", fontSize: 14, border: "1.5px solid #E5E7EB",
+                    borderRadius: 5, outline: "none", color: "#111827", background: "#FAFAFA",
+                    fontFamily: "inherit",
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+                  onBlur={e => e.currentTarget.style.borderColor = "#E5E7EB"}
+                />
+                <button onClick={submitSuggest} style={{
+                  padding: "8px 18px", fontSize: 13, fontWeight: 500,
+                  background: "#1D3557", color: "white", border: "none", borderRadius: 5,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>
+                  Submit
+                </button>
+              </div>
             </div>
           )}
           {suggestDone && (
