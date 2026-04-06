@@ -1385,7 +1385,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </View>
 
                 <Text style={s.note}>
-                  Management fee may not be included in broker&apos;s stated NOI — verify with seller. Insurance, maintenance, and utility estimates are approximate; request T-12 from seller.
+                  Carefully review and verify broker&apos;s/seller&apos;s stated NOI/cap rate.  Request T12 and rent roll from seller.  Revenue and operating expense assumptions are approximate.
                   {showTaxAdj ? ` Tax-adjusted NOI assumes taxes reassess to ${(effTaxRate * 100).toFixed(2)}% × ask price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr).` : ""}
                 </Text>
               </>
