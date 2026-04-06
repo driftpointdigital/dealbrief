@@ -640,21 +640,23 @@ function Bullet({ bold, rest }: { bold: string; rest: string }) {
 }
 
 function SubtotalRow({ label, value, unit }: { label: string; value: string; unit?: string }) {
+  const hasUnit = !!unit;
   return (
     <View style={{ flexDirection: "row", paddingVertical: 5, paddingHorizontal: 0, borderTopWidth: 1.5, borderTopColor: NAVY, backgroundColor: LIGHT }}>
-      <Text style={{ width: 148, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
-      <Text style={{ flex: 1, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY }}>{value}</Text>
-      <Text style={{ width: 92, fontSize: 8, color: GRAY, textAlign: "right" }}>{unit || ""}</Text>
+      <Text style={{ flex: 1, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={[{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY }, hasUnit ? { width: 92 } : { flex: 1 }]}>{value}</Text>
+      {hasUnit && <Text style={{ width: 100, fontSize: 8, color: GRAY }}>{unit}</Text>}
     </View>
   );
 }
 
 function BoeRow({ label, total, unit, alt, warn }: { label: string; total: string; unit?: string; alt?: boolean; warn?: boolean }) {
+  const hasUnit = !!unit;
   return (
     <View style={alt ? s.rowAlt : s.row}>
-      <Text style={{ width: 148, fontSize: 8, fontFamily: "Helvetica-Bold", color: warn ? "#b91c1c" : NAVY, paddingRight: 8 }}>{label}</Text>
-      <Text style={{ flex: 1, fontSize: 8.5, color: warn ? "#b91c1c" : "#374151" }}>{total}</Text>
-      <Text style={{ width: 92, fontSize: 8, color: warn ? "#b91c1c" : GRAY, textAlign: "right" }}>{unit || ""}</Text>
+      <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: warn ? "#b91c1c" : NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={[{ fontSize: 8.5, color: warn ? "#b91c1c" : "#374151" }, hasUnit ? { width: 92 } : { flex: 1 }]}>{total}</Text>
+      {hasUnit && <Text style={{ width: 100, fontSize: 8, color: warn ? "#b91c1c" : GRAY }}>{unit}</Text>}
     </View>
   );
 }
@@ -1303,9 +1305,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
                 {/* Column header */}
                 <View style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 0, marginTop: 6 }}>
-                  <Text style={{ width: 148, fontSize: 7, color: GRAY }} />
-                  <Text style={{ flex: 1, fontSize: 7, color: GRAY }}>Annual Total</Text>
-                  <Text style={{ width: 92, fontSize: 7, color: GRAY, textAlign: "right" }}>Per Unit</Text>
+                  <Text style={{ flex: 1, fontSize: 7, color: GRAY }} />
+                  <Text style={{ width: 92, fontSize: 7, color: GRAY }}>Annual Total</Text>
+                  <Text style={{ width: 100, fontSize: 7, color: GRAY }}>Per Unit</Text>
                 </View>
 
                 {/* Revenue sub-header */}
