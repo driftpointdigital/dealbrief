@@ -7,18 +7,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing market" }, { status: 400 });
   }
 
-  const token   = process.env.AIRTABLE_TOKEN?.trim();
-  const baseId  = process.env.AIRTABLE_BASE_ID?.trim();
-  const table   = process.env.AIRTABLE_SUGGESTIONS_TABLE ?? "Market Suggestions";
-  const isDebug = (req as NextRequest & { _debugKey?: string }).nextUrl?.searchParams?.get("_dbg") === "db-dev-39689a7e3a59";
+  const token  = process.env.AIRTABLE_TOKEN?.trim();
+  const baseId = process.env.AIRTABLE_BASE_ID?.trim();
+  const table  = process.env.AIRTABLE_SUGGESTIONS_TABLE ?? "Market Suggestions";
 
   if (!token || !baseId) {
+    // Silently succeed for the user — just log server-side so the UI isn't broken
     console.warn("suggest-market: AIRTABLE_TOKEN or AIRTABLE_BASE_ID not set");
-    return NextResponse.json(isDebug ? { ok: true, _d: "env_missing" } : { ok: true });
+    return NextResponse.json({ ok: true });
   }
 
-  let airtableStatus = 0;
-  let airtableDetail = "";
   try {
     const res = await fetch(`https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`, {
       method: "POST",
@@ -36,17 +34,15 @@ export async function POST(req: NextRequest) {
         },
       }),
     });
-    airtableStatus = res.status;
+
     if (!res.ok) {
-      airtableDetail = await res.text();
-      console.error("suggest-market: Airtable error", res.status, airtableDetail);
+      const detail = await res.text();
+      console.error("suggest-market: Airtable error", res.status, detail);
+      // Still return ok to the user — don't surface Airtable errors in the UI
     }
   } catch (err) {
-    airtableDetail = String(err);
     console.error("suggest-market: fetch error", err);
   }
 
-  return NextResponse.json(isDebug
-    ? { ok: true, _d: "done", _s: airtableStatus, _base: baseId, _table: table, _err: airtableDetail || null }
-    : { ok: true });
+  return NextResponse.json({ ok: true });
 }
