@@ -714,7 +714,7 @@ export default function DealBrief() {
             The research brief you'd build yourself — if you had 3 hours.
           </h1>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6, margin: 0, fontWeight: 300 }}>
-            Enter a multifamily address. Get tax assessment, permit records, flood zone, crime, demographics, debt service analysis, and more in one report.
+            Enter a multifamily or single-family address. Get tax assessment, permit records, flood zone, crime, demographics, cap rates, debt service analysis, and more in one report.
           </p>
         </div>
 
@@ -807,9 +807,9 @@ export default function DealBrief() {
               { label: "Permit History", desc: "City records cross-referenced against broker capex claims" },
               { label: "FEMA Flood Zone", desc: "Flood designation, insurance requirements, lender impact" },
               { label: "Crime & Safety", desc: "ZIP-level crime grade, rate per 1,000, national percentile" },
-              { label: "Demographics", desc: "Median income, population, housing tenure, education" },
+              { label: "Demographics", desc: "Median income, population, renter household prevalence, education" },
               { label: "Walk & Bike Score", desc: "Walkability, bike infrastructure, transit access" },
-              { label: "Back-of-Envelope NOI", desc: "GPR, vacancy, OpEx breakdown, estimated cap rate" },
+              { label: "Back-of-Envelope NOI", desc: "Revenue, OpEx, estimated cap rates, cap rate sensitivity" },
               { label: "Debt Service Scenarios", desc: "4 rates × 2 LTV levels with DSCR and cash-on-cash" },
             ].map((item, i) => (
               <div key={i} style={{
