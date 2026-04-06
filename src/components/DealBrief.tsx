@@ -765,18 +765,19 @@ export default function DealBrief() {
         {/* COVERAGE */}
         <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", textTransform: "uppercase", display: "block", marginBottom: 12 }}>
-            Markets covered
+            MSAs covered
           </span>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 32px" }}>
             {[
-              "Dallas – Fort Worth, TX",
+              "Dallas-Ft. Worth, TX",
               "Houston, TX",
-              "Phoenix – Scottsdale, AZ",
+              "Phoenix, AZ",
               "Charlotte, NC",
-              "Tampa – St. Petersburg, FL",
+              "Tampa, FL",
               "Orlando, FL",
               "Jacksonville, FL",
               "Miami – Fort Lauderdale – West Palm, FL",
+              "Raleigh-Durham, NC",
             ].map((label) => (
               <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
                 <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
