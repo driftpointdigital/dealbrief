@@ -31,6 +31,7 @@ export interface ReportData {
   censusIncome: string; censusPop: string; censusAge: string;
   censusRent: string; censusHomeVal: string; censusPoverty: string;
   censusRenterPct: string; censusPctBlack: string; censusPctHispanic: string; censusPctWhite: string;
+  censusBachPlus: string;
   // Permits
   permitCount: string; permitSource: string; permitDetails: string;
   // Schools
@@ -651,12 +652,11 @@ function SubtotalRow({ label, value, unit }: { label: string; value: string; uni
 }
 
 function BoeRow({ label, total, unit, alt, warn }: { label: string; total: string; unit?: string; alt?: boolean; warn?: boolean }) {
-  const hasUnit = !!unit;
   return (
     <View style={alt ? s.rowAlt : s.row}>
       <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: warn ? "#b91c1c" : NAVY, paddingRight: 8 }}>{label}</Text>
-      <Text style={[{ fontSize: 8.5, color: warn ? "#b91c1c" : "#374151" }, hasUnit ? { width: 92 } : { flex: 1 }]}>{total}</Text>
-      {hasUnit && <Text style={{ width: 100, fontSize: 8, color: warn ? "#b91c1c" : GRAY }}>{unit}</Text>}
+      <Text style={{ width: 92, fontSize: 8.5, color: warn ? "#b91c1c" : "#374151" }}>{total}</Text>
+      {unit ? <Text style={{ width: 100, fontSize: 8, color: warn ? "#b91c1c" : GRAY }}>{unit}</Text> : null}
     </View>
   );
 }
@@ -1109,7 +1109,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     + (data.msaPoverty ? "  |  MSA: " + data.msaPoverty : "")} />
               )}
               {data.censusRenterPct && <Row label="Renter-Occupied"         value={data.censusRenterPct + " of housing units"} alt />}
-              {raceStr              && <Row label="Racial/Ethnic Composition" value={raceStr} />}
+              {data.censusBachPlus  && <Row label="Education (25+)"           value={data.censusBachPlus + "% with bachelor's degree or higher"} />}
+              {raceStr              && <Row label="Racial/Ethnic Composition" value={raceStr} alt />}
             </View>
             {data.msaName && (
               <Text style={s.note}>MSA comparison: {data.msaName}.</Text>
@@ -1373,14 +1374,15 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 )}
                 <View style={[s.tableWrap, { marginTop: 4 }]}>
                   {data.brokerCapRate && (
-                    <BoeRow label="Broker-Implied NOI"
-                      total={fmt$(boe.brokerNoi) + "/yr  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"} alt />
+                    <BoeRow
+                      label={"Broker-Implied NOI  (at " + fmtPctDisplay(data.brokerCapRate) + " cap on " + askFmt + ")"}
+                      total={fmt$(boe.brokerNoi) + "/yr"} alt />
                   )}
                   <BoeRow
                     label={showTaxAdj
-                      ? "Breakeven Occupancy  (Tax-Adj. OpEx / Revenue)"
-                      : "Breakeven Occupancy  (OpEx / Revenue)"}
-                    total={taxAdjBreakevenOcc.toFixed(1) + "%  — physical occ. at which EGI covers all operating expenses" + (showTaxAdj ? " (tax-adjusted, pre-debt)" : " (pre-debt)")}
+                      ? "Breakeven Occupancy  (Tax-Adj. OpEx ÷ Revenue — occ. at which EGI covers all OpEx, pre-debt)"
+                      : "Breakeven Occupancy  (OpEx ÷ Revenue — occ. at which EGI covers all OpEx, pre-debt)"}
+                    total={taxAdjBreakevenOcc.toFixed(1) + "%"}
                     alt={!data.brokerCapRate} />
                 </View>
 

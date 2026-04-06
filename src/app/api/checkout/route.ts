@@ -85,12 +85,13 @@ export async function POST(req: NextRequest) {
   if (census.medianHomeValue) metadata.censusHomeVal   = pick(census, "medianHomeValue");
   if (census.povertyRate)     metadata.censusPoverty   = pick(census, "povertyRate");
   if (census.renterPct)       metadata.censusRenterPct = pick(census, "renterPct");
-  // Race — packed as "Black,Hispanic,White" to save 2 metadata keys
-  if (census.pctBlack || census.pctHispanic || census.pctWhite)
+  // Race + education — packed as "Black,Hispanic,White,BachPlus" to save 3 metadata keys
+  if (census.pctBlack || census.pctHispanic || census.pctWhite || census.pctBachelorPlus)
     metadata.censusRace = [
-      census.pctBlack    ? String(census.pctBlack)    : "",
-      census.pctHispanic ? String(census.pctHispanic) : "",
-      census.pctWhite    ? String(census.pctWhite)    : "",
+      census.pctBlack        ? String(census.pctBlack)        : "",
+      census.pctHispanic     ? String(census.pctHispanic)     : "",
+      census.pctWhite        ? String(census.pctWhite)        : "",
+      census.pctBachelorPlus ? String(census.pctBachelorPlus) : "",
     ].join(",");
 
   // Pipeline — Permits

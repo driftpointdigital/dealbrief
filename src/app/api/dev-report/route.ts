@@ -66,11 +66,12 @@ export async function POST(req: NextRequest) {
     blsData = JSON.stringify(c);
   }
 
-  // Census race — packed as "Black,Hispanic,White"
+  // Census race + education — packed as "Black,Hispanic,White,BachPlus"
   const censusRaceParts = [
-    census.pctBlack    ? str(census.pctBlack)    : "",
-    census.pctHispanic ? str(census.pctHispanic) : "",
-    census.pctWhite    ? str(census.pctWhite)    : "",
+    census.pctBlack        ? str(census.pctBlack)        : "",
+    census.pctHispanic     ? str(census.pctHispanic)     : "",
+    census.pctWhite        ? str(census.pctWhite)        : "",
+    census.pctBachelorPlus ? str(census.pctBachelorPlus) : "",
   ];
 
   // Revenue assumptions
@@ -148,6 +149,7 @@ export async function POST(req: NextRequest) {
     censusPctBlack:    censusRaceParts[0],
     censusPctHispanic: censusRaceParts[1],
     censusPctWhite:    censusRaceParts[2],
+    censusBachPlus:    censusRaceParts[3] ?? "",
     censusHouseholds:    census.totalHouseholds        ? str(census.totalHouseholds)        : "",
     censusAvgHHSize:     census.avgHouseholdSize       ? str(census.avgHouseholdSize)       : "",
     censusAvgRenterSize: census.avgRenterHouseholdSize ? str(census.avgRenterHouseholdSize) : "",
