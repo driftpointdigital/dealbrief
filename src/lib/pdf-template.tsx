@@ -1361,7 +1361,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 )}
                 {boe.egi > 0 && (
                   <View style={[s.tableWrap, { marginTop: 2, marginBottom: 0 }]}>
-                    <BoeRow label="NOI Margin (in-place)" total={(boe.estNoi / boe.egi * 100).toFixed(1) + "%"} alt />
+                    <BoeRow
+                      label={showTaxAdj ? "NOI Margin (in-place / tax adj.)" : "NOI Margin (in-place)"}
+                      total={showTaxAdj
+                        ? (boe.estNoi / boe.egi * 100).toFixed(1) + "% / " + (taxAdjNoi / boe.egi * 100).toFixed(1) + "%"
+                        : (boe.estNoi / boe.egi * 100).toFixed(1) + "%"}
+                      alt />
                   </View>
                 )}
                 <View style={[s.tableWrap, { marginTop: 4 }]}>
