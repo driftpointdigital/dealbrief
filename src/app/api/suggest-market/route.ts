@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
   if (!token || !baseId) {
     console.warn("suggest-market: AIRTABLE_TOKEN or AIRTABLE_BASE_ID not set");
-    return NextResponse.json({ ok: true, _debug: "env_missing" });
+    return NextResponse.json({ ok: true, _debug: "env_missing", _base: baseId ?? "UNSET", _tok: token ? token.slice(0,10) : "UNSET" });
   }
 
   try {
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, _debug: `airtable_${res.status}`, _detail: detail });
     }
 
-    return NextResponse.json({ ok: true, _debug: "written" });
+    return NextResponse.json({ ok: true, _debug: "written", _base: baseId, _table: table });
   } catch (err) {
     console.error("suggest-market: fetch error", err);
     return NextResponse.json({ ok: true, _debug: `exception: ${err}` });
