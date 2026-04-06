@@ -97,11 +97,12 @@ export async function GET(req: NextRequest) {
     ...(() => {
       const msa = m.msaJ ? (() => { try { return JSON.parse(m.msaJ); } catch { return {}; } })() : {};
       return {
-        msaName:    msa.n ?? m.msaName    ?? "",
-        msaIncome:  msa.i ?? m.msaIncome  ?? "",
-        msaHomeVal: msa.h ?? m.msaHomeVal ?? "",
-        msaRent:    msa.r ?? m.msaRent    ?? "",
-        msaPoverty: msa.p ?? m.msaPoverty ?? "",
+        msaName:      msa.n ?? m.msaName    ?? "",
+        msaIncome:    msa.i ?? m.msaIncome  ?? "",
+        msaHomeVal:   msa.h ?? m.msaHomeVal ?? "",
+        msaRent:      msa.r ?? m.msaRent    ?? "",
+        msaPoverty:   msa.p ?? m.msaPoverty ?? "",
+        msaBachPlus:  msa.b != null ? String(msa.b) : "",
       };
     })(),
     // Census HH — new: censusHH="households|avgHH|avgRenter"; fallback to old individual keys

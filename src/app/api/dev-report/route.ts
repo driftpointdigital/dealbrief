@@ -164,11 +164,12 @@ export async function POST(req: NextRequest) {
     proximityMinutes: proximity.driveMinutes  != null ? str(proximity.driveMinutes)  : "",
     proximityCity:    str(proximity.downtownCity, 50),
     // MSA
-    msaName:    str(msa.msaName,        80),
-    msaIncome:  msa.medianIncome    ? str(msa.medianIncome)    : "",
-    msaHomeVal: msa.medianHomeValue ? str(msa.medianHomeValue) : "",
-    msaRent:    msa.medianRent      ? str(msa.medianRent)      : "",
-    msaPoverty: msa.povertyRate     ? str(msa.povertyRate)     : "",
+    msaName:     str(msa.msaName,        80),
+    msaIncome:   msa.medianIncome    ? str(msa.medianIncome)    : "",
+    msaHomeVal:  msa.medianHomeValue ? str(msa.medianHomeValue) : "",
+    msaRent:     msa.medianRent      ? str(msa.medianRent)      : "",
+    msaPoverty:  msa.povertyRate     ? str(msa.povertyRate)     : "",
+    msaBachPlus: msa.pctBachelorPlus != null ? str(msa.pctBachelorPlus) : "",
     // HUD
     hudNearbyProps:   hud.nearbyAssistedProperties != null ? str(hud.nearbyAssistedProperties) : "",
     hudNearbyUnits:   hud.nearbyAssistedUnits      != null ? str(hud.nearbyAssistedUnits)      : "",

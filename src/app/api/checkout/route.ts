@@ -127,11 +127,12 @@ export async function POST(req: NextRequest) {
   // MSA comparison (packed as compact JSON to save 4 keys)
   {
     const msaC: Record<string, unknown> = {};
-    if (msaData.msaName)         msaC.n = String(msaData.msaName).slice(0, 80);
-    if (msaData.medianIncome)    msaC.i = String(msaData.medianIncome).slice(0, 20);
-    if (msaData.medianHomeValue) msaC.h = String(msaData.medianHomeValue).slice(0, 20);
-    if (msaData.medianRent)      msaC.r = String(msaData.medianRent).slice(0, 20);
-    if (msaData.povertyRate)     msaC.p = String(msaData.povertyRate).slice(0, 10);
+    if (msaData.msaName)           msaC.n  = String(msaData.msaName).slice(0, 80);
+    if (msaData.medianIncome)      msaC.i  = String(msaData.medianIncome).slice(0, 20);
+    if (msaData.medianHomeValue)   msaC.h  = String(msaData.medianHomeValue).slice(0, 20);
+    if (msaData.medianRent)        msaC.r  = String(msaData.medianRent).slice(0, 20);
+    if (msaData.povertyRate)       msaC.p  = String(msaData.povertyRate).slice(0, 10);
+    if (msaData.pctBachelorPlus != null) msaC.b = String(msaData.pctBachelorPlus).slice(0, 10);
     if (Object.keys(msaC).length > 0) metadata.msaJ = JSON.stringify(msaC).slice(0, 490);
   }
 

@@ -39,7 +39,7 @@ export interface ReportData {
   // Proximity
   proximityMiles: string; proximityMinutes: string; proximityCity: string;
   // MSA comparison
-  msaName: string; msaIncome: string; msaHomeVal: string; msaRent: string; msaPoverty: string;
+  msaName: string; msaIncome: string; msaHomeVal: string; msaRent: string; msaPoverty: string; msaBachPlus: string;
   // Census household composition
   censusHouseholds: string; censusAvgHHSize: string; censusAvgRenterSize: string;
   // HUD subsidized housing
@@ -641,12 +641,11 @@ function Bullet({ bold, rest }: { bold: string; rest: string }) {
 }
 
 function SubtotalRow({ label, value, unit }: { label: string; value: string; unit?: string }) {
-  const hasUnit = !!unit;
   return (
     <View style={{ flexDirection: "row", paddingVertical: 5, paddingHorizontal: 0, borderTopWidth: 1.5, borderTopColor: NAVY, backgroundColor: LIGHT }}>
-      <Text style={{ flex: 1, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
-      <Text style={[{ fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY }, hasUnit ? { width: 92 } : { flex: 1 }]}>{value}</Text>
-      {hasUnit && <Text style={{ width: 100, fontSize: 8, color: GRAY }}>{unit}</Text>}
+      <Text style={{ width: 240, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={{ width: 92, fontSize: 8.5, fontFamily: "Helvetica-Bold", color: NAVY }}>{value}</Text>
+      {unit ? <Text style={{ flex: 1, fontSize: 8, color: GRAY }}>{unit}</Text> : null}
     </View>
   );
 }
@@ -654,9 +653,9 @@ function SubtotalRow({ label, value, unit }: { label: string; value: string; uni
 function BoeRow({ label, total, unit, alt, warn }: { label: string; total: string; unit?: string; alt?: boolean; warn?: boolean }) {
   return (
     <View style={alt ? s.rowAlt : s.row}>
-      <Text style={{ flex: 1, fontSize: 8, fontFamily: "Helvetica-Bold", color: warn ? "#b91c1c" : NAVY, paddingRight: 8 }}>{label}</Text>
+      <Text style={{ width: 240, fontSize: 8, fontFamily: "Helvetica-Bold", color: warn ? "#b91c1c" : NAVY, paddingRight: 8 }}>{label}</Text>
       <Text style={{ width: 92, fontSize: 8.5, color: warn ? "#b91c1c" : "#374151" }}>{total}</Text>
-      {unit ? <Text style={{ width: 100, fontSize: 8, color: warn ? "#b91c1c" : GRAY }}>{unit}</Text> : null}
+      {unit ? <Text style={{ flex: 1, fontSize: 8, color: warn ? "#b91c1c" : GRAY }}>{unit}</Text> : null}
     </View>
   );
 }
@@ -1109,7 +1108,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     + (data.msaPoverty ? "  |  MSA: " + data.msaPoverty : "")} />
               )}
               {data.censusRenterPct && <Row label="Renter-Occupied"         value={data.censusRenterPct + " of housing units"} alt />}
-              {data.censusBachPlus  && <Row label="Education (25+)"           value={data.censusBachPlus + "% with bachelor's degree or higher"} />}
+              {data.censusBachPlus  && <Row label="Education (25+)"           value={data.censusBachPlus + "% bachelor's degree or higher"
+                    + (data.msaBachPlus ? "  |  MSA: " + data.msaBachPlus + "%" : "")} />}
               {raceStr              && <Row label="Racial/Ethnic Composition" value={raceStr} alt />}
             </View>
             {data.msaName && (
@@ -1306,9 +1306,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
                 {/* Column header */}
                 <View style={{ flexDirection: "row", paddingVertical: 3, paddingHorizontal: 0, marginTop: 6 }}>
-                  <Text style={{ flex: 1, fontSize: 7, color: GRAY }} />
+                  <Text style={{ width: 240, fontSize: 7, color: GRAY }} />
                   <Text style={{ width: 92, fontSize: 7, color: GRAY }}>Annual Total</Text>
-                  <Text style={{ width: 100, fontSize: 7, color: GRAY }}>Per Unit</Text>
+                  <Text style={{ flex: 1, fontSize: 7, color: GRAY }}>Per Unit</Text>
                 </View>
 
                 {/* Revenue sub-header */}
@@ -1380,8 +1380,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   )}
                   <BoeRow
                     label={showTaxAdj
-                      ? "Breakeven Occupancy  (Tax-Adj. OpEx ÷ Revenue — occ. at which EGI covers all OpEx, pre-debt)"
-                      : "Breakeven Occupancy  (OpEx ÷ Revenue — occ. at which EGI covers all OpEx, pre-debt)"}
+                      ? "Breakeven Occupancy  (occ. where EGI covers tax-adj. OpEx)"
+                      : "Breakeven Occupancy  (occ. where EGI covers total OpEx)"}
                     total={taxAdjBreakevenOcc.toFixed(1) + "%"}
                     alt={!data.brokerCapRate} />
                 </View>
