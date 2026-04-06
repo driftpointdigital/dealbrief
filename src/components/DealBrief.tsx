@@ -764,8 +764,8 @@ export default function DealBrief() {
 
         {/* COVERAGE */}
         <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", textTransform: "uppercase", display: "block", marginBottom: 12 }}>
-            MSAs covered
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", display: "block", marginBottom: 12 }}>
+            MSAs Covered
           </span>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 32px" }}>
             {[
