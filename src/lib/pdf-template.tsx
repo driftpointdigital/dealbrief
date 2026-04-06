@@ -1463,7 +1463,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {ioLabel.charAt(0).toUpperCase() + ioLabel.slice(1)}.
               {isIO ? ` Year 1 shown as I/O payment; amortizing payment begins year ${ioYears + 1}.` : ""}
               {askNum === 0 && effectiveAskNum > 0 ? ` Loan sized on implied acquisition price of ${fmt$(effectiveAskNum)} (${effTaxRate > 0 ? "Tax Adj. " : ""}BOE NOI \u00f7 ${fmtPctDisplay(data.buyerCapRate)} buyer cap).` : ""}
-              {" "}Color: green = DSCR 1.10x+ / CoC 7%+, amber = marginal, red = below threshold.
+              {" "}Color: green = DSCR 1.10x+ / CoC 6%+, amber = marginal, red = below threshold.
             </Text>
 
             {[...new Set(model.scenarios.map(sc => sc.ltv))].map(ltv => {
@@ -1564,7 +1564,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               </View>
             )}
             <Text style={s.note}>
-              DSCR and CoC calculated using estimated NOI (rents – operating expenses). Broker cap rate shown for reference only. GO = 1.10x+ DSCR and 6%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
+              DSCR and CoC calculated using estimated NOI (rents – operating expenses). GO = 1.10x+ DSCR and 6%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
             </Text>
           </>
         )}
@@ -1611,7 +1611,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
         <SectionHead title="RECOMMENDED NEXT STEPS" />
         <Bullet bold="Request T-12 operating statement and current rent roll. "
-          rest="The broker's cap rate is an assertion, not a fact. Verify every line of income and expenses against trailing-12-month actuals before underwriting." />
+          rest="The broker's cap rate is an assertion, not a fact. Verify every line of income and expenses against trailing-12 month actuals and expected future scenarios before submitting an LOI." />
         <Bullet bold="Order a thorough property inspection. "
           rest={age > 0 && age <= 5
             ? `On a ${age}-year-old building, verify construction quality, confirm certificates of occupancy are in order, and check for any outstanding punch-list items. Request builder warranties for structural, mechanical, and appliance systems.`
@@ -1624,7 +1624,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <Bullet bold="Confirm the utility structure. "
           rest="Get actual utility bills for the trailing 12 months. Determine which utilities are landlord-paid vs. tenant-paid — this has a direct, significant impact on actual NOI vs. broker-stated NOI." />
         <Bullet bold="Verify occupancy, lease terms, and any concessions. "
-          rest="Confirm the occupancy claim with a current rent roll. Note lease expiration dates — a property with all leases expiring at closing carries significant rollover risk." />
+          rest="Confirm occupancy claim with a current rent roll and T12. Note lease expiration dates — a property with all leases expiring at closing carries significant rollover risk." />
         {hasAssessor && data.assessedValue && data.askingPrice && (() => {
           const av3 = parseDol(data.assessedValue);
           const ask3 = parseDol(data.askingPrice);
