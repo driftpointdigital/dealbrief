@@ -1479,9 +1479,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
               // Helper: render one rate table given a base NOI value
               // Tighter padding for DSCR tables to keep everything on one page
-              const dscrTHead   = [s.tHead,   { paddingVertical: 3 }] as const;
-              const dscrTRow    = [s.tRow,    { paddingVertical: 3 }] as const;
-              const dscrTRowAlt = [s.tRowAlt, { paddingVertical: 3 }] as const;
+              const dscrTHead   = [s.tHead,   { paddingVertical: 3 }];
+              const dscrTRow    = [s.tRow,    { paddingVertical: 3 }];
+              const dscrTRowAlt = [s.tRowAlt, { paddingVertical: 3 }];
 
               const renderRateTable = (noiForCalc: number | null) => (
                 <>
