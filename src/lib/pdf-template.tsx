@@ -1391,6 +1391,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             );
           })()}
 
+        <PageFooter />
+      </Page>
+
+      {/* ════════ PAGE 4: PRICE SENSITIVITY + DEBT SERVICE + ALL-CASH ════════ */}
+      <Page size="LETTER" style={s.page}>
+        <PageHeader address={data.address} page={4} />
+
         {/* PRICE SENSITIVITY */}
         {boe !== null && boe.estNoi > 0 && (askNum > 0 || impliedPrice > 0) && (() => {
           const basePrice = askNum > 0 ? askNum : impliedPrice;
@@ -1453,13 +1460,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             </>
           );
         })()}
-
-        <PageFooter />
-      </Page>
-
-      {/* ════════ PAGE 4: DEBT SERVICE + ALL-CASH ════════ */}
-      <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={4} />
 
         {/* DEBT SERVICE SCENARIOS */}
         {model.scenarios.length > 0 && (
@@ -1569,9 +1569,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </View>
               </View>
             )}
-            <Text style={s.note}>
-              DSCR and CoC calculated using estimated NOI (rents – operating expenses). GO = 1.10x+ DSCR and 6%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
-            </Text>
+            <Text style={s.note}>GO = DSCR ≥1.10x / CoC ≥6%. WATCH = marginal. STOP = negative or sub-1.0x DSCR. Closing costs at 1.5%.</Text>
           </>
         )}
 
