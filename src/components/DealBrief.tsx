@@ -159,6 +159,7 @@ export default function DealBrief() {
   const [adminPerUnit, setAdminPerUnit] = useState("100");
   const [reservesPerUnit, setReservesPerUnit] = useState("400");
   const [propertyType, setPropertyType] = useState("Multifamily");
+  const [unitsKey, setUnitsKey] = useState(0);
   const [devKey, setDevKey] = useState("");
   const [pipelineError, setPipelineError] = useState("");
 
@@ -411,7 +412,14 @@ export default function DealBrief() {
             <select
               name="propertyType"
               value={propertyType}
-              onChange={e => setPropertyType(e.target.value)}
+              onChange={e => {
+                const val = e.target.value;
+                setPropertyType(val);
+                if (val === "Single Family Rental") {
+                  setData(prev => prev ? { ...prev, units: "1" } : prev);
+                  setUnitsKey(k => k + 1);
+                }
+              }}
               style={{ flex: 1, padding: "5px 8px", fontSize: 13, color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 4, fontFamily: "inherit", outline: "none", background: "white", cursor: "pointer" }}
             >
               <option value="Multifamily">Multifamily</option>
@@ -427,7 +435,7 @@ export default function DealBrief() {
           {data.lotSize
             ? <input type="hidden" name="lotSize" value={data.lotSize} />
             : <FieldRow label="Lot Size" name="lotSize" value="" placeholder="e.g. 12,500 SF" />}
-          <FieldRow label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8" />
+          <FieldRow key={unitsKey} label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8" />
           {data.zoning && (
             <input type="hidden" name="zoning" value={data.zoning} />
           )}
