@@ -12,9 +12,63 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = "https://www.getdealbrief.com";
+
 export const metadata: Metadata = {
-  title: "DealBrief — Pre-Offer Property Research",
-  description: "Tax assessment, permit history, flood zone, crime, demographics, and debt service analysis for multifamily investors.",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "DealBrief — Multifamily Property Research & Analysis",
+    template: "%s | DealBrief",
+  },
+  description:
+    "Instant pre-offer research reports for multifamily investors. Tax assessment, permit history, flood zone, crime grades, demographics, and debt service analysis — in one PDF.",
+  keywords: [
+    "multifamily investment analysis",
+    "pre-offer property research",
+    "multifamily due diligence",
+    "real estate deal analysis",
+    "property research report",
+    "multifamily underwriting tool",
+    "apartment building analysis",
+    "permit history lookup",
+    "real estate investment tool",
+    "cap rate calculator",
+    "debt service coverage ratio",
+    "multifamily deal brief",
+  ],
+  authors: [{ name: "DealBrief" }],
+  creator: "DealBrief",
+  publisher: "DealBrief",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: siteUrl,
+    siteName: "DealBrief",
+    title: "DealBrief — Multifamily Property Research & Analysis",
+    description:
+      "Instant pre-offer research reports for multifamily investors. Tax assessment, permit history, flood zone, crime grades, demographics, and debt service analysis — in one PDF.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DealBrief — Multifamily Property Research & Analysis",
+    description:
+      "Instant pre-offer research reports for multifamily investors. Tax, permits, flood zone, crime, demographics, and debt service — in one PDF.",
+    creator: "@getdealbrief",
+  },
+  alternates: {
+    canonical: siteUrl,
+  },
 };
 
 export default function RootLayout({
