@@ -1202,6 +1202,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </>
         )}
 
+        <PageFooter />
+      </Page>
+
+      {/* ════════ PAGE 3: PERMITS + BOE + DEBT SERVICE ════════ */}
+      <Page size="LETTER" style={s.page}>
+        <PageHeader address={data.address} page={3} />
+
         {/* CITY PERMIT HISTORY */}
         <SectionHead title="CITY PERMIT HISTORY" />
         {permitNum === 0 ? (
@@ -1251,11 +1258,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </View>
         ) : (
           <View style={{ marginBottom: 8 }}>
-            <Text style={[s.val, { marginBottom: 14 }]}>
+            <Text style={[s.val, { marginBottom: 6 }]}>
               {permitNum} permit{permitNum !== 1 ? "s" : ""} found on record. Review scope and quality of documented improvements during inspection.
             </Text>
             {permits.length > 0 && (
-              <View wrap={false}>
+              <>
                 <View style={s.tHead}>
                   <Text style={[s.tHCell, { flex: 3 }]}>Type</Text>
                   <Text style={[s.tHCell, { flex: 5 }]}>Description</Text>
@@ -1276,17 +1283,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   </Text>
                 )}
                 <Text style={s.note}>Source: {data.permitSource || "City permit portal"}. Values shown are permitted job values, not actual cost.</Text>
-              </View>
+              </>
             )}
           </View>
         )}
-
-        <PageFooter />
-      </Page>
-
-      {/* ════════ PAGE 3: BOE + DEBT SERVICE ════════ */}
-      <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={3} />
 
         {/* BACK-OF-ENVELOPE ANALYSIS */}
         {boe !== null && (() => {
