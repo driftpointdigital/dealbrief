@@ -134,13 +134,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "PDF generation failed", detail: msg }, { status: 500 });
   }
 
-  const slug = (data.address || "dealbrief").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 60);
+  const streetAddress = (data.address || "").split(",")[0].trim() || "dealbrief";
+  const safeStreet = streetAddress.replace(/[<>:"/\\|?*]/g, "").trim();
 
   return new NextResponse(pdfBuffer as unknown as BodyInit, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="dealbrief-${slug}.pdf"`,
+      "Content-Disposition": `attachment; filename="DealBrief - ${safeStreet}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

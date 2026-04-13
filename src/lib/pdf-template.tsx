@@ -68,7 +68,7 @@ const s = StyleSheet.create({
   logo: { fontSize: 20, fontFamily: "Helvetica-Bold", color: NAVY, letterSpacing: -0.5 },
   logoAccent: { color: SLATE },
   headerSub: { fontSize: 8, color: GRAY },
-  sectionHead: { fontSize: 11, fontFamily: "Helvetica-Bold", color: NAVY, marginTop: 16, marginBottom: 5, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: NAVY },
+  sectionHead: { fontSize: 11, fontFamily: "Helvetica-Bold", color: NAVY, marginTop: 10, marginBottom: 5, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: NAVY },
   tableWrap: { marginBottom: 4 },
   row: { flexDirection: "row", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: RULE },
   rowAlt: { flexDirection: "row", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: RULE, backgroundColor: LIGHT },
@@ -932,7 +932,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         )}
 
         {/* LOCATION & RISK */}
-        {(hasFema || hasWalk || !!data.proximityMiles || hasSchools) && (
+        {(hasFema || hasWalk || !!data.proximityMiles) && (
           <>
             <SectionHead title="LOCATION & RISK" />
             <View style={s.tableWrap}>
@@ -959,41 +959,43 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   alt />
               )}
             </View>
-            {hasSchools && (
-              <>
-                <Text style={[s.note, { marginTop: 4, marginBottom: 3, fontFamily: "Helvetica-Bold", color: NAVY, fontStyle: "normal" }]}>
-                  GreatSchools Rating Bands
-                </Text>
-                <View style={s.tableWrap}>
-                  {schoolsList.map((sc, i) => (
-                    <View key={i} style={i % 2 === 0 ? s.row : s.rowAlt}>
-                      <Text style={s.lbl}>{sc.l}</Text>
-                      <Text style={s.val}>
-                        <Text style={{ fontFamily: "Helvetica-Bold" }}>{sc.n}</Text>
-                        {sc.d ? `  (${sc.d} mi)` : ""}
-                        {"   "}
-                        <Text style={{ color: schoolRatingColor(sc.r), fontFamily: "Helvetica-Bold" }}>
-                          {sc.r}
-                        </Text>
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-            {!hasSchools && (
-              <Text style={s.note}>School ratings temporarily unavailable — verify at greatschools.org using the property ZIP code.</Text>
-            )}
-            <Text style={s.note}>School data provided by GreatSchools.org © 2025. All rights reserved.</Text>
           </>
         )}
 
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 2: CRIME + DEMOGRAPHICS ════════ */}
+      {/* ════════ PAGE 2: SCHOOLS + CRIME + DEMOGRAPHICS + PERMITS ════════ */}
       <Page size="LETTER" style={s.page}>
         <PageHeader address={data.address} page={2} />
+
+        {/* SCHOOLS */}
+        {hasSchools && (
+          <>
+            <Text style={[s.note, { marginTop: 0, marginBottom: 3, fontFamily: "Helvetica-Bold", color: NAVY, fontStyle: "normal", fontSize: 9 }]}>
+              GreatSchools Rating Bands
+            </Text>
+            <View style={s.tableWrap}>
+              {schoolsList.map((sc, i) => (
+                <View key={i} style={i % 2 === 0 ? s.row : s.rowAlt}>
+                  <Text style={s.lbl}>{sc.l}</Text>
+                  <Text style={s.val}>
+                    <Text style={{ fontFamily: "Helvetica-Bold" }}>{sc.n}</Text>
+                    {sc.d ? `  (${sc.d} mi)` : ""}
+                    {"   "}
+                    <Text style={{ color: schoolRatingColor(sc.r), fontFamily: "Helvetica-Bold" }}>
+                      {sc.r}
+                    </Text>
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <Text style={[s.note, { marginBottom: 4 }]}>School data provided by GreatSchools.org © 2025. All rights reserved.</Text>
+          </>
+        )}
+        {!hasSchools && (
+          <Text style={[s.note, { marginBottom: 4 }]}>School ratings temporarily unavailable — verify at greatschools.org using the property ZIP code.</Text>
+        )}
 
         {/* CRIME & SAFETY */}
         <SectionHead title="CRIME & SAFETY" />
@@ -1200,13 +1202,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </>
         )}
 
-        <PageFooter />
-      </Page>
-
-      {/* ════════ PAGE 3: PERMITS ════════ */}
-      <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={3} />
-
         {/* CITY PERMIT HISTORY */}
         <SectionHead title="CITY PERMIT HISTORY" />
         {permitNum === 0 ? (
@@ -1289,9 +1284,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 4: BOE + DEBT SERVICE + DEAL CONTEXT ════════ */}
+      {/* ════════ PAGE 3: BOE + DEBT SERVICE ════════ */}
       <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={4} />
+        <PageHeader address={data.address} page={3} />
 
         {/* BACK-OF-ENVELOPE ANALYSIS */}
         {boe !== null && (() => {
@@ -1571,16 +1566,16 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </>
         )}
 
-        {/* DEAL CONTEXT & ANALYSIS */}
-        <SectionHead title="DEAL CONTEXT & ANALYSIS" />
-        <Text style={[s.val, { lineHeight: 1.6, marginBottom: 6, fontSize: 8.5 }]}>{thesis}</Text>
-
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 5: FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
+      {/* ════════ PAGE 4: DEAL CONTEXT + FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
       <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={5} />
+        <PageHeader address={data.address} page={4} />
+
+        {/* DEAL CONTEXT & ANALYSIS */}
+        <SectionHead title="DEAL CONTEXT & ANALYSIS" />
+        <Text style={[s.val, { lineHeight: 1.6, marginBottom: 6, fontSize: 8.5 }]}>{thesis}</Text>
 
         {/* KEY FLAGS & OBSERVATIONS */}
         <SectionHead title="KEY FLAGS & OBSERVATIONS" />
