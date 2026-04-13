@@ -1258,9 +1258,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           </View>
         ) : (
           <View style={{ marginBottom: 8 }}>
-            <Text style={[s.val, { marginBottom: 6 }]}>
-              {permitNum} permit{permitNum !== 1 ? "s" : ""} found on record. Review scope and quality of documented improvements during inspection.
-            </Text>
+            <View style={{ marginBottom: 10 }}>
+              <Text style={s.val}>
+                {permitNum} permit{permitNum !== 1 ? "s" : ""} found on record. Review scope and quality of documented improvements during inspection.
+              </Text>
+            </View>
             {permits.length > 0 && (
               <>
                 <View style={s.tHead}>
@@ -1538,31 +1540,33 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               );
             })}
 
-            {/* All-cash */}
-            {boe && boe.estNoi !== 0 && effectiveAskNum > 0 && (
-              <View style={{ marginTop: 4, marginBottom: 10 }}>
-                <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
-                  All-Cash — {askNum > 0 ? askFmt : fmt$(effectiveAskNum) + " (implied)"} equity | No debt | No I/O consideration
-                </Text>
-                <View style={s.tHead}>
-                  <Text style={[s.tHCell, { width: 130 }]}>Scenario</Text>
-                  <Text style={[s.tHCell, { width: 100 }]}>Cash Flow</Text>
-                  <Text style={[s.tHCell, { flex: 1 }]}>Unleveraged CoC</Text>
-                </View>
-                <View style={s.tRow}>
-                  <Text style={[s.tCell, { width: 130 }]}>Est. NOI (rent-based)</Text>
-                  <Text style={[s.tCell, { width: 100, color: boe.estNoi >= 0 ? GREEN : RED }]}>
-                    {(boe.estNoi >= 0 ? "+" : "") + fmt$(boe.estNoi)}
+            {/* All-cash + note — keep together */}
+            <View wrap={false}>
+              {boe && boe.estNoi !== 0 && effectiveAskNum > 0 && (
+                <View style={{ marginTop: 4, marginBottom: 10 }}>
+                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
+                    All-Cash — {askNum > 0 ? askFmt : fmt$(effectiveAskNum) + " (implied)"} equity | No debt | No I/O consideration
                   </Text>
-                  <Text style={[s.tCell, { flex: 1, color: (boe.estNoi / effectiveAskNum) >= 0 ? GREEN : RED }]}>
-                    {fmtPct((boe.estNoi / effectiveAskNum) * 100)}
-                  </Text>
+                  <View style={s.tHead}>
+                    <Text style={[s.tHCell, { width: 130 }]}>Scenario</Text>
+                    <Text style={[s.tHCell, { width: 100 }]}>Cash Flow</Text>
+                    <Text style={[s.tHCell, { flex: 1 }]}>Unleveraged CoC</Text>
+                  </View>
+                  <View style={s.tRow}>
+                    <Text style={[s.tCell, { width: 130 }]}>Est. NOI (rent-based)</Text>
+                    <Text style={[s.tCell, { width: 100, color: boe.estNoi >= 0 ? GREEN : RED }]}>
+                      {(boe.estNoi >= 0 ? "+" : "") + fmt$(boe.estNoi)}
+                    </Text>
+                    <Text style={[s.tCell, { flex: 1, color: (boe.estNoi / effectiveAskNum) >= 0 ? GREEN : RED }]}>
+                      {fmtPct((boe.estNoi / effectiveAskNum) * 100)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            )}
-            <Text style={s.note}>
-              DSCR and CoC calculated using estimated NOI (rents – operating expenses). GO = 1.10x+ DSCR and 6%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
-            </Text>
+              )}
+              <Text style={s.note}>
+                DSCR and CoC calculated using estimated NOI (rents – operating expenses). GO = 1.10x+ DSCR and 6%+ CoC. WATCH = marginal coverage. STOP = negative or sub-1.0x DSCR. Closing costs assumed at 1.5%.
+              </Text>
+            </View>
           </>
         )}
 
