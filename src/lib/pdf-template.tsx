@@ -918,14 +918,15 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   const srcNote = data.assessorSource
                     ? ` ${data.assessorSource} located the parcel but no assessed value is currently on record (appraisal may be pending for new construction).`
                     : "";
-                  return `Annual taxes submitted by user.${srcNote} Upon sale, county may reassess to the purchase price.`;
+                  return `Annual taxes submitted by user.${srcNote} Upon sale, county may reassess to the purchase price. Tax amounts are estimates based on available data; confirm actual amounts with the county and consult a tax advisor.`;
                 }
 
                 const src = data.assessorSource ? `Source: ${data.assessorSource}.` : "Source: County appraisal district.";
+                const taxDisclaimer = " Tax amounts are estimates based on available data; confirm actual amounts with the county and consult a tax advisor.";
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
-                  return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.`;
+                  return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.${taxDisclaimer}`;
                 }
-                return `${src} Tax amounts reflect current assessment; upon sale, county may reassess to the purchase price.`;
+                return `${src} Tax amounts reflect current assessment; upon sale, county may reassess to the purchase price.${taxDisclaimer}`;
               })()}
             </Text>
           </>
