@@ -773,6 +773,7 @@ export default function DealBrief() {
               "Houston, TX",
               "Phoenix, AZ",
               "Charlotte, NC",
+              "Atlanta, GA",
               "Tampa, FL",
               "Orlando, FL",
               "Jacksonville, FL",
