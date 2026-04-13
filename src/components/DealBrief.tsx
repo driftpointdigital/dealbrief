@@ -87,14 +87,68 @@ function LoadingSequence() {
   );
 }
 
-function FieldRow({ label, name, value, placeholder, editable = true }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean }) {
+function Tooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <span
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", marginLeft: 6, flexShrink: 0 }}
+      onMouseEnter={() => setVisible(true)}
+      onMouseLeave={() => setVisible(false)}
+    >
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 15, height: 15, borderRadius: "50%",
+        background: "#E5E7EB", color: "#6B7280",
+        fontSize: 10, fontWeight: 700, cursor: "default",
+        userSelect: "none", lineHeight: 1,
+        transition: "background 0.12s",
+        ...(visible ? { background: "#D1D5DB" } : {}),
+      }}>
+        ?
+      </span>
+      {visible && (
+        <span style={{
+          position: "absolute",
+          bottom: "calc(100% + 8px)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#1D3557",
+          color: "white",
+          fontSize: 12,
+          lineHeight: 1.5,
+          padding: "8px 12px",
+          borderRadius: 6,
+          width: 240,
+          whiteSpace: "normal",
+          pointerEvents: "none",
+          zIndex: 100,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        }}>
+          {text}
+          {/* arrow */}
+          <span style={{
+            position: "absolute",
+            top: "100%", left: "50%",
+            transform: "translateX(-50%)",
+            borderWidth: 5, borderStyle: "solid",
+            borderColor: "#1D3557 transparent transparent transparent",
+            display: "block", width: 0, height: 0,
+          }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
+function FieldRow({ label, name, value, placeholder, editable = true, tooltip }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean; tooltip?: string }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", padding: "0 24px", height: 44,
       borderBottom: "1px solid #F3F4F6",
     }}>
-      <span style={{ width: 180, fontSize: 13, color: "#6B7280", flexShrink: 0, letterSpacing: "-0.1px" }}>
+      <span style={{ width: 180, fontSize: 13, color: "#6B7280", flexShrink: 0, letterSpacing: "-0.1px", display: "flex", alignItems: "center" }}>
         {label}
+        {tooltip && <Tooltip text={tooltip} />}
       </span>
       {editable ? (
         <input
@@ -451,12 +505,18 @@ export default function DealBrief() {
         }
 
         <SectionCard title="Deal Inputs">
-          <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000" />
-          <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%" />
-          <FieldRow label="Buyer Cap Rate *" name="buyerCapRate" value="" placeholder="7.0%" />
-          <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%" />
-          <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="$1,250" />
-          <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units" />
+          <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000"
+            tooltip="Broker/Seller's asking price for the property. DealBrief needs this or Buyer Cap Rate for all calculations to work. You can provide both for more functionality." />
+          <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%"
+            tooltip="Broker/Seller's implied cap rate at the asking price. Provided for reference — not required." />
+          <FieldRow label="Buyer Cap Rate *" name="buyerCapRate" value="" placeholder="7.0%"
+            tooltip="Your required going-in cap rate. DealBrief needs this or Asking Price for calculations. Provide both for full sensitivity analysis." />
+          <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%"
+            tooltip="Current or stabilized occupancy. Used in the NOI calculation along with In-Place Rents." />
+          <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="$1,250"
+            tooltip="Used to drive GPR. Use market rents if you want to show a mark-to-market NOI. If not provided, GPR will be estimated from the property zip code median rent, if available." />
+          <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units"
+            tooltip="Free form — describe any relevant broker or seller claims about the property. These will appear in the report for reference." />
         </SectionCard>
 
         {/* Analysis Assumptions */}
