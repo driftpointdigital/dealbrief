@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 const MOCK_RETURN_DATA = {
   address: "2718 Cleveland St, Dallas, TX 75215",
@@ -89,29 +90,24 @@ function LoadingSequence() {
 
 function Tooltip({ text }: { text: string }) {
   const [visible, setVisible] = useState(false);
-  return (
-    <span
-      style={{ position: "relative", display: "inline-flex", alignItems: "center", marginLeft: 6, flexShrink: 0 }}
-      onMouseEnter={() => setVisible(true)}
-      onMouseLeave={() => setVisible(false)}
-    >
-      <span style={{
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        width: 15, height: 15, borderRadius: "50%",
-        background: "#E5E7EB", color: "#6B7280",
-        fontSize: 10, fontWeight: 700, cursor: "default",
-        userSelect: "none", lineHeight: 1,
-        transition: "background 0.12s",
-        ...(visible ? { background: "#D1D5DB" } : {}),
-      }}>
-        ?
-      </span>
-      {visible && (
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLSpanElement>(null);
+
+  const handleMouseEnter = () => {
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setCoords({ top: r.top + window.scrollY, left: r.left + r.width / 2 });
+    }
+    setVisible(true);
+  };
+
+  const portal = visible && typeof document !== "undefined"
+    ? createPortal(
         <span style={{
           position: "absolute",
-          bottom: "calc(100% + 8px)",
-          left: "50%",
-          transform: "translateX(-50%)",
+          top: coords.top - 8,
+          left: coords.left,
+          transform: "translate(-50%, -100%)",
           background: "#1D3557",
           color: "white",
           fontSize: 12,
@@ -121,11 +117,10 @@ function Tooltip({ text }: { text: string }) {
           width: 240,
           whiteSpace: "normal",
           pointerEvents: "none",
-          zIndex: 100,
+          zIndex: 9999,
           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
         }}>
           {text}
-          {/* arrow */}
           <span style={{
             position: "absolute",
             top: "100%", left: "50%",
@@ -134,8 +129,28 @@ function Tooltip({ text }: { text: string }) {
             borderColor: "#1D3557 transparent transparent transparent",
             display: "block", width: 0, height: 0,
           }} />
-        </span>
-      )}
+        </span>,
+        document.body
+      )
+    : null;
+
+  return (
+    <span
+      style={{ display: "inline-flex", alignItems: "center", marginLeft: 6, flexShrink: 0 }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={() => setVisible(false)}
+    >
+      <span ref={triggerRef} style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 15, height: 15, borderRadius: "50%",
+        background: visible ? "#D1D5DB" : "#E5E7EB", color: "#6B7280",
+        fontSize: 10, fontWeight: 700, cursor: "default",
+        userSelect: "none", lineHeight: 1,
+        transition: "background 0.12s",
+      }}>
+        ?
+      </span>
+      {portal}
     </span>
   );
 }
