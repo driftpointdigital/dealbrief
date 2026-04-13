@@ -97,7 +97,7 @@ const s = StyleSheet.create({
   flagTitle: { fontSize: 8.5, fontFamily: "Helvetica-Bold", marginBottom: 1 },
   flagBody: { fontSize: 8, color: "#374151", lineHeight: 1.45 },
   // Disclaimer
-  disclaimer: { marginTop: 12, padding: 10, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 3, backgroundColor: LIGHT },
+  disclaimer: { marginTop: 8, padding: 8, borderWidth: 1, borderColor: "#D1D5DB", borderRadius: 3, backgroundColor: LIGHT },
   disclaimerTitle: { fontSize: 8, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 },
   disclaimerText: { fontSize: 7, color: GRAY, lineHeight: 1.55 },
   // Footer
