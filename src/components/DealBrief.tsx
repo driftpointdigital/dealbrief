@@ -544,7 +544,14 @@ export default function DealBrief() {
               Analysis Assumptions
             </span>
           </div>
-          <div style={{ padding: "16px 24px", display: "flex", gap: 32, flexWrap: "wrap" }}>
+
+          {/* NOI subsection */}
+          <div style={{ padding: "4px 24px 4px", borderBottom: "1px solid #F3F4F6" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", letterSpacing: "0.8px", textTransform: "uppercase" }}>
+              Net Operating Income
+            </span>
+          </div>
+          <div style={{ padding: "16px 24px", display: "flex", gap: 32, flexWrap: "wrap", borderBottom: "1px solid #E5E7EB" }}>
             {/* Revenue Assumptions */}
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
@@ -632,6 +639,15 @@ export default function DealBrief() {
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Debt Financing subsection */}
+          <div style={{ padding: "4px 24px 4px", borderBottom: "1px solid #F3F4F6" }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#9CA3AF", letterSpacing: "0.8px", textTransform: "uppercase" }}>
+              Debt Financing
+            </span>
+          </div>
+          <div style={{ padding: "16px 24px", display: "flex", gap: 32, flexWrap: "wrap" }}>
             {/* Rates */}
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10, letterSpacing: "0.3px" }}>
