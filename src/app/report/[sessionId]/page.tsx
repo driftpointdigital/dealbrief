@@ -31,7 +31,8 @@ export default function ReportPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "dealbrief.pdf";
+    const streetPart = (address || "").split(",")[0].trim();
+    a.download = streetPart ? `DealBrief - ${streetPart}.pdf` : "DealBrief.pdf";
     a.click();
     URL.revokeObjectURL(url);
     setDownloading(false);

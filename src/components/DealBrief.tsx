@@ -337,7 +337,8 @@ export default function DealBrief() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "dealbrief-dev.pdf";
+      const devStreet = (address || "").split(",")[0].trim();
+      a.download = devStreet ? `DealBrief - ${devStreet}.pdf` : "DealBrief.pdf";
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
