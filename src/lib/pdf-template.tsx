@@ -1255,7 +1255,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {permitNum} permit{permitNum !== 1 ? "s" : ""} found on record. Review scope and quality of documented improvements during inspection.
             </Text>
             {permits.length > 0 && (
-              <>
+              <View wrap={false}>
                 <View style={s.tHead}>
                   <Text style={[s.tHCell, { flex: 3 }]}>Type</Text>
                   <Text style={[s.tHCell, { flex: 5 }]}>Description</Text>
@@ -1276,7 +1276,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   </Text>
                 )}
                 <Text style={s.note}>Source: {data.permitSource || "City permit portal"}. Values shown are permitted job values, not actual cost.</Text>
-              </>
+              </View>
             )}
           </View>
         )}
