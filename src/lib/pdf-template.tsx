@@ -1454,6 +1454,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           );
         })()}
 
+        <PageFooter />
+      </Page>
+
+      {/* ════════ PAGE 4: DEBT SERVICE + ALL-CASH ════════ */}
+      <Page size="LETTER" style={s.page}>
+        <PageHeader address={data.address} page={4} />
+
         {/* DEBT SERVICE SCENARIOS */}
         {model.scenarios.length > 0 && (
           <>
@@ -1571,9 +1578,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 4: DEAL CONTEXT + FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
+      {/* ════════ PAGE 5: DEAL CONTEXT + FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
       <Page size="LETTER" style={s.page}>
-        <PageHeader address={data.address} page={4} />
+        <PageHeader address={data.address} page={5} />
 
         {/* DEAL CONTEXT & ANALYSIS */}
         <SectionHead title="DEAL CONTEXT & ANALYSIS" />
