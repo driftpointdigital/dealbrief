@@ -1478,9 +1478,14 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               const equity  = effectiveAskNum * (1 - ltv / 100);
 
               // Helper: render one rate table given a base NOI value
+              // Tighter padding for DSCR tables to keep everything on one page
+              const dscrTHead   = [s.tHead,   { paddingVertical: 3 }] as const;
+              const dscrTRow    = [s.tRow,    { paddingVertical: 3 }] as const;
+              const dscrTRowAlt = [s.tRowAlt, { paddingVertical: 3 }] as const;
+
               const renderRateTable = (noiForCalc: number | null) => (
                 <>
-                  <View style={s.tHead}>
+                  <View style={dscrTHead}>
                     <Text style={[s.tHCell, { width: 46 }]}>Rate</Text>
                     <Text style={[s.tHCell, { width: 88 }]}>Annual D/S{isIO ? " (I/O)" : ""}</Text>
                     <Text style={[s.tHCell, { width: 88 }]}>Cash Flow</Text>
@@ -1498,7 +1503,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                       : "STOP";
                     const sigColor = sig === "GO" ? GREEN : sig === "WATCH" ? AMBER : sig === "STOP" ? RED : GRAY;
                     return (
-                      <View key={i} style={i % 2 === 0 ? s.tRow : s.tRowAlt}>
+                      <View key={i} style={i % 2 === 0 ? dscrTRow : dscrTRowAlt}>
                         <Text style={[s.tCell, { width: 46 }]}>{fmtPct(sc.rate)}</Text>
                         <Text style={[s.tCell, { width: 88 }]}>{fmt$(sc.annualDebtService)}</Text>
                         <Text style={[s.tCell, { width: 88, color: cf !== null ? (cf >= 0 ? GREEN : RED) : "#1F2937" }]}>
@@ -1521,8 +1526,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               const adjNoi     = showTaxAdj && taxAdjNoi > 0 ? taxAdjNoi : null;
 
               return (
-                <View key={ltv} style={{ marginBottom: 14 }}>
-                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
+                <View key={ltv} style={{ marginBottom: 8 }}>
+                  <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 3 }}>
                     {fmtPct(ltv, 0)} LTV — {fmt$(loanAmt)} loan | {fmt$(equity)} down | {ioLabel}
                   </Text>
 
@@ -1537,7 +1542,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   {/* Tax-adjusted sub-table */}
                   {showTaxAdj && adjNoi !== null && (
                     <>
-                      <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: SLATE, marginTop: 6, marginBottom: 2 }}>
+                      <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: SLATE, marginTop: 3, marginBottom: 2 }}>
                         Tax-Adjusted — NOI: {fmt$(adjNoi)}/yr  ({(effTaxRate * 100).toFixed(2)}% × ask, taxes reassessed at purchase price)
                       </Text>
                       {renderRateTable(adjNoi)}
@@ -1549,7 +1554,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
             {/* All-cash */}
             {boe && boe.estNoi !== 0 && effectiveAskNum > 0 && (
-              <View style={{ marginTop: 4, marginBottom: 10 }}>
+              <View style={{ marginTop: 3, marginBottom: 6 }}>
                 <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 4 }}>
                   All-Cash — {askNum > 0 ? askFmt : fmt$(effectiveAskNum) + " (implied)"} equity | No debt | No I/O consideration
                 </Text>
@@ -1569,7 +1574,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </View>
               </View>
             )}
-            <Text style={s.note}>GO = DSCR ≥1.10x / CoC ≥6%. WATCH = marginal. STOP = negative or sub-1.0x DSCR. Closing costs at 1.5%.</Text>
+            <Text style={s.note}>GO = DSCR 1.10x+ / CoC 6%+. WATCH = marginal. STOP = negative or sub-1.0x DSCR. Closing costs at 1.5%.</Text>
           </>
         )}
 
