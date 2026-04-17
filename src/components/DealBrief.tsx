@@ -496,15 +496,9 @@ export default function DealBrief() {
               <option value="Single Family Rental">Single Family Rental</option>
             </select>
           </div>
-          {data.yearBuilt
-            ? <input type="hidden" name="yearBuilt" value={data.yearBuilt} />
-            : <FieldRow label="Year Built" name="yearBuilt" value="" placeholder="e.g. 1987" />}
-          {data.buildingArea
-            ? <input type="hidden" name="buildingArea" value={data.buildingArea} />
-            : <FieldRow label="Building Area" name="buildingArea" value="" placeholder="e.g. 8,400 SF" />}
-          {data.lotSize
-            ? <input type="hidden" name="lotSize" value={data.lotSize} />
-            : <FieldRow label="Lot Size" name="lotSize" value="" placeholder="e.g. 12,500 SF" />}
+          <FieldRow label="Year Built" name="yearBuilt" value={data.yearBuilt || ""} placeholder="e.g. 1987" />
+          <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea || ""} placeholder="e.g. 8,400 SF" />
+          <FieldRow label="Lot Size" name="lotSize" value={data.lotSize || ""} placeholder="e.g. 12,500 SF" />
           <FieldRow key={unitsKey} label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8" />
           {data.zoning && (
             <input type="hidden" name="zoning" value={data.zoning} />
