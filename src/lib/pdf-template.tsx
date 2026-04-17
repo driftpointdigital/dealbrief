@@ -392,10 +392,12 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
   const hiLtvScenarios = model.scenarios.filter(sc => sc.ltv === Math.max(...model.scenarios.map(s => s.ltv)));
   if (hiLtvScenarios.length > 0) {
     const boeNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
-    // Per scenario: prefer broker-derived DSCR; if null (no broker cap), compute from BOE NOI
+    // Per scenario: use BOE NOI to match what the debt service table shows.
+    // Fall back to broker-derived DSCR only when no BOE NOI is available.
     const getDscr = (sc: { dscr: number | null; annualDebtService: number }) => {
+      if (boeNoi !== null && sc.annualDebtService > 0) return boeNoi / sc.annualDebtService;
       if (sc.dscr !== null) return sc.dscr;
-      return boeNoi !== null && sc.annualDebtService > 0 ? boeNoi / sc.annualDebtService : null;
+      return null;
     };
     const usingBoe = boeNoi !== null;
     const allNegative = hiLtvScenarios.every(sc => { const d = getDscr(sc); return d !== null && d < 1.0; });
