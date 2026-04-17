@@ -509,10 +509,7 @@ export default function DealBrief() {
         <input type="hidden" name="assessedValue"  value={data.assessedValue  || ""} />
         <input type="hidden" name="landValue"      value={data.landValue      || ""} />
         <input type="hidden" name="improvements"   value={data.improvementValue || ""} />
-        {data.annualTaxes
-          ? <input type="hidden" name="annualTaxes" value={data.annualTaxes} />
-          : <FieldRow label="Annual Property Taxes (optional)" name="annualTaxes" value="" placeholder="e.g. $21,500" />
-        }
+        <FieldRow label="Annual Property Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,500" />
 
         <SectionCard title="Deal Inputs">
           <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000"
