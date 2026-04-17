@@ -530,11 +530,11 @@ export default function DealBrief() {
         {/* Tax Assessment */}
         <input type="hidden" name="assessedValue" value={summedAssessed} />
         <SectionCard title="Tax Assessment">
-          <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
           <FieldRow label="Land Value" name="landValue" value={landEdit} placeholder="e.g. $125,000"
             onChange={(e) => setLandEdit(e.target.value)} />
           <FieldRow label="Improvements" name="improvements" value={imprEdit} placeholder="e.g. $800,000"
             onChange={(e) => setImprEdit(e.target.value)} />
+          <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
           <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%" />
         </SectionCard>
 
