@@ -505,11 +505,13 @@ export default function DealBrief() {
           )}
         </SectionCard>
 
-        {/* Tax Assessment — hidden; passed through to report only */}
-        <input type="hidden" name="assessedValue"  value={data.assessedValue  || ""} />
-        <input type="hidden" name="landValue"      value={data.landValue      || ""} />
-        <input type="hidden" name="improvements"   value={data.improvementValue || ""} />
-        <FieldRow label="Annual Property Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,500" />
+        {/* Tax Assessment */}
+        <input type="hidden" name="landValue"   value={data.landValue       || ""} />
+        <input type="hidden" name="improvements" value={data.improvementValue || ""} />
+        <SectionCard title="Tax Assessment">
+          <FieldRow label="Assessed Value" name="assessedValue" value={data.assessedValue || ""} placeholder="e.g. $1,250,000" />
+          <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%" />
+        </SectionCard>
 
         <SectionCard title="Deal Inputs">
           <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000"
