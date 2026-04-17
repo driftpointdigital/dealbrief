@@ -1436,7 +1436,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 {prices.map((p, i) => {
                   const cr = boe.estNoi / p * 100;
                   return (
-                    <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", color: capColor(cr), fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
+                    <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
                       {fmtPct(cr, 2)}
                     </Text>
                   );
@@ -1451,7 +1451,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     const adjNoi   = boe.estNoi + boe.taxes - adjTaxes;
                     const cr = adjNoi / p * 100;
                     return (
-                      <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", color: capColor(cr), fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
+                      <Text key={i} style={[s.tCell, { flex: 1, textAlign: "right", fontFamily: i === 2 ? "Helvetica-Bold" : "Helvetica" }]}>
                         {fmtPct(cr, 2)}
                       </Text>
                     );
