@@ -156,7 +156,7 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-function FieldRow({ label, name, value, placeholder, editable = true, tooltip }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean; tooltip?: string }) {
+function FieldRow({ label, name, value, placeholder, editable = true, tooltip, onChange }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean; tooltip?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
   return (
     <div style={{
       display: "flex", alignItems: "center", padding: "0 24px", height: 44,
@@ -181,6 +181,7 @@ function FieldRow({ label, name, value, placeholder, editable = true, tooltip }:
           }}
           onFocus={(e) => { e.currentTarget.style.borderColor = "#D1D5DB"; e.currentTarget.style.background = "#FAFAFA"; }}
           onBlur={(e) => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; }}
+          onChange={onChange}
         />
       ) : (
         <span style={{ fontSize: 14, color: "#111827" }}>{value}</span>
@@ -244,6 +245,25 @@ export default function DealBrief() {
 
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+
+  // Controlled state for land/improvement inputs so assessed value can be derived as their sum
+  const [landEdit, setLandEdit] = useState("");
+  const [imprEdit, setImprEdit] = useState("");
+
+  // Sync to pipeline data whenever a new address result arrives
+  useEffect(() => {
+    setLandEdit(data?.landValue || "");
+    setImprEdit(data?.improvementValue || "");
+  }, [data?.landValue, data?.improvementValue]);
+
+  // Derive assessed value as sum of land + improvements (display + hidden form field)
+  function _parseDol(s: string): number {
+    return parseFloat((s || "").replace(/[$,\s]/g, "")) || 0;
+  }
+  const summedAssessed = (() => {
+    const total = _parseDol(landEdit) + _parseDol(imprEdit);
+    return total > 0 ? `$${total.toLocaleString()}` : (data?.assessedValue || "");
+  })();
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleGenerate = async () => {
@@ -508,10 +528,13 @@ export default function DealBrief() {
         </SectionCard>
 
         {/* Tax Assessment */}
-        <input type="hidden" name="landValue"   value={data.landValue       || ""} />
-        <input type="hidden" name="improvements" value={data.improvementValue || ""} />
+        <input type="hidden" name="assessedValue" value={summedAssessed} />
         <SectionCard title="Tax Assessment">
-          <FieldRow label="Assessed Value" name="assessedValue" value={data.assessedValue || ""} placeholder="e.g. $1,250,000" />
+          <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
+          <FieldRow label="Land Value" name="landValue" value={landEdit} placeholder="e.g. $125,000"
+            onChange={(e) => setLandEdit(e.target.value)} />
+          <FieldRow label="Improvements" name="improvements" value={imprEdit} placeholder="e.g. $800,000"
+            onChange={(e) => setImprEdit(e.target.value)} />
           <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%" />
         </SectionCard>
 
