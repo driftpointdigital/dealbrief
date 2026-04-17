@@ -548,7 +548,7 @@ export default function DealBrief() {
           <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%"
             tooltip="Current occupancy for reference — displayed on the report. NOI is driven by the Vacancy % set in Analysis Assumptions below." />
           <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="$1,250"
-            tooltip="Used to drive GPR. Use market rents if you want to show a mark-to-market NOI. If not provided, GPR will be estimated from the property zip code median rent, if available." />
+            tooltip="Average per unit. Used to drive GPR. Use market rents if you want to show a mark-to-market NOI. If not provided, GPR will be estimated from the property zip code median rent, if available." />
           <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units"
             tooltip="Free form — describe any relevant broker or seller claims about the property. These will appear in the report for reference." />
         </SectionCard>
