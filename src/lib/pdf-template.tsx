@@ -875,9 +875,20 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.assessedValue && (
                 <Row label="Appraised Value (County)" value={fmtDol(data.assessedValue)} />
               )}
-              {data.landValue && data.improvements && (
-                <Row label="Land / Improvements" value={fmtDol(data.landValue) + " land + " + fmtDol(data.improvements) + " improvements"} alt />
-              )}
+              {data.landValue && data.improvements && (() => {
+                const av  = parseDol(data.assessedValue);
+                const lv  = parseDol(data.landValue);
+                const iv  = parseDol(data.improvements);
+                const orig = lv + iv;
+                // If user adjusted assessed value, scale land/improvement proportionally
+                const scaledLv = (av > 0 && orig > 0) ? Math.round(lv * av / orig) : lv;
+                const scaledIv = (av > 0 && orig > 0) ? Math.round(iv * av / orig) : iv;
+                return (
+                  <Row label="Land / Improvements"
+                    value={fmt$(scaledLv) + " land  +  " + fmt$(scaledIv) + " improvements"}
+                    alt />
+                );
+              })()}
               {data.annualTaxes && (
                 <Row label="Current Annual Taxes" value={fmtDol(data.annualTaxes) + "/yr"} />
               )}
