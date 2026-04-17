@@ -465,7 +465,7 @@ export default function DealBrief() {
         </button>
       </div>
 
-      <form ref={formRef}>
+      <form key={data.address} ref={formRef}>
       <div style={{ maxWidth: 660, margin: "0 auto", padding: "36px 24px 64px" }}>
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
