@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
     assessedValue:  m.assessedValue  ?? "",
     landValue:      m.landValue      ?? "",
     improvements:   m.improvements   ?? "",
+    lpv:            m.lpv            ?? "",
     taxRate:        m.taxRate        ?? "",
     annualTaxes:    m.annualTaxes    ?? "",
     parcelId:       m.parcelId       ?? "",

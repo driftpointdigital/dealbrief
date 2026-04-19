@@ -13,6 +13,7 @@ const MOCK_RETURN_DATA = {
   assessedValue: "$925,000",
   landValue: "$125,000",
   improvementValue: "$800,000",
+  lpv: "",
   annualTaxes: "$21,000",
   taxRate: "2.20%",
   femaFloodZone: "Zone X",
@@ -406,6 +407,7 @@ export default function DealBrief() {
         assessedValue:    a.assessedValue  || "",
         landValue:        a.landValue      || "",
         improvementValue: a.improvements   || "",
+        lpv:              a.lpv            || "",
         annualTaxes:      a.annualTaxes    || "",
         taxRate:          a.taxRate        || "",
         femaFloodZone:    pipelineData?.fema?.floodZone || "",
@@ -529,12 +531,27 @@ export default function DealBrief() {
 
         {/* Tax Assessment */}
         <input type="hidden" name="assessedValue" value={summedAssessed} />
+        {data.lpv && <input type="hidden" name="lpv" value={data.lpv} />}
         <SectionCard title="Tax Assessment">
-          <FieldRow label="Land Value" name="landValue" value={landEdit} placeholder="e.g. $125,000"
-            onChange={(e) => setLandEdit(e.target.value)} />
-          <FieldRow label="Improvements" name="improvements" value={imprEdit} placeholder="e.g. $800,000"
-            onChange={(e) => setImprEdit(e.target.value)} />
-          <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
+          {data.lpv
+            ? /* AZ: FCV is assessedValue, LPV is the actual tax base — show both read-only */
+              <>
+                <FieldRow label="Full Cash Value (FCV)" value={data.assessedValue || "—"} editable={false}
+                  tooltip="Arizona Full Cash Value — the county's market value estimate. This is what DealBrief shows as 'Assessed Value' for comparison against ask price." />
+                <FieldRow label="Limited Property Value (LPV)" value={data.lpv} editable={false}
+                  tooltip="The actual tax base in Arizona. LPV is capped at 5% annual growth and does not reset to purchase price at sale. Annual taxes are computed from LPV, not FCV." />
+              </>
+            : /* Non-AZ: editable land + improvements, derived assessed value */
+              <>
+                <FieldRow label="Land Value" name="landValue" value={landEdit} placeholder="e.g. $125,000"
+                  onChange={(e) => setLandEdit(e.target.value)} />
+                <FieldRow label="Improvements" name="improvements" value={imprEdit} placeholder="e.g. $800,000"
+                  onChange={(e) => setImprEdit(e.target.value)} />
+                <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
+              </>
+          }
+          <FieldRow label="Annual Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,000"
+            tooltip={data.lpv ? "Estimated from LPV × jurisdiction levy rate. Verify against actual tax bill." : ""} />
           <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%" />
         </SectionCard>
 

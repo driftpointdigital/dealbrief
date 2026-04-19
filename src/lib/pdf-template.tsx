@@ -9,6 +9,7 @@ export interface ReportData {
   zoning: string;
   // Assessor
   assessedValue: string; landValue: string; improvements: string;
+  lpv: string;  // AZ Limited Property Value (actual tax base); empty for non-AZ
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
@@ -416,8 +417,10 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
     }
   }
 
-  // Assessment vs. ask
-  if (av > 0 && ask > 0) {
+  // Assessment vs. ask — skip for LPV states (AZ) where taxes don't reset at purchase
+  const _stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
+  const _isLpvState = _stateM?.[1] === "AZ";
+  if (av > 0 && ask > 0 && !_isLpvState) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
     if (ratio > 1.0) {
@@ -465,12 +468,14 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
   } else if (permitNum > 0) {
     parts.push(`${permitNum} permit record${permitNum > 1 ? "s" : ""} found — verify scope and quality of documented improvements during inspection.`);
   }
+  const _bThesisStateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
+  const _isLpvThesis = _bThesisStateM?.[1] === "AZ";
   if (av > 0 && ask > 0) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
     if (ratio > 1.0) {
-      parts.push(`County assessment (${fmtDol(data.assessedValue)}) exceeds the asking price by ${pct - 100}% — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile.`);
-    } else if (pct < 80) {
+      parts.push(`County Full Cash Value (${fmtDol(data.assessedValue)}) exceeds the asking price by ${pct - 100}%${_isLpvThesis ? " — AZ FCV is a market estimate, not the tax base (LPV). A tax consultant review may find grounds to reduce the LPV." : " — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile."}`);
+    } else if (pct < 80 && !_isLpvThesis) {
       parts.push(`County assessment (${fmtDol(data.assessedValue)}) is ${pct}% of ask, suggesting risk of future tax reassessment. A purchase at or near ask will likely trigger reassessment at the higher price at next cycle.`);
     }
   }
@@ -695,6 +700,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   // Effective tax rate — computed before impliedPrice so the closed-form can use it
   const effTaxRate = (() => {
     if (!boe) return 0;
+    const stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
+    const _stateAbbr = stateM?.[1] || "";
+    // AZ uses Limited Property Value (LPV) — the tax base is capped at 5%/yr and does NOT
+    // reset to purchase price on sale. Return 0 to suppress the tax-adjusted NOI scenario.
+    if (_stateAbbr === "AZ") return 0;
     const taxes = parseDol(data.annualTaxes);
     const av    = parseDol(data.assessedValue);
     // Tier 1: actual taxes ÷ assessed value = true effective rate
@@ -709,8 +719,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
       NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
       MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
     };
-    const stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
-    return stateM ? (_STATE_RATES[stateM[1]] || 0) : 0;
+    return stateM ? (_STATE_RATES[_stateAbbr] || 0) : 0;
   })();
 
   // Implied acquisition price — closed-form so that tax-adj NOI ÷ price = buyer cap exactly.
@@ -747,14 +756,23 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
   const unitsNum    = parseInt(data.units) || 0;
 
-  // Tax-adjusted NOI — for DSCR sub-table and reassessment flag
-  const taxAdjTaxes = boe && effTaxRate > 0 && effectiveAskNum > 0 ? Math.round(effectiveAskNum * effTaxRate) : 0;
+  // Tax-adjusted NOI — for DSCR sub-table
+  // AZ: taxes don't reset at purchase — model max LPV growth of 5%/yr instead
+  const taxAdjTaxes = (() => {
+    if (!boe) return 0;
+    if (isLpvState && boe.taxes > 0) return Math.round(boe.taxes * 1.05);
+    return effTaxRate > 0 && effectiveAskNum > 0 ? Math.round(effectiveAskNum * effTaxRate) : 0;
+  })();
   const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
-  // Show tax-adjusted section when the reassessment swing is meaningful.
-  // Flat $500 threshold was too coarse for small properties — a $249 swing on
-  // a $219K SFR is 6.3% of the tax bill. Use max($200, 5% of current taxes).
+  // Show tax-adjusted section when the swing is meaningful.
+  // Flat $500 threshold was too coarse for small properties. Use max($200, 5% of current taxes).
+  // AZ: always show when we have current taxes (5% growth is exactly the story here).
   const taxAdjThreshold = boe ? Math.max(200, boe.taxes * 0.05) : 500;
-  const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && Math.abs(taxAdjTaxes - boe.taxes) > taxAdjThreshold;
+  const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && (
+    isLpvState ? boe.taxes > 0 : Math.abs(taxAdjTaxes - boe.taxes) > taxAdjThreshold
+  );
+  // Short label for the tax-adjusted scenario (used in multiple render sites)
+  const taxAdjDesc = isLpvState ? "AZ 5% LPV cap" : `${(effTaxRate * 100).toFixed(2)}% × ask`;
 
   // Breakeven occupancy on tax-adjusted OpEx — when reassessment is material, the
   // relevant breakeven uses taxes at the likely post-purchase rate, not current taxes.
@@ -791,6 +809,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
   const zipMatch = data.address.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : "";
+
+  const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
 
   const flags  = computeFlags(data, model, boe);
   const thesis = buildThesis(data, flags);
@@ -875,10 +895,16 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <SectionHead title="TAX PROFILE" />
             <View style={s.tableWrap}>
               {data.assessedValue && (
-                <Row label="Appraised Value (County)" value={fmtDol(data.assessedValue)} />
+                <Row label={isLpvState ? "Full Cash Value / FCV (County)" : "Appraised Value (County)"} value={fmtDol(data.assessedValue)} />
               )}
-              {data.landValue && data.improvements && (
-                <Row label="Land / Improvements" value={fmtDol(data.landValue) + " land  +  " + fmtDol(data.improvements) + " improvements"} alt />
+              {isLpvState ? (
+                data.lpv && (
+                  <Row label="Limited Property Value (LPV)" value={fmtDol(data.lpv) + "  (actual tax base — capped 5%/yr)"} alt />
+                )
+              ) : (
+                data.landValue && data.improvements && (
+                  <Row label="Land / Improvements" value={fmtDol(data.landValue) + " land  +  " + fmtDol(data.improvements) + " improvements"} alt />
+                )
               )}
               {data.annualTaxes && (
                 <Row label="Current Annual Taxes" value={fmtDol(data.annualTaxes) + "/yr"} />
@@ -915,16 +941,22 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 const av2 = parseDol(data.assessedValue);
                 const ask2 = parseDol(data.askingPrice);
                 const userInputTaxes = !av2 && parseDol(data.annualTaxes) > 0;
+                const taxDisclaimer = " Tax amounts are estimates based on available data; confirm actual amounts with the county and consult a tax advisor.";
 
                 if (userInputTaxes) {
                   const srcNote = data.assessorSource
                     ? ` ${data.assessorSource} located the parcel but no assessed value is currently on record (appraisal may be pending for new construction).`
                     : "";
-                  return `Annual taxes submitted by user.${srcNote} Upon sale, county may reassess to the purchase price. Tax amounts are estimates based on available data; confirm actual amounts with the county and consult a tax advisor.`;
+                  const reassessNote = isLpvState
+                    ? " Arizona uses Limited Property Value (LPV) — the tax base is capped at 5%/yr and does not reset to purchase price at sale."
+                    : " Upon sale, county may reassess to the purchase price.";
+                  return `Annual taxes submitted by user.${srcNote}${reassessNote}${taxDisclaimer}`;
                 }
 
                 const src = data.assessorSource ? `Source: ${data.assessorSource}.` : "Source: County appraisal district.";
-                const taxDisclaimer = " Tax amounts are estimates based on available data; confirm actual amounts with the county and consult a tax advisor.";
+                if (isLpvState) {
+                  return `${src} The value shown is the Full Cash Value (FCV) — Arizona's market-value estimate. The actual tax base is the Limited Property Value (LPV), which is capped at 5% annual growth and does not reset to purchase price on sale. Current taxes reflect the LPV, not the FCV.${taxDisclaimer}`;
+                }
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
                   return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.${taxDisclaimer}`;
                 }
@@ -1358,7 +1390,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 <SubtotalRow label={"Est. In-Place NOI  (" + (boe.taxesIsEstimate ? "est. taxes" : "current taxes") + ")"} value={fmt$(boe.estNoi) + "/yr"} unit={pu(boe.estNoi)} />
                 {showTaxAdj && (
                   <SubtotalRow
-                    label={"Est. Tax-Adjusted NOI  (" + (effTaxRate * 100).toFixed(2) + "% × ask)"}
+                    label={"Est. Tax-Adjusted NOI  (" + taxAdjDesc + ")"}
                     value={fmt$(taxAdjNoi) + "/yr"}
                     unit={pu(taxAdjNoi)} />
                 )}
@@ -1388,7 +1420,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
                 <Text style={s.note}>
                   Carefully review and verify broker&apos;s/seller&apos;s stated NOI/cap rate.  Request T12 and rent roll from seller.  Revenue and operating expense assumptions are approximate.
-                  {showTaxAdj ? ` Tax-adjusted NOI assumes taxes reassess to ${(effTaxRate * 100).toFixed(2)}% × ask price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr).` : ""}
+                  {showTaxAdj ? (isLpvState
+                    ? ` Tax-adjusted NOI assumes Arizona LPV grows at the 5%/yr cap (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr). AZ taxes do not reset to purchase price on sale.`
+                    : ` Tax-adjusted NOI assumes taxes reassess to ${(effTaxRate * 100).toFixed(2)}% × ask price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr).`) : ""}
                 </Text>
               </>
             );
@@ -1444,12 +1478,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   );
                 })}
               </View>
-              {/* Tax-adjusted cap rate row — only when reassessment scenario is active */}
-              {showTaxAdj && effTaxRate > 0 && (
+              {/* Tax-adjusted cap rate row — only when reassessment/LPV scenario is active */}
+              {showTaxAdj && (
                 <View style={s.tRow}>
                   <Text style={[s.tCell, { flex: 1.4 }]}>Tax-Adj. Cap Rate</Text>
                   {prices.map((p, i) => {
-                    const adjTaxes = Math.round(p * effTaxRate);
+                    // AZ: taxes fixed at LPV cap (don't vary with price); else reassessed at price
+                    const adjTaxes = isLpvState ? taxAdjTaxes : Math.round(p * effTaxRate);
                     const adjNoi   = boe.estNoi + boe.taxes - adjTaxes;
                     const cr = adjNoi / p * 100;
                     return (
@@ -1546,7 +1581,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   {showTaxAdj && adjNoi !== null && (
                     <>
                       <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: SLATE, marginTop: 3, marginBottom: 2 }}>
-                        Tax-Adjusted — NOI: {fmt$(adjNoi)}/yr  ({(effTaxRate * 100).toFixed(2)}% × ask, taxes reassessed at purchase price)
+                        Tax-Adjusted — NOI: {fmt$(adjNoi)}/yr  ({isLpvState ? "AZ: taxes +5%/yr LPV cap" : `${(effTaxRate * 100).toFixed(2)}% × ask, taxes reassessed at purchase price`})
                       </Text>
                       {renderRateTable(adjNoi)}
                     </>
@@ -1644,6 +1679,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             return (
               <Bullet bold="Consider a property tax appeal. "
                 rest={`Current county assessment (${fmtDol(data.assessedValue)}) exceeds the purchase price (${askFmt}). Purchasing below assessed value is a strong basis to challenge the assessment downward. Engage a property tax consultant after closing — a successful appeal could reduce annual taxes materially.`} />
+            );
+          }
+          if (isLpvState) {
+            return (
+              <Bullet bold="Model Arizona LPV tax growth. "
+                rest={`Arizona's Limited Property Value (LPV) is capped at 5% annual growth and does not reset to purchase price at closing. Current taxes are based on the LPV, not the Full Cash Value. Model the 5%/yr compounding scenario in your hold-period pro forma.`} />
             );
           }
           return (
