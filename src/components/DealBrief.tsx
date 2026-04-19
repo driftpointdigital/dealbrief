@@ -158,14 +158,29 @@ function Tooltip({ text }: { text: string }) {
 }
 
 function FieldRow({ label, name, value, placeholder, editable = true, tooltip, onChange }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean; tooltip?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+  // When the label wraps to two lines (e.g. "Limited Property Value (LPV)"),
+  // we want the tooltip "?" glyph to wrap along with the last word so it
+  // stays attached to the label — otherwise it visually hangs off the right
+  // edge of the label column next to the value. We split the label and wrap
+  // {lastWord + Tooltip} in a nowrap span that breaks as a unit.
+  const parts = label.split(" ");
+  const lastWord = parts.length > 0 ? parts[parts.length - 1] : label;
+  const leading  = parts.slice(0, -1).join(" ");
   return (
     <div style={{
       display: "flex", alignItems: "center", padding: "0 24px", height: 44,
       borderBottom: "1px solid #F3F4F6",
     }}>
-      <span style={{ width: 180, fontSize: 13, color: "#6B7280", flexShrink: 0, letterSpacing: "-0.1px", display: "flex", alignItems: "center" }}>
-        {label}
-        {tooltip && <Tooltip text={tooltip} />}
+      <span style={{ width: 180, fontSize: 13, color: "#6B7280", flexShrink: 0, letterSpacing: "-0.1px", lineHeight: 1.25 }}>
+        {tooltip ? (
+          <>
+            {leading ? leading + " " : ""}
+            <span style={{ whiteSpace: "nowrap" }}>
+              {lastWord}
+              <Tooltip text={tooltip} />
+            </span>
+          </>
+        ) : label}
       </span>
       {editable ? (
         <input
