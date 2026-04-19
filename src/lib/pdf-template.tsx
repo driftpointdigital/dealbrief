@@ -10,6 +10,8 @@ export interface ReportData {
   // Assessor
   assessedValue: string; landValue: string; improvements: string;
   lpv: string;  // AZ Limited Property Value (actual tax base); empty for non-AZ
+  adjustedLpv?: string;      // AZ: LPV × assessment ratio = NAV (actual tax base)
+  assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
@@ -900,9 +902,19 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 <Row label={isLpvState ? "Full Cash Value / FCV (County)" : "Appraised Value (County)"} value={fmtDol(data.assessedValue)} />
               )}
               {isLpvState ? (
-                data.lpv && (
-                  <Row label="Limited Property Value (LPV)" value={fmtDol(data.lpv) + "  (actual tax base — capped 5%/yr)"} alt />
-                )
+                <>
+                  {data.lpv && (
+                    <Row label="Limited Property Value (LPV)" value={fmtDol(data.lpv) + "  (capped 5%/yr growth)"} alt />
+                  )}
+                  {data.adjustedLpv && (
+                    <Row label="Adj. LPV (Net Assessed Value)" value={
+                      fmtDol(data.adjustedLpv) +
+                      (data.assessmentRatio
+                        ? `  (LPV × ${(parseFloat(data.assessmentRatio) * 100).toFixed(0)}% assessment ratio)`
+                        : "  (actual tax base)")
+                    } />
+                  )}
+                </>
               ) : (
                 data.landValue && data.improvements && (
                   <Row label="Land / Improvements" value={fmtDol(data.landValue) + " land  +  " + fmtDol(data.improvements) + " improvements"} alt />
@@ -919,7 +931,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 })()} />
               )}
               {data.taxRate && (
-                <Row label="Effective Tax Rate" value={data.taxRate} alt />
+                <Row label={isLpvState ? "Effective Tax Rate (on Adj. LPV)" : "Effective Tax Rate"} value={data.taxRate} alt />
               )}
               {data.assessedValue && data.askingPrice && (
                 <>
@@ -957,7 +969,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
                 const src = data.assessorSource ? `Source: ${data.assessorSource}.` : "Source: County appraisal district.";
                 if (isLpvState) {
-                  return `${src} The value shown is the Full Cash Value (FCV) — Arizona's market-value estimate. The actual tax base is the Limited Property Value (LPV), which is capped at 5% annual growth and does not reset to purchase price on sale. Current taxes reflect the LPV, not the FCV.${taxDisclaimer}`;
+                  return `${src} The value shown is the Full Cash Value (FCV) — Arizona's market-value estimate. The actual tax base is the Limited Property Value (LPV), which is capped at 5% annual growth and does not reset to purchase price on sale. Taxes are levied on the Adj. LPV (Net Assessed Value) — LPV × statutory assessment ratio (10% for residential rentals, 18% for commercial).${taxDisclaimer}`;
                 }
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
                   return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.${taxDisclaimer}`;

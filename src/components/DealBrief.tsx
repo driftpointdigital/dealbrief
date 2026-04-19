@@ -14,6 +14,8 @@ const MOCK_RETURN_DATA = {
   landValue: "$125,000",
   improvementValue: "$800,000",
   lpv: "",
+  adjustedLpv: "",
+  assessmentRatio: "",
   annualTaxes: "$21,000",
   taxRate: "2.20%",
   femaFloodZone: "Zone X",
@@ -423,6 +425,8 @@ export default function DealBrief() {
         landValue:        a.landValue      || "",
         improvementValue: a.improvements   || "",
         lpv:              a.lpv            || "",
+        adjustedLpv:      a.adjustedLpv    || "",
+        assessmentRatio:  typeof a.assessmentRatio === "number" ? a.assessmentRatio.toString() : (a.assessmentRatio || ""),
         annualTaxes:      a.annualTaxes    || "",
         taxRate:          a.taxRate        || "",
         femaFloodZone:    pipelineData?.fema?.floodZone || "",
@@ -547,6 +551,8 @@ export default function DealBrief() {
         {/* Tax Assessment */}
         <input type="hidden" name="assessedValue" value={summedAssessed} />
         {data.lpv && <input type="hidden" name="lpv" value={data.lpv} />}
+        {data.adjustedLpv && <input type="hidden" name="adjustedLpv" value={data.adjustedLpv} />}
+        {data.assessmentRatio && <input type="hidden" name="assessmentRatio" value={data.assessmentRatio} />}
         <SectionCard title="Tax Assessment">
           {data.lpv
             ? /* AZ: FCV is assessedValue, LPV is the actual tax base — show both read-only */
@@ -555,6 +561,10 @@ export default function DealBrief() {
                   tooltip="Arizona Full Cash Value — the county's market value estimate. This is what DealBrief shows as 'Assessed Value' for comparison against ask price." />
                 <FieldRow label="Limited Property Value (LPV)" value={data.lpv} editable={false}
                   tooltip="The actual tax base in Arizona. LPV is capped at 5% annual growth and does not reset to purchase price at sale. Annual taxes are computed from LPV, not FCV." />
+                {data.adjustedLpv && (
+                  <FieldRow label="Adj. LPV" value={data.adjustedLpv} editable={false}
+                    tooltip="LPV × statutory assessment ratio = Net Assessed Value (NAV). Arizona's levy rate is applied to this adjusted value, not raw LPV." />
+                )}
               </>
             : /* Non-AZ: editable land + improvements, derived assessed value */
               <>
@@ -567,7 +577,8 @@ export default function DealBrief() {
           }
           <FieldRow label="Annual Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,000"
             tooltip={data.lpv ? "Estimated from LPV × jurisdiction levy rate. Verify against actual tax bill." : ""} />
-          <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%" />
+          <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%"
+            tooltip={data.lpv ? "Effective rate applied to Adj. LPV (Net Assessed Value), not raw LPV. AZ taxes = LPV × assessment ratio × levy rate." : ""} />
         </SectionCard>
 
         <SectionCard title="Deal Inputs">

@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
     landValue:      pick("landValue"),
     improvements:   pick("improvements"),
     lpv:            pick("lpv"),
+    adjustedLpv:    pick("adjustedLpv"),
+    assessmentRatio: pick("assessmentRatio"),
     taxRate:        assessor.taxRate != null
                       ? String(assessor.taxRate).slice(0, 20)
                       : pick("taxRate"),
