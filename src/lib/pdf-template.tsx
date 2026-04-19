@@ -756,6 +756,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
   const unitsNum    = parseInt(data.units) || 0;
 
+  // AZ uses LPV system (taxes capped at 5%/yr growth, no reset at purchase).
+  // Declared early because taxAdjTaxes / taxAdjDesc / flags all branch on it.
+  const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
+
   // Tax-adjusted NOI — for DSCR sub-table
   // AZ: taxes don't reset at purchase — model max LPV growth of 5%/yr instead
   const taxAdjTaxes = (() => {
@@ -809,8 +813,6 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
   const zipMatch = data.address.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : "";
-
-  const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
 
   const flags  = computeFlags(data, model, boe);
   const thesis = buildThesis(data, flags);
