@@ -16,6 +16,7 @@ const MOCK_RETURN_DATA = {
   lpv: "",
   adjustedLpv: "",
   assessmentRatio: "",
+  reappraisalYear: "",
   annualTaxes: "$21,000",
   taxRate: "2.20%",
   femaFloodZone: "Zone X",
@@ -427,6 +428,7 @@ export default function DealBrief() {
         lpv:              a.lpv            || "",
         adjustedLpv:      a.adjustedLpv    || "",
         assessmentRatio:  typeof a.assessmentRatio === "number" ? a.assessmentRatio.toString() : (a.assessmentRatio || ""),
+        reappraisalYear:  a.reappraisalYear || "",
         annualTaxes:      a.annualTaxes    || "",
         taxRate:          a.taxRate        || "",
         femaFloodZone:    pipelineData?.fema?.floodZone || "",
@@ -553,6 +555,7 @@ export default function DealBrief() {
         {data.lpv && <input type="hidden" name="lpv" value={data.lpv} />}
         {data.adjustedLpv && <input type="hidden" name="adjustedLpv" value={data.adjustedLpv} />}
         {data.assessmentRatio && <input type="hidden" name="assessmentRatio" value={data.assessmentRatio} />}
+        {data.reappraisalYear && <input type="hidden" name="reappraisalYear" value={data.reappraisalYear} />}
         {(() => {
           // Detect Arizona by state in the address — robust even if the backend
           // hasn't populated LPV yet (e.g. Maricopa CAD miss falling back to Regrid).
@@ -596,7 +599,7 @@ export default function DealBrief() {
             tooltip="Your required going-in cap rate. DealBrief needs this or Asking Price for calculations. Provide both for full sensitivity analysis." />
           <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%"
             tooltip="Current occupancy for reference — displayed on the report. NOI is driven by the Vacancy % set in Analysis Assumptions below." />
-          <FieldRow label="In-Place Rents" name="inPlaceRents" value="" placeholder="$1,250"
+          <FieldRow label="Average Monthly In-Place Rent" name="inPlaceRents" value="" placeholder="$1,250"
             tooltip="Average per unit. Used to drive GPR. Use market rents if you want to show a mark-to-market NOI. If not provided, GPR will be estimated from the property zip code median rent, if available." />
           <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units"
             tooltip="Free form — describe any relevant broker or seller claims about the property. These will appear in the report for reference." />

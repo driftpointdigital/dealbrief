@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
     lpv:            pick("lpv"),
     adjustedLpv:    pick("adjustedLpv"),
     assessmentRatio: pick("assessmentRatio"),
+    reappraisalYear: assessor.reappraisalYear ? String(assessor.reappraisalYear).slice(0, 10) : pick("reappraisalYear"),
     taxRate:        assessor.taxRate != null
                       ? String(assessor.taxRate).slice(0, 20)
                       : pick("taxRate"),

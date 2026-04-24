@@ -12,6 +12,7 @@ export interface ReportData {
   lpv: string;  // AZ Limited Property Value (actual tax base); empty for non-AZ
   adjustedLpv?: string;      // AZ: LPV × assessment ratio = NAV (actual tax base)
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
+  reappraisalYear?: string;  // NC: year of next scheduled countywide reappraisal
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
@@ -422,6 +423,14 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
   // Assessment vs. ask — skip for LPV states (AZ) where taxes don't reset at purchase
   const _stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
   const _isLpvState = _stateM?.[1] === "AZ";
+  const _isNCState  = _stateM?.[1] === "NC";
+  const _isFLState  = _stateM?.[1] === "FL";
+  // NC: values lock flat until next countywide reappraisal — no mid-cycle reset on sale.
+  // Describe the reassessment as keyed to the reappraisal year rather than "next cycle".
+  const _ncTiming   = _isNCState
+    ? (data.reappraisalYear ? ` at the next countywide reappraisal (${data.reappraisalYear})` : " at the next countywide reappraisal")
+    : " at next cycle";
+  const _flJVNote   = _isFLState ? " (FL Just Value resets to ~95% of sale price)" : "";
   if (av > 0 && ask > 0 && !_isLpvState) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
@@ -430,13 +439,13 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
         body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). You are purchasing below the assessed value. The current tax burden is based on this higher assessment — a property tax consultant may be able to challenge it downward after purchase. Do not assume taxes will increase; they may decrease.` });
     } else if (ratio > 0.90) {
       flags.push({ level: "amber", title: `Assessment Near Ask — ${pct}% of Ask Price`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Minimal reassessment risk — assessment is already close to purchase price, so the tax burden is unlikely to change materially at next cycle.` });
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Minimal reassessment risk — assessment is already close to purchase price, so the tax burden is unlikely to change materially${_ncTiming}.` });
     } else if (ratio > 0.75) {
       flags.push({ level: "amber", title: `Reassessment Risk — Assessed at ${pct}% of Ask`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward at next cycle, increasing annual taxes. Model the delta in your pro forma.` });
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward${_ncTiming}${_flJVNote}, increasing annual taxes. Model the delta in your pro forma.` });
     } else {
       flags.push({ level: "amber", title: `Significant Reassessment Risk — Assessed at Only ${pct}% of Ask`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment — model a meaningful tax increase in your pro forma before LOI.` });
+        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment${_ncTiming}${_flJVNote} — model a meaningful tax increase in your pro forma before LOI.` });
     }
   }
 
@@ -714,9 +723,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     // Tier 2: tax rate field passed directly from assessor
     const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
     if (!isNaN(tr) && tr > 0) return tr / 100;
-    // Tier 3: state average effective rate
+    // Tier 3: state average effective rate for investor-owned multifamily.
+    // FL/NC/SC/GA updated 2026-04 based on statutory research (see dealbrief/pipeline/orchestrator.py).
     const _STATE_RATES: Record<string, number> = {
-      TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
+      TX: 0.022, GA: 0.013, NC: 0.010, FL: 0.018, SC: 0.025, AZ: 0.008,
       CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
       NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
       MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
@@ -724,13 +734,29 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     return stateM ? (_STATE_RATES[_stateAbbr] || 0) : 0;
   })();
 
+  // State-specific tax treatment flags — used by impliedPrice, taxAdjTaxes, and render logic.
+  //   AZ:  LPV capped 5%/yr, no reset on sale → taxAdjTaxes = current × 1.05.
+  //   FL:  investor parcels fully reset on sale to Just Value; JV historically ≈ 85-95% of
+  //        recent sale price per F.S. 193.011(8) cost-of-sale deduction → apply 0.95 haircut.
+  //   NC:  values LOCK FLAT between countywide reappraisals (N.C.G.S. § 105-287). The
+  //        "reassessed" scenario applies post-reappraisal at the purchase price; we surface
+  //        the specific reappraisal year per county so buyers can time the tax shock.
+  const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
+  const isFLState  = /(?:,\s*|\s+)FL\s*,?\s*\d{5}/.test(data.address || "");
+  const isNCState  = /(?:,\s*|\s+)NC\s*,?\s*\d{5}/.test(data.address || "");
+
   // Implied acquisition price — closed-form so that tax-adj NOI ÷ price = buyer cap exactly.
-  // Derivation: taxAdjNoi = (NOI_inplace + taxes_current) - effTaxRate × price
-  //             price = taxAdjNoi / buyerCR  →  price = (NOI_inplace + taxes) / (buyerCR + effTaxRate)
+  // Default derivation: taxAdjNoi = (NOI_inplace + taxes_current) - effTaxRate × price
+  //                     price = (NOI_inplace + taxes) / (buyerCR + effTaxRate)
+  // FL variant:         taxAdjNoi = (NOI_inplace + taxes_current) - 0.95 × effTaxRate × price
+  //                     price = (NOI_inplace + taxes) / (buyerCR + 0.95 × effTaxRate)
   // Falls back to NOI ÷ buyer cap when no effective rate is available.
   const impliedPrice = (() => {
     if (!boe || boe.estNoi <= 0 || !buyerCR) return 0;
-    if (effTaxRate > 0) return Math.round((boe.estNoi + boe.taxes) / (buyerCR + effTaxRate));
+    if (effTaxRate > 0) {
+      const taxMult = isFLState ? 0.95 : 1.0;
+      return Math.round((boe.estNoi + boe.taxes) / (buyerCR + taxMult * effTaxRate));
+    }
     return Math.round(boe.estNoi / buyerCR);
   })();
 
@@ -758,16 +784,20 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
   const unitsNum    = parseInt(data.units) || 0;
 
-  // AZ uses LPV system (taxes capped at 5%/yr growth, no reset at purchase).
-  // Declared early because taxAdjTaxes / taxAdjDesc / flags all branch on it.
-  const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
-
-  // Tax-adjusted NOI — for DSCR sub-table
-  // AZ: taxes don't reset at purchase — model max LPV growth of 5%/yr instead
+  // Tax-adjusted NOI — for DSCR sub-table.
+  //   AZ: taxes don't reset at purchase — model max LPV growth of 5%/yr instead.
+  //   FL: Just Value assumed = 95% of sale price (F.S. 193.011(8) cost-of-sale deduction).
+  //   NC: reassessment occurs at next countywide reappraisal (value flat until then);
+  //       applies effective rate × purchase price in the reappraisal scenario.
+  //   Default (TX/GA/SC/etc.): reassessment at next cycle applies rate × purchase price.
   const taxAdjTaxes = (() => {
     if (!boe) return 0;
     if (isLpvState && boe.taxes > 0) return Math.round(boe.taxes * 1.05);
-    return effTaxRate > 0 && effectiveAskNum > 0 ? Math.round(effectiveAskNum * effTaxRate) : 0;
+    if (effTaxRate > 0 && effectiveAskNum > 0) {
+      const basis = isFLState ? effectiveAskNum * 0.95 : effectiveAskNum;
+      return Math.round(basis * effTaxRate);
+    }
+    return 0;
   })();
   const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
   // Show tax-adjusted section when the swing is meaningful.
@@ -778,7 +808,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     isLpvState ? boe.taxes > 0 : Math.abs(taxAdjTaxes - boe.taxes) > taxAdjThreshold
   );
   // Short label for the tax-adjusted scenario (used in multiple render sites)
-  const taxAdjDesc = isLpvState ? "AZ 5% LPV cap" : `${(effTaxRate * 100).toFixed(2)}% × ask`;
+  const taxAdjDesc = isLpvState
+    ? "AZ 5% LPV cap"
+    : isNCState
+      ? `${(effTaxRate * 100).toFixed(2)}% × ask upon ${data.reappraisalYear || "next"} reappraisal`
+      : isFLState
+        ? `${(effTaxRate * 100).toFixed(2)}% × 95% of ask (FL JV reset)`
+        : `${(effTaxRate * 100).toFixed(2)}% × ask`;
 
   // Breakeven occupancy on tax-adjusted OpEx — when reassessment is material, the
   // relevant breakeven uses taxes at the likely post-purchase rate, not current taxes.
@@ -875,13 +911,40 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {pricePerSF   && <Row label="Price per SF"   value={pricePerSF} />}
               {data.brokerCapRate && <Row label="Broker Cap Rate" value={fmtPctDisplay(data.brokerCapRate)} alt />}
               {data.askingPrice && model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
-              {data.buyerCapRate && impliedPrice > 0 && (
-                <Row label={"Buyer's Max Price at " + fmtPctDisplay(data.buyerCapRate) + " Cap"}
-                  value={fmt$(impliedPrice) + "  (" + (effTaxRate > 0 ? "on Tax Adj. NOI" : "on BOE NOI") + ")"}
-                  alt />
-              )}
+              {data.buyerCapRate && impliedPrice > 0 && (() => {
+                // When reassessment is material, split into two rows:
+                //   (1) in-place taxes — naive cap: NOI ÷ buyerCR
+                //   (2) reassessed taxes — closed-form impliedPrice (already tax-adjusted)
+                const inPlacePrice = boe && boe.estNoi > 0 && buyerCR > 0
+                  ? Math.round(boe.estNoi / buyerCR)
+                  : 0;
+                const showTwoPrices = showTaxAdj && inPlacePrice > 0 && Math.abs(inPlacePrice - impliedPrice) > 5000;
+                const capLbl = fmtPctDisplay(data.buyerCapRate) + " Cap";
+                if (!showTwoPrices) {
+                  return (
+                    <Row label={"Buyer's Max Price at " + capLbl}
+                      value={fmt$(impliedPrice) + "  (" + (effTaxRate > 0 ? "on Tax Adj. NOI" : "on BOE NOI") + ")"}
+                      alt />
+                  );
+                }
+                const reassessNote = isLpvState
+                  ? "after 5% LPV growth"
+                  : isNCState
+                    ? (data.reappraisalYear ? `post-${data.reappraisalYear} reappraisal` : "post-reappraisal")
+                    : isFLState
+                      ? "reassessed at 95% of sale price"
+                      : "taxes reassessed at sale";
+                return (
+                  <>
+                    <Row label={"Buyer's Max Price (In-Place Taxes) at " + capLbl}
+                      value={fmt$(inPlacePrice)} alt />
+                    <Row label={"Buyer's Max Price (Reassessed Taxes) at " + capLbl}
+                      value={fmt$(impliedPrice) + "  (" + reassessNote + ")"} />
+                  </>
+                );
+              })()}
               {data.occupancy    && <Row label="Current Occupancy" value={fmtPctDisplay(data.occupancy)} alt />}
-              {data.inPlaceRents && <Row label="In-Place Rents"    value={fmtDol(data.inPlaceRents) + "/mo"} />}
+              {data.inPlaceRents && <Row label="Average Monthly In-Place Rent" value={fmtDol(data.inPlaceRents) + "/mo"} />}
               {data.censusRent && (
                 <Row label={"Area Median Rent" + (zip ? " (ZIP " + zip + ")" : "")}
                   value={data.censusRent + "/mo  (Census ACS 5-yr)"} alt />
@@ -957,19 +1020,34 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 const userInputTaxes = !av2 && parseDol(data.annualTaxes) > 0;
                 const taxDisclaimer = " Tax amounts are estimates based on available data; confirm actual amounts with the county and consult a tax advisor.";
 
+                const ncNote = isNCState
+                  ? ` North Carolina locks assessed value flat between countywide reappraisals (N.C.G.S. § 105-287) — there is no mid-cycle reset on sale. The reassessed-tax scenario in this report applies at the next scheduled reappraisal${data.reappraisalYear ? ` (${data.reappraisalYear})` : ""} at the purchase price.`
+                  : "";
+                const flNote = isFLState
+                  ? ` Florida rentals fully reset to Just Value at change of ownership (F.S. 193.1554/193.1555); Save Our Homes does NOT apply. JV is assumed at 95% of sale price per F.S. 193.011(8) cost-of-sale deduction. Ad-valorem rate shown does NOT include non-ad-valorem assessments (CDDs, MSBUs, fire MSTUs, solid-waste fees) — verify on the county TRIM notice.`
+                  : "";
+
                 if (userInputTaxes) {
                   const srcNote = data.assessorSource
                     ? ` ${data.assessorSource} located the parcel but no assessed value is currently on record (appraisal may be pending for new construction).`
                     : "";
                   const reassessNote = isLpvState
                     ? " Arizona uses Limited Property Value (LPV) — the tax base is capped at 5%/yr and does not reset to purchase price at sale."
-                    : " Upon sale, county may reassess to the purchase price.";
-                  return `Annual taxes submitted by user.${srcNote}${reassessNote}${taxDisclaimer}`;
+                    : isNCState
+                      ? ncNote
+                      : " Upon sale, county may reassess to the purchase price.";
+                  return `Annual taxes submitted by user.${srcNote}${reassessNote}${flNote}${taxDisclaimer}`;
                 }
 
                 const src = data.assessorSource ? `Source: ${data.assessorSource}.` : "Source: County appraisal district.";
                 if (isLpvState) {
                   return `${src} The value shown is the Full Cash Value (FCV) — Arizona's market-value estimate. The actual tax base is the Limited Property Value (LPV), which is capped at 5% annual growth and does not reset to purchase price on sale. Taxes are levied on the Adj. LPV (Net Assessed Value) — LPV × statutory assessment ratio (10% for residential rentals, 18% for commercial).${taxDisclaimer}`;
+                }
+                if (isNCState) {
+                  return `${src}${ncNote}${taxDisclaimer}`;
+                }
+                if (isFLState) {
+                  return `${src}${flNote}${taxDisclaimer}`;
                 }
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
                   return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.${taxDisclaimer}`;
@@ -1436,7 +1514,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   Carefully review and verify broker&apos;s/seller&apos;s stated NOI/cap rate.  Request T12 and rent roll from seller.  Revenue and operating expense assumptions are approximate.
                   {showTaxAdj ? (isLpvState
                     ? ` Tax-adjusted NOI assumes Arizona LPV grows at the 5%/yr cap (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr). AZ taxes do not reset to purchase price on sale.`
-                    : ` Tax-adjusted NOI assumes taxes reassess to ${(effTaxRate * 100).toFixed(2)}% × ask price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr).`) : ""}
+                    : isNCState
+                      ? ` Tax-adjusted NOI models the ${data.reappraisalYear || "next"} countywide reappraisal at ${(effTaxRate * 100).toFixed(2)}% × purchase price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr). NC holds values flat between reappraisal cycles — no mid-cycle reset on sale.`
+                      : isFLState
+                        ? ` Tax-adjusted NOI assumes full reset to Just Value at ${(effTaxRate * 100).toFixed(2)}% × 95% of purchase price per F.S. 193.011(8) (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr). Excludes non-ad-valorem assessments (CDDs, MSBUs, fire fees) — verify on TRIM notice.`
+                        : ` Tax-adjusted NOI assumes taxes reassess to ${(effTaxRate * 100).toFixed(2)}% × purchase price (${fmt$(taxAdjTaxes)}/yr vs. current ${fmt$(boe.taxes)}/yr).`) : ""}
                 </Text>
               </>
             );
@@ -1497,8 +1579,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 <View style={s.tRow}>
                   <Text style={[s.tCell, { flex: 1.4 }]}>Tax-Adj. Cap Rate</Text>
                   {prices.map((p, i) => {
-                    // AZ: taxes fixed at LPV cap (don't vary with price); else reassessed at price
-                    const adjTaxes = isLpvState ? taxAdjTaxes : Math.round(p * effTaxRate);
+                    // AZ: taxes fixed at LPV cap (don't vary with price)
+                    // FL: JV = 95% of purchase price, so adjTaxes = effRate × 0.95 × p
+                    // Default (incl. NC post-reappraisal): adjTaxes = effRate × p
+                    const adjTaxes = isLpvState
+                      ? taxAdjTaxes
+                      : Math.round(p * effTaxRate * (isFLState ? 0.95 : 1));
                     const adjNoi   = boe.estNoi + boe.taxes - adjTaxes;
                     const cr = adjNoi / p * 100;
                     return (
@@ -1595,7 +1681,15 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   {showTaxAdj && adjNoi !== null && (
                     <>
                       <Text style={{ fontSize: 7.5, fontFamily: "Helvetica-Bold", color: SLATE, marginTop: 3, marginBottom: 2 }}>
-                        Tax-Adjusted — NOI: {fmt$(adjNoi)}/yr  ({isLpvState ? "AZ: taxes +5%/yr LPV cap" : `${(effTaxRate * 100).toFixed(2)}% × ask, taxes reassessed at purchase price`})
+                        Tax-Adjusted — NOI: {fmt$(adjNoi)}/yr  ({
+                          isLpvState
+                            ? "AZ: taxes +5%/yr LPV cap"
+                            : isNCState
+                              ? `${(effTaxRate * 100).toFixed(2)}% × purchase price upon ${data.reappraisalYear || "next"} reappraisal`
+                              : isFLState
+                                ? `${(effTaxRate * 100).toFixed(2)}% × 95% of purchase price (FL JV reset)`
+                                : `${(effTaxRate * 100).toFixed(2)}% × ask, taxes reassessed at purchase price`
+                        })
                       </Text>
                       {renderRateTable(adjNoi)}
                     </>
@@ -1699,6 +1793,18 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             return (
               <Bullet bold="Model Arizona LPV tax growth. "
                 rest={`Arizona's Limited Property Value (LPV) is capped at 5% annual growth and does not reset to purchase price at closing. Current taxes are based on the LPV, not the Full Cash Value. Model the 5%/yr compounding scenario in your hold-period pro forma.`} />
+            );
+          }
+          if (isNCState) {
+            return (
+              <Bullet bold="Model North Carolina reappraisal timing. "
+                rest={`NC locks assessed value flat between countywide reappraisals (N.C.G.S. § 105-287) — the tax burden does NOT reset at closing. Current assessment is ${fmtDol(data.assessedValue)}. The next scheduled reappraisal${data.reappraisalYear ? ` is in ${data.reappraisalYear}` : ""}, at which point values will reset to market — effectively the purchase price. Hold-period taxes are near-term stable; model the reappraisal step-up into your exit-year pro forma.`} />
+            );
+          }
+          if (isFLState) {
+            return (
+              <Bullet bold="Model Florida Just Value reset. "
+                rest={`Florida fully resets the investor Just Value at change of ownership (F.S. 193.1554/193.1555) — Save Our Homes does NOT apply to rentals. JV typically settles at ~85-95% of sale price per F.S. 193.011(8) cost-of-sale deduction. Model first-year taxes at ~95% of purchase price × the county effective rate, plus non-ad-valorem assessments (CDDs/MSBUs/fire fees) shown on the TRIM notice.`} />
             );
           }
           return (
