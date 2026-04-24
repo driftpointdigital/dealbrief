@@ -17,6 +17,7 @@ export interface ReportData {
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
   reappraisalYear?: string;  // NC: year of next scheduled countywide reappraisal
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
+  taxFeePerUnit?: string;  // Per-unit municipal fee (Charlotte multifamily solid waste, etc.)
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
   inPlaceRents: string; brokerClaims: string; buyerCapRate: string;

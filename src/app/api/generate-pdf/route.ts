@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
     reappraisalYear: m.reappraisalYear ?? "",
     taxRate:        m.taxRate        ?? "",
     annualTaxes:    m.annualTaxes    ?? "",
+    taxFeePerUnit:  m.taxFeePerUnit  ?? "",
     parcelId:       m.parcelId       ?? "",
     assessorSource: m.assessorSource ?? "",
     // Deal inputs

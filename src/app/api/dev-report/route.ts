@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
                       ? String(assessor.taxRate).slice(0, 20)
                       : pick("taxRate"),
     annualTaxes:    pick("annualTaxes"),
+    taxFeePerUnit:  assessor.taxFeePerUnit ? String(assessor.taxFeePerUnit).slice(0, 20) : "",
     parcelId:       str(assessor.parcelId,    100),
     assessorSource: str(assessor.source,      100),
     // Sale history
