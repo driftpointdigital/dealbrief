@@ -932,6 +932,22 @@ export default function DealBrief() {
           </div>
         )}
 
+        {/* SAMPLE REPORT */}
+        <div style={{ margin: "12px 0 48px", textAlign: "center" }}>
+          <a
+            href="/sample-report.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: 13, color: "#457B9D", textDecoration: "none",
+              borderBottom: "1px solid #457B9D", paddingBottom: 1,
+              fontFamily: "inherit", letterSpacing: "-0.1px",
+            }}
+          >
+            View a sample report to see what&rsquo;s included &rarr;
+          </a>
+        </div>
+
         {/* COVERAGE */}
         <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>
           <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", display: "block", marginBottom: 12 }}>
