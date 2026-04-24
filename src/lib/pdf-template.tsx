@@ -17,9 +17,6 @@ export interface ReportData {
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
   reappraisalYear?: string;  // NC: year of next scheduled countywide reappraisal
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
-  // Per-unit annual fee (e.g. Charlotte multifamily solid waste ~$130/unit).
-  // When present the frontend computes annualTaxes live; PDF just displays it.
-  taxFeePerUnit?: string;
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
   inPlaceRents: string; brokerClaims: string; buyerCapRate: string;

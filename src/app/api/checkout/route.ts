@@ -56,7 +56,6 @@ export async function POST(req: NextRequest) {
   if (assessor.source)      metadata.assessorSource = String(assessor.source).slice(0, 100);
   if (assessor.taxRate != null)
     metadata.taxRate = String(assessor.taxRate).slice(0, 20);
-  if (assessor.taxFeePerUnit) metadata.taxFeePerUnit = String(assessor.taxFeePerUnit).slice(0, 20);
   // Sale history — packed as "price|year" (pipe separator avoids clash with dollar-formatted price)
   const saleP = assessor.salePrice ? String(assessor.salePrice) : "";
   const saleY = assessor.saleYear  ? String(assessor.saleYear)  : "";

@@ -127,7 +127,6 @@ export async function GET(req: NextRequest) {
     // BLS employment
     blsData: m.blsData ?? "",
     opexOverrides: m.opexOverrides ?? "",
-    taxFeePerUnit: m.taxFeePerUnit ?? "",
   };
 
   let pdfBuffer: Buffer;

@@ -20,7 +20,6 @@ const MOCK_RETURN_DATA = {
   reappraisalYear: "",
   annualTaxes: "$21,000",
   taxRate: "2.20%",
-  taxFeePerUnit: "",
   femaFloodZone: "Zone X",
   walkScore: "72",
   bikeScore: "54",
@@ -271,10 +270,6 @@ export default function DealBrief() {
   const [landEdit, setLandEdit] = useState("");
   const [imprEdit, setImprEdit] = useState("");
   const [otherEdit, setOtherEdit] = useState("");
-  // Controlled state for units + taxRate so Annual Taxes can react live
-  // when a per-unit fee applies (Charlotte multifamily solid waste fee).
-  const [unitsEdit, setUnitsEdit] = useState("");
-  const [taxRateEdit, setTaxRateEdit] = useState("");
 
   // Sync to pipeline data whenever a new address result arrives
   useEffect(() => {
@@ -282,22 +277,12 @@ export default function DealBrief() {
     setImprEdit(data?.improvementValue || "");
     setOtherEdit(data?.otherValue || "");
   }, [data?.landValue, data?.improvementValue, data?.otherValue]);
-  useEffect(() => {
-    setUnitsEdit(data?.units || "");
-    setTaxRateEdit(data?.taxRate || "");
-  }, [data?.units, data?.taxRate]);
 
   // Derive assessed value as sum of land + improvements + misc features.
   // Misc features only contributes when present; jurisdictions without a
   // misc bucket (TX, GA, AZ, etc.) leave otherEdit empty → no-op.
   function _parseDol(s: string): number {
     return parseFloat((s || "").replace(/[$,\s]/g, "")) || 0;
-  }
-  function _parsePct(s: string): number {
-    return (parseFloat((s || "").replace(/[%\s]/g, "")) || 0) / 100;
-  }
-  function _parseInt(s: string): number {
-    return parseInt((s || "").replace(/[,\s]/g, ""), 10) || 0;
   }
   const summedAssessed = (() => {
     const total = _parseDol(landEdit) + _parseDol(imprEdit) + _parseDol(otherEdit);
@@ -306,21 +291,6 @@ export default function DealBrief() {
   // Show the Misc Features row only when the pipeline surfaced a non-zero
   // value for this parcel (NC parcels, some FL XFOB cases).
   const showMiscFeatures = _parseDol(data?.otherValue || "") > 0;
-  // Per-unit annual fee (e.g. Charlotte multifamily solid waste ~$130/unit).
-  // When present, Annual Taxes is computed live as:
-  //   assessed × rate + units × feePerUnit
-  // so the user sees the tax bill update as they edit unit count, tax rate,
-  // or any of the assessed-value components.
-  const taxFeePerUnit = parseFloat(data?.taxFeePerUnit || "") || 0;
-  const hasPerUnitFee = taxFeePerUnit > 0;
-  const computedAnnualTaxes = (() => {
-    if (!hasPerUnitFee) return "";
-    const assessed = _parseDol(summedAssessed);
-    const rate = _parsePct(taxRateEdit);
-    const units = _parseInt(unitsEdit);
-    const total = Math.round(assessed * rate + units * taxFeePerUnit);
-    return total > 0 ? `$${total.toLocaleString()}` : "";
-  })();
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleGenerate = async () => {
@@ -470,7 +440,6 @@ export default function DealBrief() {
         reappraisalYear:  a.reappraisalYear || "",
         annualTaxes:      a.annualTaxes    || "",
         taxRate:          a.taxRate        || "",
-        taxFeePerUnit:    a.taxFeePerUnit ? String(a.taxFeePerUnit) : "",
         femaFloodZone:    pipelineData?.fema?.floodZone || "",
         walkScore:        pipelineData?.walkscore?.walk?.toString() || "",
         bikeScore:        pipelineData?.walkscore?.bike?.toString() || "",
@@ -584,8 +553,7 @@ export default function DealBrief() {
           <FieldRow label="Year Built" name="yearBuilt" value={data.yearBuilt || ""} placeholder="e.g. 1987" />
           <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea || ""} placeholder="e.g. 8,400 SF" />
           <FieldRow label="Lot Size" name="lotSize" value={data.lotSize || ""} placeholder="e.g. 12,500 SF" />
-          <FieldRow key={unitsKey} label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8"
-            onChange={(e) => setUnitsEdit(e.target.value)} />
+          <FieldRow key={unitsKey} label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8" />
           {data.zoning && (
             <input type="hidden" name="zoning" value={data.zoning} />
           )}
@@ -628,18 +596,9 @@ export default function DealBrief() {
                   <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
                 </>
               )}
-              {hasPerUnitFee ? (
-                <>
-                  <FieldRow label="Annual Taxes" value={computedAnnualTaxes || "—"} editable={false}
-                    tooltip={`Computed live as Assessed × Tax Rate + Units × $${taxFeePerUnit.toFixed(0)} per-unit fee. The per-unit fee is the Charlotte multifamily solid waste charge, billed on top of ad-valorem taxes. Edit Units, Land/Improvements, or Tax Rate to see this update.`} />
-                  <input type="hidden" name="annualTaxes" value={computedAnnualTaxes} />
-                </>
-              ) : (
-                <FieldRow label="Annual Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,000"
-                  tooltip={isAZ ? "Estimated from LPV × assessment ratio × jurisdiction levy rate. Verify against actual tax bill." : ""} />
-              )}
+              <FieldRow label="Annual Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,000"
+                tooltip={isAZ ? "Estimated from LPV × assessment ratio × jurisdiction levy rate. Verify against actual tax bill." : ""} />
               <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%"
-                onChange={(e) => setTaxRateEdit(e.target.value)}
                 tooltip={isAZ ? "Effective rate applied to Adj. LPV (Net Assessed Value), not raw LPV. AZ taxes = LPV × assessment ratio × levy rate." : ""} />
             </SectionCard>
           );

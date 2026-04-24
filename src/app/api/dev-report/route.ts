@@ -186,8 +186,6 @@ export async function POST(req: NextRequest) {
     blsData,
     // Opex overrides
     opexOverrides: pick("opexOverrides"),
-    // Per-unit tax fee (Charlotte multifamily solid waste fee, etc.)
-    taxFeePerUnit: assessor.taxFeePerUnit ? String(assessor.taxFeePerUnit) : "",
   };
 
   let pdfBuffer: Buffer;
