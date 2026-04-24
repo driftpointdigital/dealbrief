@@ -13,6 +13,7 @@ const MOCK_RETURN_DATA = {
   assessedValue: "$925,000",
   landValue: "$125,000",
   improvementValue: "$800,000",
+  otherValue: "",
   lpv: "",
   adjustedLpv: "",
   assessmentRatio: "",
@@ -265,24 +266,31 @@ export default function DealBrief() {
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
 
-  // Controlled state for land/improvement inputs so assessed value can be derived as their sum
+  // Controlled state for land/improvement/other inputs so assessed value can be derived as their sum
   const [landEdit, setLandEdit] = useState("");
   const [imprEdit, setImprEdit] = useState("");
+  const [otherEdit, setOtherEdit] = useState("");
 
   // Sync to pipeline data whenever a new address result arrives
   useEffect(() => {
     setLandEdit(data?.landValue || "");
     setImprEdit(data?.improvementValue || "");
-  }, [data?.landValue, data?.improvementValue]);
+    setOtherEdit(data?.otherValue || "");
+  }, [data?.landValue, data?.improvementValue, data?.otherValue]);
 
-  // Derive assessed value as sum of land + improvements (display + hidden form field)
+  // Derive assessed value as sum of land + improvements + misc features.
+  // Misc features only contributes when present; jurisdictions without a
+  // misc bucket (TX, GA, AZ, etc.) leave otherEdit empty → no-op.
   function _parseDol(s: string): number {
     return parseFloat((s || "").replace(/[$,\s]/g, "")) || 0;
   }
   const summedAssessed = (() => {
-    const total = _parseDol(landEdit) + _parseDol(imprEdit);
+    const total = _parseDol(landEdit) + _parseDol(imprEdit) + _parseDol(otherEdit);
     return total > 0 ? `$${total.toLocaleString()}` : (data?.assessedValue || "");
   })();
+  // Show the Misc Features row only when the pipeline surfaced a non-zero
+  // value for this parcel (NC parcels, some FL XFOB cases).
+  const showMiscFeatures = _parseDol(data?.otherValue || "") > 0;
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleGenerate = async () => {
@@ -425,6 +433,7 @@ export default function DealBrief() {
         assessedValue:    a.assessedValue  || "",
         landValue:        a.landValue      || "",
         improvementValue: a.improvements   || "",
+        otherValue:       a.otherValue     || "",
         lpv:              a.lpv            || "",
         adjustedLpv:      a.adjustedLpv    || "",
         assessmentRatio:  typeof a.assessmentRatio === "number" ? a.assessmentRatio.toString() : (a.assessmentRatio || ""),
@@ -573,12 +582,17 @@ export default function DealBrief() {
                     tooltip="LPV × statutory assessment ratio = Net Assessed Value (NAV). Arizona's levy rate is applied to this adjusted value, not raw LPV." />
                 </>
               ) : (
-                /* Non-AZ: editable land + improvements, derived assessed value */
+                /* Non-AZ: editable land + improvements (+ misc features where applicable), derived assessed value */
                 <>
                   <FieldRow label="Land Value" name="landValue" value={landEdit} placeholder="e.g. $125,000"
                     onChange={(e) => setLandEdit(e.target.value)} />
                   <FieldRow label="Improvements" name="improvements" value={imprEdit} placeholder="e.g. $800,000"
                     onChange={(e) => setImprEdit(e.target.value)} />
+                  {showMiscFeatures && (
+                    <FieldRow label="Misc Features" name="otherValue" value={otherEdit} placeholder="e.g. $10,100"
+                      onChange={(e) => setOtherEdit(e.target.value)}
+                      tooltip="Outbuildings, paving, and other yard items the assessor records in the parcel total but tracks separately from the main improvement value. Common in NC. Sums into Assessed Value." />
+                  )}
                   <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
                 </>
               )}

@@ -98,6 +98,7 @@ export async function POST(req: NextRequest) {
     assessedValue:  pick("assessedValue"),
     landValue:      pick("landValue"),
     improvements:   pick("improvements"),
+    otherValue:     pick("otherValue"),
     lpv:            pick("lpv"),
     adjustedLpv:    pick("adjustedLpv"),
     assessmentRatio: pick("assessmentRatio"),

@@ -9,6 +9,9 @@ export interface ReportData {
   zoning: string;
   // Assessor
   assessedValue: string; landValue: string; improvements: string;
+  // Misc features bucket (NC outbuildings/paving, FL XFOB) — blank when absent.
+  // When set, included in the breakdown row alongside land + improvements.
+  otherValue?: string;
   lpv: string;  // AZ Limited Property Value (actual tax base); empty for non-AZ
   adjustedLpv?: string;      // AZ: LPV × assessment ratio = NAV (actual tax base)
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
@@ -980,7 +983,20 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </>
               ) : (
                 data.landValue && data.improvements && (
-                  <Row label="Land / Improvements" value={fmtDol(data.landValue) + " land  +  " + fmtDol(data.improvements) + " improvements"} alt />
+                  (() => {
+                    const hasOther = parseDol(data.otherValue || "") > 0;
+                    return (
+                      <Row
+                        label={hasOther ? "Land / Imp / Misc" : "Land / Improvements"}
+                        value={
+                          hasOther
+                            ? fmtDol(data.landValue) + " land  +  " + fmtDol(data.improvements) + " imp  +  " + fmtDol(data.otherValue || "") + " misc"
+                            : fmtDol(data.landValue) + " land  +  " + fmtDol(data.improvements) + " improvements"
+                        }
+                        alt
+                      />
+                    );
+                  })()
                 )
               )}
               {data.annualTaxes && (
