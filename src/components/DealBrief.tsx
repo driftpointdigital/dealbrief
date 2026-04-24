@@ -254,6 +254,7 @@ export default function DealBrief() {
   const [unitsKey, setUnitsKey] = useState(0);
   const [devKey, setDevKey] = useState("");
   const [pipelineError, setPipelineError] = useState("");
+  const [assessorNote, setAssessorNote]   = useState("");
 
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
@@ -427,6 +428,7 @@ export default function DealBrief() {
   const go = async () => {
     if (!address.trim()) return;
     setPipelineError("");
+    setAssessorNote("");
     setView("loading");
     try {
       const res = await fetch("/api/pipeline", {
@@ -442,6 +444,17 @@ export default function DealBrief() {
       }
       const a = pipeline.assessor ?? {};
       const pipelineData = pipeline;
+      // Surface assessor errors (e.g. "no buildable parcel found at this address
+      // — may be new construction") as a notice on the Tax Assessment card so
+      // the user understands why the fields are blank and knows to enter values
+      // manually. Only show when the lookup actually failed (no assessed value).
+      const aErrs: string[] = Array.isArray(a.errors) ? a.errors : [];
+      if (!a.assessedValue && aErrs.length > 0) {
+        const msg = String(aErrs[0]).replace(/^[A-Za-z]+:\s*/, "");
+        setAssessorNote(msg);
+      } else {
+        setAssessorNote("");
+      }
       // Prefer the geocoded formatted address for proper commas/casing, but restore
       // hyphenated range prefixes (e.g. "2429-2431") that the geocoder drops.
       const geoAddr = pipeline?.geo?.formattedAddress || address;
@@ -601,6 +614,20 @@ export default function DealBrief() {
           const isAZ = /(?:,\s*|\s+)AZ(?:\s|,|$|\s*\d{5})/.test(data.address || "");
           return (
             <SectionCard title="Tax Assessment">
+              {assessorNote && (
+                <div style={{
+                  margin: "12px 24px 4px",
+                  padding: "10px 12px",
+                  background: "#FEF3C7",
+                  border: "1px solid #FCD34D",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: "#92400E",
+                  lineHeight: 1.45,
+                }}>
+                  {assessorNote}
+                </div>
+              )}
               {isAZ ? (
                 /* AZ: FCV is assessedValue, LPV is the actual tax base — show both read-only */
                 <>
