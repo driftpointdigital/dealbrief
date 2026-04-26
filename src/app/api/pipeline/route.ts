@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const maxDuration = 30; // allow up to 30s for pipeline to run
+export const maxDuration = 60; // allow up to 60s for pipeline (Vercel Pro cap).
+                               // Some collectors (Shovels geo_id resolution,
+                               // CrimeGrade scraper, Florida PA FDOR spatial)
+                               // intermittently hit their 20s timeouts; the
+                               // pipeline's parallel gather waits on the
+                               // slowest. 30s wasn't enough headroom.
 
 export async function POST(req: NextRequest) {
   const apiUrl = process.env.PIPELINE_API_URL;
@@ -15,7 +20,7 @@ export async function POST(req: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(28000),
+      signal: AbortSignal.timeout(58000),
     });
 
     const data = await res.json();
