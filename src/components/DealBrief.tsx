@@ -1067,6 +1067,7 @@ export default function DealBrief() {
               "Jacksonville, FL",
               "Miami – Fort Lauderdale – West Palm, FL",
               "Raleigh-Durham, NC",
+              "Philadelphia, PA",
             ].map((label) => (
               <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
                 <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
