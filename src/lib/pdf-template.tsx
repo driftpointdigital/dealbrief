@@ -241,7 +241,14 @@ function computeBoe(data: ReportData): BoeEst | null {
   if (units === 0 && !cap && !buyerCap) return null;
   const brokerNoi = ask * (cap / 100);
 
-  // State avg effective tax rates — fallback when no parcel data at all
+  // State avg effective tax rates — fallback when no parcel data at all.
+  // These multiply asking/implied price (≈ FMV) to estimate annual taxes,
+  // so they MUST be FMV-relative (tax/FMV), regardless of how each state's
+  // assessor reports values internally. PA stays at 0.015 (~1.5% of FMV is
+  // PA's statewide effective burden) even though PA's `tax_rate` field is
+  // raw-relative ~3.5%; multiplying raw-relative × price would over-estimate
+  // PA taxes by ~2.3× because price ≈ FMV ≈ raw_assessed / CLR (~0.494 to
+  // 0.0586 depending on county).
   const _STATE_TAX_RATES: Record<string, number> = {
     TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
     CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
@@ -773,9 +780,18 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     if (!isNaN(tr) && tr > 0) return tr / 100;
     // Tier 3: state average effective rate for investor-owned multifamily.
     // FL/NC/SC/GA updated 2026-04 based on statutory research (see dealbrief/pipeline/orchestrator.py).
+    // PA note: this is a fallback for effTaxRate, whose tier 1 returns
+    // taxes / assessedValue. Because PA assessedValue is now raw 1998-base
+    // (matches public record, NOT FMV), tier 1 returns a raw-relative rate
+    // (~3-6%). The fallback is set to a raw-relative ~3.5% to keep the
+    // convention self-consistent. effTaxRate's downstream consumers
+    // (taxAdjTaxes, impliedPrice closed-form, tax-adj cap-rate row) are
+    // all gated off for PA via isPAState, so this value never multiplies
+    // a price for PA in practice — it's only used when effTaxRate appears
+    // in cosmetic labels.
     const _STATE_RATES: Record<string, number> = {
       TX: 0.022, GA: 0.013, NC: 0.010, FL: 0.018, SC: 0.025, AZ: 0.008,
-      CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
+      CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.035, IL: 0.021,
       NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
       MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
     };
@@ -806,6 +822,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   // Falls back to NOI ÷ buyer cap when no effective rate is available.
   const impliedPrice = (() => {
     if (!boe || boe.estNoi <= 0 || !buyerCR) return 0;
+    // PA: assessments are locked to base year and do NOT reset on sale.
+    // The closed-form would gross up the price by an effTaxRate that's
+    // applied to the raw 1998-base assessed (~3–6% raw-relative), which
+    // overstates the implied price. Skip the tax-adj closed-form for PA
+    // and use straight NOI ÷ cap.
+    if (isPAState) return Math.round(boe.estNoi / buyerCR);
     if (effTaxRate > 0) {
       const taxMult = isFLState ? 0.95 : 1.0;
       return Math.round((boe.estNoi + boe.taxes) / (buyerCR + taxMult * effTaxRate));
