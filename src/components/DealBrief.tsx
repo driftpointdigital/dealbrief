@@ -11,6 +11,7 @@ const MOCK_RETURN_DATA = {
   unitMix: "4x 3BR/1BA, 4x 4BR/1BA",
   zoning: "MF-2",
   assessedValue: "$925,000",
+  marketValue: "",
   landValue: "$125,000",
   improvementValue: "$800,000",
   otherValue: "",
@@ -472,6 +473,7 @@ export default function DealBrief() {
         unitMix:      "",
         zoning:       a.zoning || "",
         assessedValue:    a.assessedValue  || "",
+        marketValue:      a.marketValue    || "",
         landValue:        a.landValue      || "",
         improvementValue: a.improvements   || "",
         otherValue:       a.otherValue     || "",
@@ -608,10 +610,16 @@ export default function DealBrief() {
         {data.adjustedLpv && <input type="hidden" name="adjustedLpv" value={data.adjustedLpv} />}
         {data.assessmentRatio && <input type="hidden" name="assessmentRatio" value={data.assessmentRatio} />}
         {data.reappraisalYear && <input type="hidden" name="reappraisalYear" value={data.reappraisalYear} />}
+        {data.marketValue && <input type="hidden" name="marketValue" value={data.marketValue} />}
         {(() => {
           // Detect Arizona by state in the address — robust even if the backend
           // hasn't populated LPV yet (e.g. Maricopa CAD miss falling back to Regrid).
           const isAZ = /(?:,\s*|\s+)AZ(?:\s|,|$|\s*\d{5})/.test(data.address || "");
+          // PA: collectors return raw base-year `assessedValue` (matches broker
+          // / tax bill / public record) AND a STEB-CLR-rescaled `marketValue`
+          // for cross-state underwriting. Show the market value as a read-only
+          // row so users see both numbers.
+          const isPA = /(?:,\s*|\s+)PA(?:\s|,|$|\s*\d{5})/.test(data.address || "");
           return (
             <SectionCard title="Tax Assessment">
               {assessorNote && (
@@ -650,7 +658,20 @@ export default function DealBrief() {
                       onChange={(e) => setOtherEdit(e.target.value)}
                       tooltip="Outbuildings, paving, and other yard items the assessor records in the parcel total but tracks separately from the main improvement value. Common in NC. Sums into Assessed Value." />
                   )}
-                  <FieldRow label="Assessed Value" value={summedAssessed || "—"} editable={false} />
+                  <FieldRow
+                    label={isPA ? "Assessed Value (Base Year)" : "Assessed Value"}
+                    value={summedAssessed || "—"}
+                    editable={false}
+                    tooltip={isPA ? "Pennsylvania assessments are anchored to the county's last reassessment year (e.g. 1972 in Bucks, 2013 in Lehigh). This raw base-year value is what brokers, tax bills, and public records cite — and what your annual tax bill is computed against." : undefined}
+                  />
+                  {isPA && data.marketValue && (
+                    <FieldRow
+                      label="Est. Market Value (STEB CLR)"
+                      value={data.marketValue}
+                      editable={false}
+                      tooltip="Pennsylvania's State Tax Equalization Board publishes an annual Common-Level Ratio per county. Dividing the base-year assessed value by the CLR yields a current fair-market-value estimate — useful for comparing against asking price and checking the assessment's market alignment."
+                    />
+                  )}
                 </>
               )}
               {hasPerUnitFee ? (

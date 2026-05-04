@@ -12,6 +12,11 @@ export interface ReportData {
   // Misc features bucket (NC outbuildings/paving, FL XFOB) — blank when absent.
   // When set, included in the breakdown row alongside land + improvements.
   otherValue?: string;
+  // PA-only: STEB-CLR-rescaled fair-market value. PA `assessedValue` is the
+  // raw base-year value (matches broker / tax bill / public record) and
+  // this surfaces the market-value equivalent for cross-state comparison.
+  // Empty string for non-PA states.
+  marketValue?: string;
   lpv: string;  // AZ Limited Property Value (actual tax base); empty for non-AZ
   adjustedLpv?: string;      // AZ: LPV × assessment ratio = NAV (actual tax base)
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
@@ -356,7 +361,15 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
   const yr = parseInt(data.yearBuilt) || 0;
   const age = yr > 0 ? new Date().getFullYear() - yr : 0;
   const permitNum = parseInt(data.permitCount) || 0;
-  const av  = parseDol(data.assessedValue);
+  // PA reports raw 1998 base-year assessed (matches broker / tax bill) which is
+  // structurally a fraction of FMV. For ratio-vs-ask flags use the STEB-CLR
+  // -rescaled market_value when present so we don't trip "significant
+  // reassessment risk" on every PA deal.
+  const _isPAFlags = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
+  const _avForRatio = _isPAFlags && data.marketValue
+    ? parseDol(data.marketValue)
+    : parseDol(data.assessedValue);
+  const av  = _avForRatio;
   const ask = parseDol(data.askingPrice);
 
   // Crime
@@ -429,27 +442,46 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
   const _isLpvState = _stateM?.[1] === "AZ";
   const _isNCState  = _stateM?.[1] === "NC";
   const _isFLState  = _stateM?.[1] === "FL";
+  const _isPAState  = _stateM?.[1] === "PA";
   // NC: values lock flat until next countywide reappraisal — no mid-cycle reset on sale.
   // Describe the reassessment as keyed to the reappraisal year rather than "next cycle".
   const _ncTiming   = _isNCState
     ? (data.reappraisalYear ? ` at the next countywide reappraisal (${data.reappraisalYear})` : " at the next countywide reappraisal")
     : " at next cycle";
   const _flJVNote   = _isFLState ? " (FL Just Value resets to ~95% of sale price)" : "";
+  // PA reports the raw 1998 base-year assessed value (matches broker / tax bill /
+  // public record). The ratio above already uses STEB-CLR-rescaled marketValue
+  // when present, so the comparison line should display the same FMV figure
+  // rather than the raw base-year — otherwise the percentages won't line up.
+  const _avForLabel = _isPAState && data.marketValue ? data.marketValue : data.assessedValue;
+  const _avLeadIn   = _isPAState && data.marketValue
+    ? `Estimated FMV (STEB CLR-rescaled from base-year assessment) is ${fmtDol(_avForLabel)}`
+    : `County appraised at ${fmtDol(_avForLabel)}`;
+  // PA does NOT reassess on sale — assessments are locked to the 1998 base year
+  // and only reset at irregular countywide reassessments. So "purchase will
+  // trigger reassessment" is wrong here. Frame the FMV-vs-ask gap as an
+  // appeal opportunity (uniformity / unequal-assessment) instead.
   if (av > 0 && ask > 0 && !_isLpvState) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
     if (ratio > 1.0) {
       flags.push({ level: "amber", title: `Assessment Exceeds Ask — ${pct}% of Ask Price`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). You are purchasing below the assessed value. The current tax burden is based on this higher assessment — a property tax consultant may be able to challenge it downward after purchase. Do not assume taxes will increase; they may decrease.` });
+        body: `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). You are purchasing below the assessed value. The current tax burden is based on this higher assessment — a property tax consultant may be able to challenge it downward after purchase. Do not assume taxes will increase; they may decrease.` });
     } else if (ratio > 0.90) {
       flags.push({ level: "amber", title: `Assessment Near Ask — ${pct}% of Ask Price`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Minimal reassessment risk — assessment is already close to purchase price, so the tax burden is unlikely to change materially${_ncTiming}.` });
+        body: _isPAState
+          ? `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). PA does not reassess on sale — taxes track the 1998 base-year assessment, not the purchase price — so the tax burden is unlikely to change materially after closing.`
+          : `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Minimal reassessment risk — assessment is already close to purchase price, so the tax burden is unlikely to change materially${_ncTiming}.` });
     } else if (ratio > 0.75) {
-      flags.push({ level: "amber", title: `Reassessment Risk — Assessed at ${pct}% of Ask`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward${_ncTiming}${_flJVNote}, increasing annual taxes. Model the delta in your pro forma.` });
+      flags.push({ level: "amber", title: _isPAState ? `Tax Appeal Opportunity — Assessed FMV at ${pct}% of Ask` : `Reassessment Risk — Assessed at ${pct}% of Ask`,
+        body: _isPAState
+          ? `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking. PA does not reassess on sale, so the in-place tax burden is locked. The gap suggests assessment uniformity may be appealable post-closing under PA's "unequal assessment" doctrine — engage a PA property tax counsel.`
+          : `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward${_ncTiming}${_flJVNote}, increasing annual taxes. Model the delta in your pro forma.` });
     } else {
-      flags.push({ level: "amber", title: `Significant Reassessment Risk — Assessed at Only ${pct}% of Ask`,
-        body: `County appraised at ${fmtDol(data.assessedValue)} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment${_ncTiming}${_flJVNote} — model a meaningful tax increase in your pro forma before LOI.` });
+      flags.push({ level: "amber", title: _isPAState ? `Tax Appeal Opportunity — Assessed FMV at Only ${pct}% of Ask` : `Significant Reassessment Risk — Assessed at Only ${pct}% of Ask`,
+        body: _isPAState
+          ? `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). PA does not reassess on sale, so taxes will not jump at closing — but the wide gap to ask is grounds to challenge the assessment under PA's uniformity clause. A successful appeal could materially reduce taxes.`
+          : `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment${_ncTiming}${_flJVNote} — model a meaningful tax increase in your pro forma before LOI.` });
     }
   }
 
@@ -469,7 +501,12 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
   const age  = yr > 0 ? new Date().getFullYear() - yr : 0;
   const units = parseInt(data.units) || 0;
   const permitNum = parseInt(data.permitCount) || 0;
-  const av  = parseDol(data.assessedValue);
+  // PA: prefer STEB-CLR-rescaled marketValue for ratio math (raw base-year
+  // assessed is structurally fractional and would always trip the alarm).
+  const _isPAThesisRatio = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
+  const av  = _isPAThesisRatio && data.marketValue
+    ? parseDol(data.marketValue)
+    : parseDol(data.assessedValue);
   const ask = parseDol(data.askingPrice);
 
   if (units > 0 && age > 0) {
@@ -485,13 +522,20 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
   }
   const _bThesisStateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
   const _isLpvThesis = _bThesisStateM?.[1] === "AZ";
+  const _isPAThesis  = _bThesisStateM?.[1] === "PA";
+  // Display the same value used in the ratio: PA → STEB-rescaled marketValue,
+  // else raw assessed.
+  const _avThesisStr = _isPAThesis && data.marketValue ? data.marketValue : data.assessedValue;
+  const _avThesisLbl = _isPAThesis && data.marketValue ? "STEB-rescaled assessed FMV" : (_isLpvThesis ? "County Full Cash Value" : "County assessment");
   if (av > 0 && ask > 0) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
     if (ratio > 1.0) {
-      parts.push(`County Full Cash Value (${fmtDol(data.assessedValue)}) exceeds the asking price by ${pct - 100}%${_isLpvThesis ? " — AZ FCV is a market estimate, not the tax base (LPV). A tax consultant review may find grounds to reduce the LPV." : " — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile."}`);
-    } else if (pct < 80 && !_isLpvThesis) {
+      parts.push(`${_avThesisLbl} (${fmtDol(_avThesisStr)}) exceeds the asking price by ${pct - 100}%${_isLpvThesis ? " — AZ FCV is a market estimate, not the tax base (LPV). A tax consultant review may find grounds to reduce the LPV." : " — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile."}`);
+    } else if (pct < 80 && !_isLpvThesis && !_isPAThesis) {
       parts.push(`County assessment (${fmtDol(data.assessedValue)}) is ${pct}% of ask, suggesting risk of future tax reassessment. A purchase at or near ask will likely trigger reassessment at the higher price at next cycle.`);
+    } else if (pct < 80 && _isPAThesis) {
+      parts.push(`${_avThesisLbl} (${fmtDol(_avThesisStr)}) is ${pct}% of ask. PA does not reassess on sale (assessments are locked to the 1998 base year), so the in-place tax burden carries through closing — but the gap to ask is appealable under PA's uniformity clause.`);
     }
   }
   const _thesisCrimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
@@ -748,6 +792,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
   const isFLState  = /(?:,\s*|\s+)FL\s*,?\s*\d{5}/.test(data.address || "");
   const isNCState  = /(?:,\s*|\s+)NC\s*,?\s*\d{5}/.test(data.address || "");
+  // PA: assessments are locked to the 1998 base year; sale does NOT trigger
+  // reassessment. Treat like NC for the "no reset on sale" rule, but without
+  // the scheduled-reappraisal-year concept (PA reassessments are irregular,
+  // multi-decade, and only happen by ordinance).
+  const isPAState  = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
 
   // Implied acquisition price — closed-form so that tax-adj NOI ÷ price = buyer cap exactly.
   // Default derivation: taxAdjNoi = (NOI_inplace + taxes_current) - effTaxRate × price
@@ -797,6 +846,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const taxAdjTaxes = (() => {
     if (!boe) return 0;
     if (isLpvState && boe.taxes > 0) return Math.round(boe.taxes * 1.05);
+    // PA: assessment locks to the 1998 base year; sale does not trigger
+    // reassessment, so taxAdjTaxes == in-place taxes. Return 0 so the
+    // tax-adjusted scenario is suppressed.
+    if (isPAState) return 0;
     if (effTaxRate > 0 && effectiveAskNum > 0) {
       const basis = isFLState ? effectiveAskNum * 0.95 : effectiveAskNum;
       return Math.round(basis * effTaxRate);
@@ -966,7 +1019,15 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             <SectionHead title="TAX PROFILE" />
             <View style={s.tableWrap}>
               {data.assessedValue && (
-                <Row label={isLpvState ? "Full Cash Value / FCV (County)" : "Appraised Value (County)"} value={fmtDol(data.assessedValue)} />
+                <Row label={
+                  isLpvState ? "Full Cash Value / FCV (County)"
+                  : isPAState ? "Assessed Value (1998 Base Year)"
+                  : "Appraised Value (County)"
+                } value={fmtDol(data.assessedValue)} />
+              )}
+              {isPAState && data.marketValue && (
+                <Row label="Est. Market Value (STEB CLR)"
+                  value={fmtDol(data.marketValue) + "  (raw assessed ÷ Common-Level Ratio)"} alt />
               )}
               {isLpvState ? (
                 <>
@@ -1043,6 +1104,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 const flNote = isFLState
                   ? ` Florida rentals fully reset to Just Value at change of ownership (F.S. 193.1554/193.1555); Save Our Homes does NOT apply. JV is assumed at 95% of sale price per F.S. 193.011(8) cost-of-sale deduction. Ad-valorem rate shown does NOT include non-ad-valorem assessments (CDDs, MSBUs, fire MSTUs, solid-waste fees) — verify on the county TRIM notice.`
                   : "";
+                const paNote = isPAState
+                  ? ` Pennsylvania assessments are locked to the 1998 base year — there is NO reassessment at change of ownership. The "Assessed Value" shown matches the broker / tax bill / public record (raw base-year value), and "Est. Market Value" is the STEB Common-Level Ratio rescaling to current FMV (assessed ÷ CLR). The effective tax rate shown is raw-relative — i.e., it applies to the raw 1998 assessed value, not FMV. Counties only reassess via countywide ordinance, which is irregular and multi-decade.`
+                  : "";
 
                 if (userInputTaxes) {
                   const srcNote = data.assessorSource
@@ -1052,7 +1116,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     ? " Arizona uses Limited Property Value (LPV) — the tax base is capped at 5%/yr and does not reset to purchase price at sale."
                     : isNCState
                       ? ncNote
-                      : " Upon sale, county may reassess to the purchase price.";
+                      : isPAState
+                        ? paNote
+                        : " Upon sale, county may reassess to the purchase price.";
                   return `Annual taxes submitted by user.${srcNote}${reassessNote}${flNote}${taxDisclaimer}`;
                 }
 
@@ -1065,6 +1131,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 }
                 if (isFLState) {
                   return `${src}${flNote}${taxDisclaimer}`;
+                }
+                if (isPAState) {
+                  return `${src}${paNote}${taxDisclaimer}`;
                 }
                 if (av2 > 0 && ask2 > 0 && av2 > ask2) {
                   return `${src} Assessment exceeds asking price — purchasing below assessed value may provide grounds to appeal taxes downward. Consult a property tax consultant.${taxDisclaimer}`;
@@ -1798,12 +1867,21 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <Bullet bold="Verify occupancy, lease terms, and any concessions. "
           rest="Confirm occupancy claim with a current rent roll and T12. Note lease expiration dates — a property with all leases expiring at closing carries significant rollover risk." />
         {hasAssessor && data.assessedValue && data.askingPrice && (() => {
-          const av3 = parseDol(data.assessedValue);
+          // PA: prefer STEB-rescaled marketValue for ratio comparisons (raw
+          // base-year is structurally fractional). Otherwise use raw assessed.
+          const _useMarketForCompare = isPAState && !!data.marketValue;
+          const av3 = _useMarketForCompare
+            ? parseDol(data.marketValue || "")
+            : parseDol(data.assessedValue);
           const ask3 = parseDol(data.askingPrice);
           if (av3 > ask3) {
             return (
               <Bullet bold="Consider a property tax appeal. "
-                rest={`Current county assessment (${fmtDol(data.assessedValue)}) exceeds the purchase price (${askFmt}). Purchasing below assessed value is a strong basis to challenge the assessment downward. Engage a property tax consultant after closing — a successful appeal could reduce annual taxes materially.`} />
+                rest={
+                  isPAState
+                    ? `Estimated FMV (STEB-rescaled from base-year assessment, ${fmtDol(data.marketValue || data.assessedValue)}) exceeds the purchase price (${askFmt}). PA does not reassess on sale — but purchasing below the rescaled FMV is a strong basis for an "unequal assessment" appeal under PA's uniformity clause. Engage a PA property tax counsel post-closing.`
+                    : `Current county assessment (${fmtDol(data.assessedValue)}) exceeds the purchase price (${askFmt}). Purchasing below assessed value is a strong basis to challenge the assessment downward. Engage a property tax consultant after closing — a successful appeal could reduce annual taxes materially.`
+                } />
             );
           }
           if (isLpvState) {
@@ -1822,6 +1900,12 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             return (
               <Bullet bold="Model Florida Just Value reset. "
                 rest={`Florida fully resets the investor Just Value at change of ownership (F.S. 193.1554/193.1555) — Save Our Homes does NOT apply to rentals. JV typically settles at ~85-95% of sale price per F.S. 193.011(8) cost-of-sale deduction. Model first-year taxes at ~95% of purchase price × the county effective rate, plus non-ad-valorem assessments (CDDs/MSBUs/fire fees) shown on the TRIM notice.`} />
+            );
+          }
+          if (isPAState) {
+            return (
+              <Bullet bold="Pennsylvania assessments do not reset on sale. "
+                rest={`PA assessments are locked to the 1998 base year and only update when a county passes a countywide reassessment ordinance (irregular, multi-decade). The current "Assessed Value" of ${fmtDol(data.assessedValue)} (matching the broker / tax bill) carries through closing — your in-place tax burden is locked. The "Est. Market Value" shown is the STEB Common-Level Ratio rescaling and is provided for cross-state comparison and underwriting only.${data.marketValue ? ` If purchasing materially below the rescaled FMV (${fmtDol(data.marketValue)}), a uniformity appeal may be available.` : ""}`} />
             );
           }
           return (
