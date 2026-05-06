@@ -1546,7 +1546,17 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 {/* Revenue sub-header */}
                 <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE, marginBottom: 2 }}>REVENUE</Text>
                 <View style={s.tableWrap}>
-                  <BoeRow label={"Gross Potential Revenue (GPR)" + (!data.inPlaceRents && data.censusRent ? "  (area median est.)" : "")}
+                  <BoeRow label={"Gross Potential Revenue (GPR)" + (
+                    data.inPlaceRents
+                      ? ""
+                      : data.censusRent
+                        ? "  (area median est.)"
+                        // No in-place rents AND no census fallback → the
+                        // GPR / per-unit rent is back-derived from the broker's
+                        // stated cap rate × asking price. Label so the reader
+                        // doesn't read the per-unit figure as an assumed rent.
+                        : "  (implied from broker NOI)"
+                  )}
                     total={fmt$(boe.gpr) + "/yr"}
                     unit={unitsNum > 0 ? fmt$(boe.gprPerUnitPerMonth) + (isSFR ? "/mo" : "/unit/mo") : ""} />
                   <BoeRow label={"  Less Vacancy (" + boe.vacancyPct.toFixed(1) + "%)"}
