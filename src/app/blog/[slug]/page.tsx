@@ -120,7 +120,10 @@ export default async function BlogPostPage({ params }: RouteParams) {
           ← All posts
         </Link>
 
-        <header style={{ marginBottom: 32 }}>
+        <header style={{
+          marginBottom: 40, paddingBottom: 32,
+          borderBottom: "1px solid #E5E7EB",
+        }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12, fontSize: 13, color: "#6B7280" }}>
             <time dateTime={post.date}>{formatDate(post.date)}</time>
             <span>·</span>
@@ -132,11 +135,14 @@ export default async function BlogPostPage({ params }: RouteParams) {
           </div>
           <h1 style={{
             fontSize: 32, fontWeight: 600, color: "#111827",
-            margin: "0 0 14px", lineHeight: 1.2, letterSpacing: "-0.5px",
+            margin: "0 0 16px", lineHeight: 1.2, letterSpacing: "-0.5px",
           }}>
             {post.title}
           </h1>
-          <p style={{ fontSize: 17, color: "#374151", lineHeight: 1.55, margin: 0 }}>
+          <p style={{
+            fontSize: 18, color: "#6B7280", lineHeight: 1.5,
+            margin: 0, fontWeight: 300,
+          }}>
             {post.description}
           </p>
         </header>
