@@ -1133,9 +1133,12 @@ export default function DealBrief() {
 
         {/* COVERAGE */}
         <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", display: "block", marginBottom: 12 }}>
-            MSAs Covered
-          </span>
+          <h2 style={{
+            fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px",
+            display: "block", marginBottom: 12, margin: "0 0 12px 0", textTransform: "uppercase",
+          }}>
+            Multifamily Markets We Cover
+          </h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 32px" }}>
             {[
               "Dallas-Ft. Worth, TX",
@@ -1171,9 +1174,12 @@ export default function DealBrief() {
 
         {/* FEATURES — card grid */}
         <div style={{ marginBottom: 48 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px", textTransform: "uppercase", display: "block", marginBottom: 14 }}>
-            What's in the brief
-          </span>
+          <h2 style={{
+            fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px",
+            textTransform: "uppercase", display: "block", marginBottom: 14, margin: "0 0 14px 0",
+          }}>
+            What&rsquo;s in a DealBrief Research Report
+          </h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
               { label: "Tax Assessment", desc: "Assessed value vs. asking price, reassessment risk modeling" },
@@ -1267,14 +1273,24 @@ export default function DealBrief() {
 
         {/* FOOTER */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <a
-            href="mailto:info@getdealbrief.com"
-            style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", fontWeight: 500 }}
-            onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
-            onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
-          >
-            Contact Us
-          </a>
+          <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+            <a
+              href="/blog"
+              style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", fontWeight: 500 }}
+              onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
+              onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+            >
+              Blog
+            </a>
+            <a
+              href="mailto:info@getdealbrief.com"
+              style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", fontWeight: 500 }}
+              onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
+              onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+            >
+              Contact Us
+            </a>
+          </div>
           <p style={{ fontSize: 11, color: "#C4C7CC", margin: 0 }}>
             Public data aggregation for informational purposes only. Not investment advice.
           </p>

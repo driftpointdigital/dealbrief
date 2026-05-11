@@ -15,27 +15,30 @@ const geistMono = Geist_Mono({
 
 const siteUrl = "https://www.getdealbrief.com";
 
+const titleDefault =
+  "DealBrief | Pre-Offer Research Reports for Multifamily Investors";
+const descriptionDefault =
+  "Enter a property address. Get tax assessment, permit history, flood zone, crime, demographics, and debt service analysis in 60 seconds. Covers DFW, Houston, Phoenix, Charlotte, Atlanta, Tampa, Orlando, Jacksonville, Miami, Raleigh-Durham, Louisville, Philadelphia, and more.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "DealBrief — Multifamily Property Research & Analysis",
+    default: titleDefault,
     template: "%s | DealBrief",
   },
-  description:
-    "Instant pre-offer research reports for multifamily investors. Tax assessment, permit history, flood zone, crime grades, demographics, and debt service analysis — in one PDF.",
+  description: descriptionDefault,
   keywords: [
-    "multifamily investment analysis",
     "pre-offer property research",
+    "multifamily research report",
     "multifamily due diligence",
+    "apartment building research",
+    "property tax reassessment multifamily",
+    "multifamily permit history",
+    "FEMA flood zone rental property",
+    "multifamily debt service calculator",
+    "apartment building DSCR analysis",
     "real estate deal analysis",
-    "property research report",
-    "multifamily underwriting tool",
-    "apartment building analysis",
-    "permit history lookup",
-    "real estate investment tool",
-    "cap rate calculator",
-    "debt service coverage ratio",
-    "multifamily deal brief",
+    "cap rate calculator multifamily",
   ],
   authors: [{ name: "DealBrief" }],
   creator: "DealBrief",
@@ -56,19 +59,48 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: siteUrl,
     siteName: "DealBrief",
-    title: "DealBrief — Multifamily Property Research & Analysis",
-    description:
-      "Instant pre-offer research reports for multifamily investors. Tax assessment, permit history, flood zone, crime grades, demographics, and debt service analysis — in one PDF.",
+    title: titleDefault,
+    description: descriptionDefault,
   },
   twitter: {
     card: "summary_large_image",
-    title: "DealBrief — Multifamily Property Research & Analysis",
+    title: titleDefault,
     description:
-      "Instant pre-offer research reports for multifamily investors. Tax, permits, flood zone, crime, demographics, and debt service — in one PDF.",
+      "Enter a property address. Get tax, permits, flood zone, crime, demographics, and debt service in 60 seconds.",
     creator: "@getdealbrief",
   },
   alternates: {
     canonical: siteUrl,
+  },
+};
+
+// JSON-LD structured data. Organization + WebSite schemas help Google
+// build a knowledge panel and (if/when search volume justifies it) the
+// sitelinks search box. Inlined in <head> via dangerouslySetInnerHTML
+// because Next.js Metadata API doesn't support raw JSON-LD natively.
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "DealBrief",
+  url: siteUrl,
+  logo: `${siteUrl}/opengraph-image`,
+  sameAs: [
+    "https://twitter.com/getdealbrief",
+  ],
+  description:
+    "Pre-offer research reports for multifamily real estate investors. Combines tax assessment, permit history, flood zone, crime, demographics, and debt service analysis into a single PDF.",
+};
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "DealBrief",
+  url: siteUrl,
+  description: descriptionDefault,
+  publisher: {
+    "@type": "Organization",
+    name: "DealBrief",
+    url: siteUrl,
   },
 };
 
@@ -82,6 +114,16 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
       {process.env.NEXT_PUBLIC_GA_ID && (
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
