@@ -15,7 +15,7 @@ author: "DealBrief"
 
 The current tax bill on the offering memo is for the current owner, not for you. After you close, the assessor will catch up. In some states they catch up immediately. In others they catch up in 4 to 7 years. In rare states they don't catch up at all until the next mandated reassessment cycle.
 
-How much they catch up by, and how fast, depends entirely on which state and county you're buying in. Pricing this wrong is the single most common underwriting miss on small multifamily, and the impact to NOI from post-sale reassessment in volume markets like Texas, Florida, and Arizona can be very material and result in significantly lower returns than initial underwriting expected.
+How much they catch up by, and how fast, depends entirely on which state and county you're buying in. Pricing this wrong is the single most common underwriting miss on small multifamily, and the impact to NOI from post-sale reassessment in volume markets like Texas and Florida can be very material and result in significantly lower returns than initial underwriting expected.
 
 This post is the practical model for getting the post-sale tax number right.
 
@@ -31,7 +31,6 @@ The assessor revalues every year. Sale or no sale, they're updating the assessed
 - **Texas**: Travis, Dallas, Harris, Tarrant, and Bexar counties all reassess annually. No cap on investment property growth.
 - **Florida non-homestead**: investment property is subject to a 10% annual assessed-value growth cap, but is reassessed every year up to that cap.
 - **Arizona**: Limited Property Value (LPV) is the actual tax base, capped at 5% per year growth. Full Cash Value (FCV) is reassessed annually to track market.
-- **Most Florida counties for non-homestead property** (10% YoY assessed cap).
 
 **What this means for you:** assume the assessor catches your purchase price within 1 to 7 years, depending on the cap and how far above current assessed your sale price is. If there's no cap (TX), you might see the catch-up in year 1. If there's a 10% cap (FL non-homestead) and you bought 60% above current assessed, you'll see roughly 10% per year increases for the next 5 to 6 years.
 
@@ -53,7 +52,7 @@ The assessor revalues only on a multi-year cycle. The sale does NOT trigger a re
 - **Maryland**: 3-year triennial cycle by group.
 - **Parts of Massachusetts and a few other states.**
 
-**What this means for you:** your year-1 tax is the seller's tax. But you need to know when the next cycle hits and model the bump that arrives at cycle reset.
+**What this means for you:** your year-1 tax is the seller's tax, adjusted for any increases in millage rates. But you need to know when the next cycle hits and model the bump that arrives at cycle reset.
 
 ## Why brokers show you the wrong number
 
@@ -73,9 +72,17 @@ Look up the assessor's reassessment policy. Three quick signals:
 
 If you can't tell, the cycle-based jurisdictions almost always advertise the cycle prominently because it determines tax appeals.
 
-### Step 2: get the millage rate
+### Step 2: get every millage rate that applies
 
-Total millage per $1,000 of assessed value, summed across all taxing authorities (county, city or township, school district, any special districts). The combined rate is typically what's published on the tax bill, but you may need to add layers manually if the property is in an unincorporated area.
+The total tax rate is the sum of every taxing authority that hits the parcel: county, city or township, school district, plus any special districts. The combined rate is usually published on the tax bill, but layers can hide elsewhere. Missing one or two of them can throw off your projected tax by 20-30%, and they typically don't show up in the same place.
+
+Where to look:
+
+- **County, city, school district**: these almost always appear together on the property tax bill or on the assessor's parcel record. School district is often the largest single layer (50-70% of total millage in most states).
+- **Water, fire, library, or other special districts**: these can appear on the tax bill as separate lines, or they can be billed separately by the district itself. Always check whether the parcel sits inside a special district, especially in unincorporated areas.
+- **MUDs in Texas**: Municipal Utility Districts (suburban Houston, DFW, and Austin metro especially) often add 0.5%-1.5% to the combined rate on master-planned-community parcels. They're billed alongside the regular tax but live on a separate line that's easy to skip.
+- **CDDs in Florida**: Community Development Districts are common on suburban single-family and townhome developments. They typically add a fixed per-unit annual assessment of $1,500-$3,000 rather than a millage rate, and they're not always shown on the standard property tax record. Pull the actual closing statement or HOA documents to confirm.
+- **Similar suburban districts in other states**: NC has Service Districts in some counties, GA has Special Service Districts. If the property is in a master-planned area, assume there's an extra layer until you've proved there isn't.
 
 For PA, the rate is RAW-assessment-relative (multiplies the base-year value, not the FMV). For most other states, the rate is FMV-relative.
 
@@ -127,7 +134,7 @@ Florida non-homestead: annual reassessment, 10% cap.
 
 **Year 7 tax:** caught up to $2,400,000 (give or take based on market changes during the catch-up period). Tax = $48,000.
 
-**Broker quoted:** $1,400,000 × 2.0% = $28,000. By year 3 you're paying 30% more. By year 7 you're paying 70% more. If your DSCR was 1.25 at the broker's number, you may be below 1.10 by year 5 on tax escalation alone, before any rate stress.
+**Broker quoted:** $1,400,000 × 2.0% = $28,000. By year 3 you're paying 30% more. By year 7 you're paying 70% more. If your DSCR was 1.25 at the broker's number, you may be below 1.10 by year 5 on tax escalation alone, before any rate stress and/or other opex inflation.
 
 ### Bucks County, PA duplex
 
@@ -144,9 +151,13 @@ Bucks last reassessed 1972. The base year doesn't update without legislative act
 
 What that means: you can underwrite Bucks County multifamily at the current tax bill. The tax bump everyone else worries about doesn't exist here. (Other things do, but tax catch-up isn't one of them.)
 
+### A note on millage rates
+
+All three examples above assume the combined millage rate stays flat over the hold period. In practice it rarely does. Most jurisdictions raise millage 0-3% per year depending on local fiscal pressure (school funding referenda, county budgets, special-district renewals). When you run your own pro forma, add a +1-2% per year millage assumption as a sensitivity case. The Bucks example especially: even though the assessed value is frozen, the millage rate is not, and the actual tax bill drifts up with each annual budget cycle.
+
 ## What to do with the post-sale tax number
 
-If the post-sale tax is materially higher than the broker-quoted tax (almost always true in TX, FL, AZ markets), three options.
+If the post-sale tax is materially higher than the broker-quoted tax (almost always true in TX and FL markets), three options.
 
 **Reprice your offer.** Calculate the NPV of the tax bump over your projected hold. Cut the offer by that amount, in writing. Brokers will push back, but the discount is real and the math is in your favor.
 
