@@ -7,6 +7,7 @@ export default function ReportPage() {
   const [status, setStatus] = useState<"verifying" | "ready" | "error">("verifying");
   const [address, setAddress] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const isFree = sessionId?.startsWith("free-") ?? false;
 
   useEffect(() => {
     // Verify payment by hitting the generate endpoint with HEAD-style probe
@@ -62,7 +63,9 @@ export default function ReportPage() {
             <>
               <div style={{ width: 40, height: 40, borderRadius: "50%", border: "3px solid #E5E7EB", borderTopColor: "#1D3557", margin: "0 auto 24px", animation: "spin 0.8s linear infinite" }} />
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              <p style={{ fontSize: 15, color: "#6B7280", margin: 0 }}>Verifying payment…</p>
+              <p style={{ fontSize: 15, color: "#6B7280", margin: 0 }}>
+                {isFree ? "Preparing your report…" : "Verifying payment…"}
+              </p>
             </>
           )}
 
@@ -112,7 +115,9 @@ export default function ReportPage() {
                 Something went wrong.
               </h1>
               <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 24px" }}>
-                Payment may still be processing, or the session has expired. Try refreshing in a moment.
+                {isFree
+                  ? "The report link may be invalid or has expired. Try refreshing in a moment."
+                  : "Payment may still be processing, or the session has expired. Try refreshing in a moment."}
               </p>
               <button onClick={() => window.location.reload()} style={{
                 padding: "10px 24px", fontSize: 14, background: "none",

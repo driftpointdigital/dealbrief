@@ -268,6 +268,10 @@ export default function DealBrief() {
 
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
+  // Email for first-free-report gating + Stripe receipt. Eligibility
+  // check happens on submit; the unique index on reports.email is the
+  // authoritative gate (see /api/free-report).
+  const [email, setEmail] = useState("");
 
   // Controlled state for land/improvement/other inputs so assessed value can be derived as their sum
   const [landEdit, setLandEdit] = useState("");
@@ -342,6 +346,13 @@ export default function DealBrief() {
       // or we just show the warning; for now we block until they fill it in
       return;
     }
+    // Email is required for both free and paid paths (gating + delivery).
+    const emailTrimmed = String(body.email ?? email ?? "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+      setGenerateError("Please enter a valid email — we need it to deliver your report.");
+      return;
+    }
+    body.email = emailTrimmed.toLowerCase();
 
     setGenerating(true);
     body.rates = selectedRates;
@@ -355,6 +366,45 @@ export default function DealBrief() {
     if (data?._pipeline) body._pipeline = data._pipeline;
 
     try {
+      // 1) Eligibility check — advisory, server is source of truth.
+      let free = false;
+      try {
+        const eligRes = await fetch("/api/eligibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: body.email }),
+        });
+        if (eligRes.ok) {
+          const eligJson = await eligRes.json();
+          free = Boolean(eligJson.free);
+        }
+      } catch {
+        // Network glitch on eligibility check → fall through to paid.
+      }
+
+      // 2a) Free path
+      if (free) {
+        const freeRes = await fetch("/api/free-report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (freeRes.status === 409) {
+          // Lost the race against another tab/window with the same email
+          // — fall through to Stripe.
+          free = false;
+        } else {
+          const freeJson = await freeRes.json();
+          if (!freeRes.ok || freeJson.error) {
+            throw new Error(freeJson.error || `Server error ${freeRes.status}`);
+          }
+          if (!freeJson.id) throw new Error("No report id returned");
+          window.location.href = `/report/${freeJson.id}`;
+          return;
+        }
+      }
+
+      // 2b) Paid path
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -907,6 +957,38 @@ export default function DealBrief() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Email — required for both free and paid paths. First report
+            per email is free; subsequent reports are $29 via Stripe. */}
+        <div style={{
+          marginTop: 24, paddingTop: 20, borderTop: "1px solid #E5E7EB",
+        }}>
+          <label style={{
+            display: "block", fontSize: 13, fontWeight: 500,
+            color: "#374151", marginBottom: 6, letterSpacing: "-0.1px",
+          }}>
+            Email address
+          </label>
+          <input
+            type="email"
+            name="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            style={{
+              width: "100%", maxWidth: 360, padding: "9px 12px", fontSize: 14,
+              color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 6,
+              fontFamily: "inherit", outline: "none",
+            }}
+            onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
+            onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
+          />
+          <p style={{ fontSize: 12, color: "#6B7280", marginTop: 8, marginBottom: 0, lineHeight: 1.5, maxWidth: 480 }}>
+            Your first report is free. We use your email only to deliver this report.
+            We will never sell, share, or rent it.
+          </p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10, marginTop: 20 }}>
