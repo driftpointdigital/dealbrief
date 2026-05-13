@@ -47,11 +47,11 @@ Three structural reasons.
 
 **7. Operating expense reasonableness.** Most small-multifamily T-12s understate OpEx. The classic missing categories: management fee when self-managed by the seller, reserves at any level, real-world insurance (post-2022 carriers have hardened, especially in FL and TX), and the cost of actual turns. A $4,500/door OpEx for a class C 8-unit is usually closer to $5,500-$6,000 once you add the missing pieces. Set your underwriting floor accordingly.
 
-**8. Debt service stress test.** Run the deal at three rate scenarios (your quoted rate, +100 bps, +200 bps) across the LTVs your lender will actually offer. DSCR below 1.20 at the +200 bps stress means you're betting on rates declining or rent growth that may not arrive. Both can happen, but a deal that only pencils on optimistic assumptions isn't a deal, it's a hope.
+**8. Debt service stress test.** Run the deal at three rate scenarios (your quoted rate, +100 bps, +200 bps) across the LTVs your lender will actually offer. DSCR below 1.20 at the +200 bps stress means you're betting on rates declining or rent growth that may not arrive. Both can happen, but a deal that only pencils on optimistic assumptions isn't a deal, it's a hope. [Full guide to DSCR analysis](/blog/multifamily-debt-service-dscr-analysis).
 
 ### Location and regulatory
 
-**9. FEMA flood zone.** Zone X is fine. Anything starting with A or V is regulated floodplain with insurance requirements that can run significantly higher per year and reduce your buyer pool at exit. Don't trust seller-provided "we've never had an issue" claims; pull the actual FEMA Map Service Center data.
+**9. FEMA flood zone.** Zone X is fine. Anything starting with A or V is regulated floodplain with insurance requirements that can run significantly higher per year and reduce your buyer pool at exit. Don't trust seller-provided "we've never had an issue" claims; pull the actual FEMA Map Service Center data. [Full guide to FEMA flood zone checks](/blog/fema-flood-zone-check-investment-property).
 
 **10. Crime grade.** ZIP-level crime against national percentile. Doesn't tell you everything (intra-ZIP variance is real, especially in larger ZIPs), but a property in the bottom 10% nationally is going to have higher turnover, more vacancy, and tougher financing. Crime trends matter more than crime levels: a ZIP where crime has dropped 30% over five years is a different proposition than one where it's flat.
 

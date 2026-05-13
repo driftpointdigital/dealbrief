@@ -404,6 +404,48 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
       body: `Property falls in FEMA ${data.femaZone}. Flood insurance is required by lenders and will cost $1,500–$5,000+/yr depending on coverage, adding directly to operating expenses.` });
   }
 
+  // Miami-Dade / Broward SB 4-D milestone structural inspection. Florida SB 4-D
+  // (signed May 2022 after the Surfside collapse) plus county-level ordinances
+  // require buildings to undergo a Milestone Structural Inspection at 30 years
+  // from original CO, or 25 years if within 3 miles of the coast, with
+  // subsequent inspections every 10 years. We trigger on ZIP prefixes 330-333
+  // (Miami-Dade + most of Broward; substantially all of these areas are
+  // coastal-adjacent enough that the 25-year threshold is the safe assumption).
+  const _flZipMatchSB = (data.address || "").match(/(?:,\s*|\s+)FL\s*,?\s*(\d{5})/);
+  const _flZip3SB = _flZipMatchSB?.[1]?.slice(0, 3);
+  const _isMiamiBrowardSB = _flZip3SB === "330" || _flZip3SB === "331" || _flZip3SB === "332" || _flZip3SB === "333";
+  if (_isMiamiBrowardSB && age >= 25) {
+    flags.push({ level: "amber", title: `Milestone Structural Inspection Likely Required (SB 4-D)`,
+      body: `Florida SB 4-D (signed May 2022 after the Surfside collapse) plus Miami-Dade and Broward county ordinances require a Milestone Structural Inspection by a Florida licensed engineer or architect at 30 years from original certificate of occupancy, or 25 years if within 3 miles of the coast. Subsequent inspections every 10 years. This ${age}-year-old building is at or past that threshold. Ask the seller for the most recent inspection report (and the Structural Integrity Reserve Study if it's a condominium-form property). Recertification can require $50,000–$500,000+ in concrete restoration, balcony rebuilds, and structural repairs on older coastal buildings.` });
+  }
+
+  // Philadelphia tax abatement detection. Philly OPA already nets the abatement
+  // out of `annual_taxes`, so if the stated tax is materially below what a
+  // full-rate calculation produces (assessed × 1.3998%), an abatement (or other
+  // exemption) is almost certainly in effect. For non-homestead investment
+  // property, the most common reason is the 10-year residential or commercial
+  // abatement on new construction / major rehab. Post-Jan-2022 residential
+  // applications phase down 10%/yr; pre-2022 are grandfathered at 100% for the
+  // full 10 years; commercial is unaffected by the phase-down.
+  const _isPhillyCity = /(?:,\s*)PHILADELPHIA(?:,\s*PA|\s+PA)/i.test(data.address || "");
+  if (_isPhillyCity) {
+    const _phillyRate = 0.013998;
+    const _phillyAssessed = parseDol(data.assessedValue);
+    const _phillyTaxes = parseDol(data.annualTaxes);
+    if (_phillyAssessed > 0 && _phillyTaxes > 0) {
+      const _expectedTax = _phillyAssessed * _phillyRate;
+      if (_phillyTaxes < _expectedTax * 0.7) {
+        const _exemptPct = Math.round((1 - _phillyTaxes / _expectedTax) * 100);
+        const _annualSavings = Math.round(_expectedTax - _phillyTaxes);
+        flags.push({
+          level: "amber",
+          title: `Philadelphia Tax Abatement Likely Active — Year-N Step-Up Risk`,
+          body: `Reported annual taxes are roughly ${_exemptPct}% below what a full-rate calculation would produce (${fmtDol(String(Math.round(_expectedTax)))} expected vs. ${fmtDol(data.annualTaxes)} on file), implying an active exemption of ~${fmtDol(String(_annualSavings))}/yr. For non-homestead investment property, the most common cause is Philly's 10-year tax abatement. Abatements run from approval, and RESIDENTIAL applications filed on or after January 1, 2022 (Bill 200366 reform) phase down 10 percentage points per year (100% in year 1, declining to 10% by year 10). Pre-2022 residential applications are grandfathered at 100% for the full 10 years. Commercial applications are not affected by the phase-down. Ask the seller for the abatement type and application date, then model the year-by-year tax step-up across your hold period.`
+        });
+      }
+    }
+  }
+
   // No permits on old building (also flag when age is unknown — can't assume it's new)
   if (permitNum === 0 && age === 0) {
     flags.push({ level: "amber", title: "No Permit History — Building Age Unknown",
@@ -992,8 +1034,24 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {data.askingPrice && model.noi !== null && <Row label="Implied Gross NOI" value={fmt$(model.noi) + "/yr (broker cap × ask)"} />}
               {data.buyerCapRate && impliedPrice > 0 && (() => {
                 // When reassessment is material, split into two rows:
-                //   (1) in-place taxes — naive cap: NOI ÷ buyerCR
-                //   (2) reassessed taxes — closed-form impliedPrice (already tax-adjusted)
+                //   (1) in-place taxes — naive cap: NOI ÷ buyerCR.
+                //       Answers "what price gives buyerCR on year-1 NOI
+                //       assuming taxes stay at current level."
+                //   (2) reassessed taxes — closed-form impliedPrice
+                //       = (NOI_inplace + taxes_current) / (buyerCR + effTaxRate).
+                //       Answers "what price gives buyerCR on the long-term
+                //       NOI where new taxes scale with that price." This
+                //       correctly handles the circular dependency: taxes
+                //       depend on price, price depends on NOI, NOI depends
+                //       on taxes.
+                //
+                // Counterintuitive case: in cycle-locked states (NC), when
+                // the current assessed value exceeds the closed-form
+                // implied price, reassessment would LOWER taxes at the new
+                // price → year-N NOI > year-1 NOI → Reassessed max > In-Place
+                // max. The math is correct; it's flagging that the parcel
+                // is currently over-assessed relative to its underwritable
+                // value.
                 const inPlacePrice = boe && boe.estNoi > 0 && buyerCR > 0
                   ? Math.round(boe.estNoi / buyerCR)
                   : 0;
@@ -1032,6 +1090,27 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {data.brokerClaims && (
               <Text style={s.note}>Broker claims: {data.brokerClaims}</Text>
             )}
+            {(() => {
+              // Conditional explainer for the counterintuitive case where the
+              // Reassessed Taxes max price EXCEEDS the In-Place Taxes max price.
+              // Happens when current assessed value > implied price at buyerCR
+              // — typical for over-assessed parcels in cycle-locked states
+              // (most commonly NC, but possible anywhere reassessment isn't
+              // immediate). At the lower implied price, reassessment would
+              // reduce taxes, raising year-N NOI, which raises the max price
+              // that achieves the target cap rate on year-N NOI.
+              if (!data.buyerCapRate || !boe || boe.estNoi <= 0 || !buyerCR) return null;
+              if (!showTaxAdj || impliedPrice <= 0) return null;
+              const inPlacePriceForNote = Math.round(boe.estNoi / buyerCR);
+              if (impliedPrice <= inPlacePriceForNote + 5000) return null;
+              const currentAssessedDol = parseDol(data.assessedValue);
+              if (currentAssessedDol <= 0) return null;
+              return (
+                <Text style={s.note}>
+                  Note: Reassessed Taxes max ({fmt$(impliedPrice)}) exceeds In-Place Taxes max ({fmt$(inPlacePriceForNote)}) because the current county assessment ({fmtDol(data.assessedValue)}) is higher than the implied price at your target cap. At a lower purchase price, reassessment would likely reduce taxes, raising year-N NOI. The closed-form Reassessed price solves for the price where year-N cap = buyer cap, accounting for the tax change.
+                </Text>
+              );
+            })()}
           </>
         )}
 
@@ -1084,7 +1163,13 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 )
               )}
               {data.annualTaxes && (
-                <Row label="Current Annual Taxes" value={fmtDol(data.annualTaxes) + "/yr"} />
+                <Row label="Current Annual Taxes" value={(() => {
+                  const fee = data.taxFeePerUnit ? parseFloat(data.taxFeePerUnit) : 0;
+                  const feeNote = fee > 0
+                    ? `  (incl. $${fee.toFixed(0)}/unit municipal fee)`
+                    : "";
+                  return fmtDol(data.annualTaxes) + "/yr" + feeNote;
+                })()} />
               )}
               {!data.annualTaxes && data.assessedValue && data.taxRate && (
                 <Row label="Est. Annual Taxes" value={(() => {

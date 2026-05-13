@@ -194,6 +194,15 @@ function FieldRow({ label, name, value, placeholder, editable = true, tooltip, o
           name={name}
           defaultValue={value || ""}
           placeholder={placeholder || ""}
+          // "off" is the standard; Chrome ignores it for some fields it
+          // heuristically classifies as address-like. "new-password" is
+          // the most reliable Chrome bypass. The data-* attributes hint
+          // password managers (Dashlane, LastPass, 1Password) to skip.
+          autoComplete="new-password"
+          data-form-type="other"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          aria-autocomplete="none"
           style={{
             flex: 1, padding: "0 8px", height: 32, fontSize: 14, color: "#111827",
             border: "1px solid transparent", borderRadius: 4,
@@ -611,7 +620,7 @@ export default function DealBrief() {
         </button>
       </div>
 
-      <form key={data.address} ref={formRef}>
+      <form key={data.address} ref={formRef} autoComplete="off">
       <div style={{ maxWidth: 660, margin: "0 auto", padding: "36px 24px 64px" }}>
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
