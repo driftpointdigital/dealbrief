@@ -66,7 +66,7 @@ Louisville has a substantial pre-1940 housing stock, especially in the Highlands
 - **Slate roofs**: durable but expensive to repair.
 - **Foundation issues**: settling and water intrusion in old basements.
 
-For value-add deals in the older neighborhoods, plan generously on capex. $20,000-50,000 per unit to bring a 1910 shotgun duplex up to modern rental standards is not unusual.
+For value-add deals in the older neighborhoods, plan generously on capex. $20,000-$50,000 per unit to bring a 1910 shotgun duplex up to modern rental standards is not unusual.
 
 ## Submarket dynamics
 
