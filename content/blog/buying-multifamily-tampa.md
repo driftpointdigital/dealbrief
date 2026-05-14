@@ -22,7 +22,7 @@ If you're buying multifamily in Tampa Bay, the insurance line item is the single
 
 For Class B and C multifamily in Hillsborough County, expect insurance premiums of $1,500-$3,000 per door per year, sometimes more. For Class B/C inside the surge zone or in older masonry buildings without modern roof and wind mitigation, $2,500-$5,000 per door is not unusual.
 
-Compare that to the $400-700 per door that most underwriting templates assume. The gap is the deal.
+Compare that to the $400-$700 per door that most underwriting templates assume. The gap is the deal.
 
 Three rules:
 

@@ -58,7 +58,7 @@ For pre-1978 buildings (which is the vast majority of Philadelphia multifamily),
 - **Lead Safe Certification** for properties with children under 6: requires lead-safe certification by a certified inspector.
 - **Lead disclosure to tenants** at lease signing: mandatory federal-level disclosure that Philly enforces strictly.
 
-The compliance is meaningful for older buildings. Plan for $500-2,000 per unit on lead-safe certification work, plus ongoing inspection fees. Buildings with documented lead remediation pass through compliance more smoothly.
+The compliance is meaningful for older buildings. Plan for $500-$2,000 per unit on lead-safe certification work, plus ongoing inspection fees. Buildings with documented lead remediation pass through compliance more smoothly.
 
 ## ROW certificate (Owner-Occupied or Investor)
 
@@ -74,17 +74,17 @@ Cross-reference broker renovation claims against permit records. Philly has been
 
 Philadelphia's housing stock skews older than almost any major metro: 50%+ of single-family and multifamily housing was built before 1940. The underwriting implications:
 
-- **Knob-and-tube wiring**: still in active service in many older buildings. Insurance carriers may require remediation. Costs $3,000-15,000+ per unit to replace.
+- **Knob-and-tube wiring**: still in active service in many older buildings. Insurance carriers may require remediation. Costs $3,000-$15,000+ per unit to replace.
 - **Galvanized or lead plumbing supply lines**: common in pre-1950 buildings. Replacement is recommended and sometimes mandatory.
 - **Asbestos**: common in pre-1980 buildings (pipe insulation, floor tile, popcorn ceiling). Abatement during renovation triggers strict compliance.
 - **Lead paint**: nearly universal in pre-1978 buildings. Disclosure and remediation requirements.
 - **Original wood-frame or brick rowhouse construction**: durable but capex-intensive (roof, façade, party wall maintenance, basement waterproofing).
 
-For value-add deals, plan capex generously. The all-in cost to bring a 1920s rowhouse triplex to modern rental standards is often $40,000-100,000+ per unit when done properly.
+For value-add deals, plan capex generously. The all-in cost to bring a 1920s rowhouse triplex to modern rental standards is often $40,000-$100,000+ per unit when done properly.
 
 ## Insurance considerations
 
-Philadelphia insurance has hardened with the national trend but is materially cheaper than Florida or coastal Texas. Plan for $700-1,400 per door per year on standard multifamily, more on buildings with knob-and-tube electrical or unaddressed deferred maintenance.
+Philadelphia insurance has hardened with the national trend but is materially cheaper than Florida or coastal Texas. Plan for $700-$1,400 per door per year on standard multifamily, more on buildings with knob-and-tube electrical or unaddressed deferred maintenance.
 
 ## The standard checklist still applies
 

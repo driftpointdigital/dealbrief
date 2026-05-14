@@ -70,7 +70,7 @@ If your target property is just outside Atlanta's city limits, make sure you're 
 
 ## Insurance, climate, and tornado exposure
 
-Atlanta is well inland but does get severe weather (tornadoes, hail). Insurance has hardened since 2020 in line with national trends but is meaningfully less expensive than coastal FL or coastal TX. Plan for $500-1,000/door/year on insurance for standard multifamily.
+Atlanta is well inland but does get severe weather (tornadoes, hail). Insurance has hardened since 2020 in line with national trends but is meaningfully less expensive than coastal FL or coastal TX. Plan for $500-$1,000/door/year on insurance for standard multifamily.
 
 Tree damage and wind events are the main claim drivers. Buildings with mature tree canopy nearby (most of intown Atlanta) have higher tree-fall risk; insurance accounts for it.
 

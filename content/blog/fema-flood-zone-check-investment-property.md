@@ -49,7 +49,7 @@ The [FEMA NFHL Map Viewer](https://hazards-fema.maps.arcgis.com) is the same dat
 
 ### 3. A flood determination service report
 
-If you're under contract, your lender will order an official Standard Flood Hazard Determination (SFHD) form. Costs the borrower $15-30. It's the document the lender uses to require (or waive) flood insurance.
+If you're under contract, your lender will order an official Standard Flood Hazard Determination (SFHD) form. Costs the borrower $15-$30. It's the document the lender uses to require (or waive) flood insurance.
 
 Pre-offer, you don't need this. The Map Service Center is enough. Post-offer, the SFHD is what makes the requirement official.
 
@@ -87,7 +87,7 @@ If you bought to value-add a coastal property and your business plan includes a 
 
 Three additions to your underwriting:
 
-1. **Real insurance quote, not a placeholder.** For Zone X, the placeholder OpEx number ($500-1,000/year for multifamily) is fine. For Zone AE or V, get a real quote from an insurance broker before you submit your offer. The placeholder will be wrong by orders of magnitude.
+1. **Real insurance quote, not a placeholder.** For Zone X, the placeholder OpEx number ($500-$1,000/year for multifamily) is fine. For Zone AE or V, get a real quote from an insurance broker before you submit your offer. The placeholder will be wrong by orders of magnitude.
 
 2. **Insurance inflation assumption.** Coastal insurance has compounded at 15-25% per year in many markets since 2022. Your underwriting should assume continued elevated inflation, especially in FL, LA, and TX coastal markets.
 

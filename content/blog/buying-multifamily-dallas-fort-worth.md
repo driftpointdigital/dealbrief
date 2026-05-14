@@ -40,7 +40,7 @@ Always check whether the parcel is inside a MUD before underwriting suburban DFW
 
 DFW sits in Tornado Alley and gets hit with hail regularly. Insurance carriers have hardened since 2020. For older multifamily with asphalt-shingle roofs, premiums have doubled or tripled, and some carriers won't write at all on certain roof conditions or building ages.
 
-Get a real insurance quote before submitting your offer on any DFW property. The placeholder OpEx most pro formas use ($400-600/door annual) is often 2-3x lower than the actual quote you'll get from a carrier in 2025-2026. Plan for $800-1,500/door in insurance OpEx on standard multifamily, and more if the roof is past 10 years old.
+Get a real insurance quote before submitting your offer on any DFW property. The placeholder OpEx most pro formas use ($400-$600/door annual) is often 2-3x lower than the actual quote you'll get from a carrier in 2025-2026. Plan for $800-$1,500/door in insurance OpEx on standard multifamily, and more if the roof is past 10 years old.
 
 ## Aggressive permit-light culture, but the records exist
 

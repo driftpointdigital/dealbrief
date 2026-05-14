@@ -87,9 +87,9 @@ DSCR analysis is sensitive to NOI. NOI is sensitive to operating expenses. Most 
 The classic missing pieces:
 
 - **Management fee** (when the property is self-managed by the seller): add 6-10% of EGI.
-- **Reserves**: $250-500 per unit per year, minimum.
+- **Reserves**: $250-$500 per unit per year, minimum.
 - **Real-world insurance**: post-2022, carrier rates have hardened. Get a real quote, not a placeholder. In FL and coastal TX, this can be 2-3x what historical OpEx shows.
-- **Capex / turnover**: the actual cost of preparing a unit for re-lease. Often $1,500-4,000 per turn on smaller units, more for larger.
+- **Capex / turnover**: the actual cost of preparing a unit for re-lease. Often $1,500-$4,000 per turn on smaller units, more for larger.
 
 Run the deal twice: once with the seller's claimed OpEx, once with a market-realistic OpEx. The difference is usually 15-25% of expenses, which translates to 8-15% of NOI, which translates to 0.10-0.20 of DSCR.
 

@@ -61,7 +61,7 @@ Phoenix permit history is available through the city's [Planning & Development D
 
 Phoenix is a different climate-driven OpEx story than coastal markets. The wildcards:
 
-- **Cooling costs**: tenants in older multifamily without modern HVAC often face $300-500/month summer electric bills, which constrains rent levels. Buildings with older or undersized HVAC have meaningful operating risk.
+- **Cooling costs**: tenants in older multifamily without modern HVAC often face $300-$500/month summer electric bills, which constrains rent levels. Buildings with older or undersized HVAC have meaningful operating risk.
 - **Roof condition**: extreme UV exposure aging asphalt shingles faster than most markets. Older roofs are often more depreciated than year-built alone suggests.
 - **Wildfire risk in fringe areas**: more relevant in north Scottsdale, parts of Cave Creek, and outer fringe communities than in the urban core. Insurance carriers have started looking at wildfire risk on Phoenix-area policies.
 
