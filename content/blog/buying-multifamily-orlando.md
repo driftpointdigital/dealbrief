@@ -1,7 +1,7 @@
 ---
 title: "Buying Multifamily in Orlando: Tourism Economy, Tax Catch-Up, and Insurance Nuance"
 slug: "buying-multifamily-orlando"
-description: "Orlando multifamily underwriting differs from coastal Florida in important ways. Lower hurricane exposure than Tampa or Miami, but the tourism economy concentrates risk in specific submarkets. The local context that matters."
+description: "Orlando multifamily underwriting differs from coastal Florida in important ways. Lower hurricane exposure than Tampa or Miami, but the tourism economy concentrates risk in specific submarkets. This is the local context that matters."
 date: "2026-04-01"
 category: "Market Guide"
 market: "Orlando"
