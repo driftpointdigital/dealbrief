@@ -15,15 +15,15 @@ author: "DealBrief"
 
 The single fastest source of underwriting surprise on coastal and riverfront multifamily is FEMA flood zone designation. It drives your insurance cost, it drives your buyer pool at exit, and in some cases it drives whether a lender will close at all. Brokers rarely volunteer it. Sellers sometimes don't know it (especially if the property was bought outside a flood event and they've never had a claim).
 
-Checking it takes five minutes. Pricing it correctly into your offer takes another twenty. Skipping it can cost you $5,000 to $30,000 a year in unexpected premiums and 1.0-2.0 turns of cap rate at exit.
+Checking it takes five minutes. Pricing it correctly into your offer takes another twenty. Skipping it can cost you $5,000 to $30,000 a year in unexpected premiums and 50 to 100 basis points (0.5 to 1.0 percentage points) of cap rate expansion at exit.
 
 ## What the zones actually mean
 
 FEMA divides the country into Special Flood Hazard Areas (SFHAs) and non-hazard areas. The letter codes look bureaucratic but each one tells you something specific:
 
-- **Zone X (or "Zone X (shaded)" / "Zone X (unshaded)")**: outside the 100-year floodplain. Most properties in most cities are Zone X. Insurance is not federally required. Flood insurance is still available and cheap (often under $500/year) but optional.
+- **Zone X (unshaded)**: minimal flood risk, outside both the 100-year and 500-year floodplains. Most properties in most cities sit here. Flood insurance is not federally required. It's still available and cheap (often under $500/year) but optional.
 
-- **Zone X (shaded)** (sometimes shown as "0.2% annual chance flood hazard"): outside the 100-year but inside the 500-year floodplain. Still not federally required, but lenders sometimes flag it. Insurance is cheap.
+- **Zone X (shaded)** (sometimes labeled "0.2% annual chance flood hazard" or "Zone B" on older maps): outside the 100-year floodplain but inside the 500-year floodplain. Still no federal insurance requirement, but lenders sometimes flag it and elevation matters more than it does in unshaded X. Insurance is cheap.
 
 - **Zone A** (also "A1" through "A30", "AE", "AH", "AO"): inside the 100-year floodplain. **Flood insurance is federally required for any federally-backed mortgage.** Premiums vary wildly based on elevation, building type, and risk profile, but expect $1,500-$10,000/year per building for multifamily, and worse in coastal AE zones.
 
@@ -73,7 +73,7 @@ Plan for 50-100 bps of cap rate expansion on a 5-7 year hold for properties in A
 
 This one catches people off-guard. If you want to renovate a property in a SFHA and the renovation cost exceeds 50% of the structure's current value, you trigger the "substantial improvement" rule and must bring the entire structure to current floodplain code. For older buildings in coastal areas, that can mean elevating the lowest floor several feet, retrofitting flood vents, or even tearing down and rebuilding.
 
-If you bought to value-add a coastal property and your business plan includes a $400K renovation of a $700K building, you've effectively committed to a full code upgrade. Most buyers don't know this until they're permitted.
+If you bought a value add coastal property and your business plan includes a $400K renovation of a $700K building, you've effectively committed to a full code upgrade. Most buyers don't know this until they're permitted.
 
 ## Special cases worth knowing
 
