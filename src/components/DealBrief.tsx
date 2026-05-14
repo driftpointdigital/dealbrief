@@ -1078,6 +1078,12 @@ export default function DealBrief() {
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6, margin: 0, fontWeight: 300 }}>
             Enter a multifamily or single-family address. Get tax assessment, permit records, flood zone, crime, demographics, cap rates, debt service analysis, and more in one report.
           </p>
+          <p style={{
+            fontSize: 15, color: "#1D3557", lineHeight: 1.5,
+            margin: "14px 0 0", fontWeight: 600, letterSpacing: "-0.1px",
+          }}>
+            Your first report is free. No credit card required.
+          </p>
         </div>
 
         {/* INPUT */}
