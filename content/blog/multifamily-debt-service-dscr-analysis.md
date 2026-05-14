@@ -13,7 +13,7 @@ keywords:
 author: "DealBrief"
 ---
 
-Debt service is where small multifamily deals quietly break. Buyers run a single base-case scenario at the rate the broker mentioned and the LTV the lender promised, the DSCR comes back at 1.25, and they call it good. Then rates move 75 bps before close, or the appraisal comes in low, or the lender's actual proceeds are 65% LTV instead of 75%, and suddenly the deal pencils at 1.10 instead.
+Debt service is where small multifamily deals quietly break. Buyers run a single base-case scenario at the rate the broker mentioned and the LTV the lender promised, the DSCR comes back at 1.25x, and they call it good. Then rates move 75 bps before close, or the appraisal comes in low, or the lender's actual proceeds are 65% LTV instead of 75%, and suddenly the deal pencils at 1.10x instead.
 
 A real debt service analysis runs the deal across multiple rates and multiple LTVs, then asks: at what occupancy and rent does this deal stop covering its debt? The buyers who do this consistently come out ahead.
 
@@ -23,7 +23,7 @@ Debt Service Coverage Ratio is the ratio of NOI to annual debt service.
 
 `DSCR = NOI / (P&I payment × 12)`
 
-A DSCR of 1.25 means the property's NOI is 25% larger than its annual debt service. A DSCR of 1.0 means NOI exactly covers debt; below 1.0, the property doesn't cash flow.
+A DSCR of 1.25x means the property's NOI is 25% larger than its annual debt service. A DSCR of 1.0x means NOI exactly covers debt; below 1.0x, the property doesn't cash flow.
 
 What counts as NOI matters. Use a clean NOI: gross potential rent, minus vacancy and collection loss (a realistic number, not 3%), minus operating expenses including reserves, minus property taxes (the post-sale tax, not the broker-quoted tax). What's left is what your lender will use.
 
@@ -31,7 +31,7 @@ What counts as debt service is the principal and interest payment on the senior 
 
 ## What lenders actually require
 
-Different lenders, different DSCR floors. Rough ranges as of late 2025:
+Different lenders, different DSCR floors. Rough ranges as of early 2026:
 
 - **Agency (Fannie / Freddie small-balance)**: 1.25x DSCR minimum, sometimes 1.30x for higher-LTV deals.
 - **Community banks**: 1.20-1.25x, with flexibility based on borrower track record.
@@ -47,8 +47,8 @@ Don't run a single base case. Run a grid.
 
 **Rate scenarios:**
 - Your current quoted rate (call it R)
+- R + 50 bps
 - R + 100 bps
-- R + 200 bps
 
 **LTV scenarios:**
 - The LTV the lender promised (often 75% for agency)
@@ -60,11 +60,11 @@ Example for a $1.2M purchase, $90K NOI, 30-year amortization:
 
 | Rate / LTV | 75% ($900K loan) | 65% ($780K loan) |
 |---|---|---|
-| 6.50% | DSCR 1.32 | DSCR 1.53 |
-| 7.50% | DSCR 1.19 | DSCR 1.37 |
-| 8.50% | DSCR 1.08 | DSCR 1.25 |
+| 6.50% | DSCR 1.32x | DSCR 1.53x |
+| 7.00% | DSCR 1.25x | DSCR 1.44x |
+| 7.50% | DSCR 1.19x | DSCR 1.37x |
 
-What this tells you: at the lender's promised LTV (75%) and a 100 bps rate move (7.50%), the deal is at 1.19 DSCR, which is below the agency minimum of 1.25. If rates move before close, you either need to put more equity in (lower the LTV) or accept terms from a lender with a lower DSCR floor (and probably a higher rate).
+What this tells you: at the lender's promised LTV (75%) and a 100 bps rate move (7.50%), the deal is at 1.19x DSCR, which is below the agency minimum of 1.25x. If rates move before close, you either need to put more equity in (lower the LTV) or accept terms from a lender with a lower DSCR floor (and probably a higher rate).
 
 If your business plan can't survive a +100 bps shock at the lender's stated LTV, that's information you should price into your offer. Either bid lower, structure with more equity, or be prepared to walk.
 
@@ -78,7 +78,7 @@ If your breakeven is 78%, you can lose 22% of your rent (through vacancy, conces
 
 For small multifamily in stable markets, breakeven below 80% is comfortable. Breakeven at 85-90% means a single bad tenant turn or a 90-day vacancy can flip the property cash-flow-negative for the month. Breakeven above 90% means you're financing a job, not an investment.
 
-Compute breakeven for each rate scenario in the grid above. The deal that pencils at base case but has 91% breakeven at +200 bps is a deal you should bid lower on.
+Compute breakeven for each rate scenario in the grid above. The deal that pencils at base case but has 91% breakeven at +100 bps is a deal you should bid lower on.
 
 ## The OpEx component most buyers miss
 
@@ -89,9 +89,9 @@ The classic missing pieces:
 - **Management fee** (when the property is self-managed by the seller): add 6-10% of EGI.
 - **Reserves**: $250-$500 per unit per year, minimum.
 - **Real-world insurance**: post-2022, carrier rates have hardened. Get a real quote, not a placeholder. In FL and coastal TX, this can be 2-3x what historical OpEx shows.
-- **Capex / turnover**: the actual cost of preparing a unit for re-lease. Often $1,500-$4,000 per turn on smaller units, more for larger.
+- **R&M / turnover**: the actual cost of preparing a unit for re-lease (paint, flooring patches, appliance fixes, broken-fixture replacement, cleaning, leasing fees). Often $1,500-$4,000 per turn on smaller properties that contract out. Can run materially lower on larger properties with on-site maintenance staff who handle most turns in-house.
 
-Run the deal twice: once with the seller's claimed OpEx, once with a market-realistic OpEx. The difference is usually 15-25% of expenses, which translates to 8-15% of NOI, which translates to 0.10-0.20 of DSCR.
+Run the deal twice: once with the seller's claimed OpEx, once with a market-realistic OpEx. The difference is usually 15-25% of expenses, which translates to 8-15% of NOI, which translates to 0.10x-0.20x of DSCR.
 
 If your DSCR with realistic OpEx is below your lender's floor at any of the rate scenarios in your grid, the deal probably doesn't work without an equity injection or a price cut.
 
