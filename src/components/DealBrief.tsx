@@ -355,13 +355,23 @@ export default function DealBrief() {
       // or we just show the warning; for now we block until they fill it in
       return;
     }
-    // Email is required for both free and paid paths (gating + delivery).
+    // Email is OPTIONAL. It is used only as the free-report eligibility
+    // key (one free report per email address). If the user leaves it blank
+    // they skip eligibility entirely and go straight to Stripe checkout,
+    // which collects an email on the hosted page anyway. If they type
+    // something but it isn't a plausible email, reject so they can fix
+    // the typo before paying for a report tied to a bad address.
     const emailTrimmed = String(body.email ?? email ?? "").trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
-      setGenerateError("Please enter a valid email — we need it to deliver your report.");
+    const emailIsValid =
+      emailTrimmed.length > 0 &&
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed);
+    if (emailTrimmed.length > 0 && !emailIsValid) {
+      setGenerateError(
+        "That doesn't look like a valid email — fix it, or leave it blank to go straight to checkout."
+      );
       return;
     }
-    body.email = emailTrimmed.toLowerCase();
+    body.email = emailIsValid ? emailTrimmed.toLowerCase() : "";
 
     setGenerating(true);
     body.rates = selectedRates;
@@ -376,19 +386,23 @@ export default function DealBrief() {
 
     try {
       // 1) Eligibility check — advisory, server is source of truth.
+      //    Only meaningful when the user actually supplied an email.
+      //    Blank email → skip eligibility and go straight to checkout.
       let free = false;
-      try {
-        const eligRes = await fetch("/api/eligibility", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: body.email }),
-        });
-        if (eligRes.ok) {
-          const eligJson = await eligRes.json();
-          free = Boolean(eligJson.free);
+      if (emailIsValid) {
+        try {
+          const eligRes = await fetch("/api/eligibility", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: body.email }),
+          });
+          if (eligRes.ok) {
+            const eligJson = await eligRes.json();
+            free = Boolean(eligJson.free);
+          }
+        } catch {
+          // Network glitch on eligibility check → fall through to paid.
         }
-      } catch {
-        // Network glitch on eligibility check → fall through to paid.
       }
 
       // 2a) Free path
@@ -968,8 +982,10 @@ export default function DealBrief() {
           </div>
         </div>
 
-        {/* Email — required for both free and paid paths. First report
-            per email is free; subsequent reports are $29 via Stripe. */}
+        {/* Email — OPTIONAL. Used only as the free-report eligibility key
+            (one free report per email). Blank email or already-used email
+            routes to Stripe checkout, which collects an email on the
+            hosted page anyway. */}
         <div style={{
           marginTop: 24, paddingTop: 20, borderTop: "1px solid #E5E7EB",
         }}>
@@ -977,7 +993,7 @@ export default function DealBrief() {
             display: "block", fontSize: 13, fontWeight: 500,
             color: "#374151", marginBottom: 6, letterSpacing: "-0.1px",
           }}>
-            Email address
+            Email address <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(optional)</span>
           </label>
           <input
             type="email"
@@ -985,7 +1001,6 @@ export default function DealBrief() {
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="you@example.com"
-            required
             style={{
               width: "100%", maxWidth: 360, padding: "9px 12px", fontSize: 14,
               color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 6,
@@ -995,7 +1010,7 @@ export default function DealBrief() {
             onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
           />
           <p style={{ fontSize: 12, color: "#6B7280", marginTop: 8, marginBottom: 0, lineHeight: 1.5, maxWidth: 480 }}>
-            Your first report is free. We use your email only to deliver this report.
+            Your first report is free. Use your email to check eligibility.
             We will never sell, share, or rent it.
           </p>
         </div>
