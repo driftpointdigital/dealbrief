@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { sendGAEvent } from "@next/third-parties/google";
 
 const MOCK_RETURN_DATA = {
   address: "2718 Cleveland St, Dallas, TX 75215",
@@ -302,6 +303,43 @@ export default function DealBrief() {
     setTaxRateEdit(data?.taxRate || "");
   }, [data?.units, data?.taxRate]);
 
+  // KS/TN/MO/IN class-threshold rate adjustment. These four states have
+  // split assessment ratios where 5+ unit apartments are commercial and
+  // 1-4 unit residential rentals get a materially lower effective rate:
+  //   KS:  11.5% / 25%       (1-4 / 5+ ratio)  → 0.46× factor
+  //   TN:  25% / 40%                            → 0.625×
+  //   MO:  19% / 32%                            → 0.59375×
+  //   IN:  2% / 3% circuit-breaker cap          → 0.6667×
+  // Backend defaults `taxRate` to the COMMERCIAL MF rate (5+ unit). When
+  // user edits units to 1-4, re-scale the displayed rate to residential.
+  // When they edit back to 5+, restore the original commercial rate.
+  const _CLASS_RATIO_FACTOR: Record<string, number> = {
+    "20": 0.115 / 0.25,    // Kansas
+    "47": 0.25 / 0.40,     // Tennessee
+    "29": 0.19 / 0.32,     // Missouri
+    "18": 2 / 3,           // Indiana circuit-breaker cap (2% / 3%)
+  };
+  useEffect(() => {
+    // Type-cast since we're stitching a new field onto MOCK_RETURN_DATA.
+    const fips = (data as unknown as { fipsState?: string })?.fipsState || "";
+    const factor = _CLASS_RATIO_FACTOR[fips];
+    const commercialRate = data?.taxRate || "";  // backend's commercial-MF default
+    if (!factor || !commercialRate) return;
+    const units = _parseInt(unitsEdit);
+    if (!units) return;
+    const commRateNum = _parsePct(commercialRate);
+    if (!commRateNum) return;
+    const targetRate =
+      units < 5 ? commRateNum * factor : commRateNum;
+    const targetStr = `${(targetRate * 100).toFixed(2)}%`;
+    if (taxRateEdit !== targetStr) {
+      setTaxRateEdit(targetStr);
+    }
+    // Intentionally NOT depending on taxRateEdit — we want one-way
+    // sync from units → rate, not the inverse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitsEdit, data?.taxRate, data]);
+
   // Derive assessed value as sum of land + improvements + misc features.
   // Misc features only contributes when present; jurisdictions without a
   // misc bucket (TX, GA, AZ, etc.) leave otherEdit empty → no-op.
@@ -557,6 +595,10 @@ export default function DealBrief() {
         annualTaxes:      a.annualTaxes    || "",
         taxRate:          a.taxRate        || "",
         taxFeePerUnit:    a.taxFeePerUnit != null ? String(a.taxFeePerUnit) : "",
+        // FIPS state used by class-threshold rate adjustment when user
+        // edits unit count. KS/TN/MO/IN switch rate between 1-4 unit
+        // residential and 5+ unit commercial brackets.
+        fipsState:        pipelineData?.geo?.fipsState || "",
         femaFloodZone:    pipelineData?.fema?.floodZone || "",
         walkScore:        pipelineData?.walkscore?.walk?.toString() || "",
         bikeScore:        pipelineData?.walkscore?.bike?.toString() || "",
@@ -1076,13 +1118,16 @@ export default function DealBrief() {
         </span>
       </div>
 
-      <div style={{ maxWidth: 540, margin: "0 auto", padding: "80px 24px 48px" }}>
+      <div style={{ maxWidth: 540, margin: "0 auto", padding: "32px 24px 16px" }}>
         {/* HERO */}
         <div style={{
-          marginBottom: 48,
-          opacity: heroVisible ? 1 : 0,
-          transform: heroVisible ? "translateY(0)" : "translateY(12px)",
-          transition: "all 0.5s ease",
+          marginBottom: 20,
+          // Was previously gated behind a fade-in animation
+          // (opacity 0 → 1 + translateY) driven by a useState +
+          // setTimeout. That occasionally stayed at opacity 0 across
+          // refreshes (cause unclear — likely HMR / state-init race),
+          // hiding the hero text. Render immediately for reliability;
+          // we can reintroduce the animation later if it matters.
         }}>
           <h1 style={{
             fontSize: 32, fontWeight: 600, color: "#111827", lineHeight: 1.25,
@@ -1146,11 +1191,22 @@ export default function DealBrief() {
         )}
 
         {/* SAMPLE REPORT */}
-        <div style={{ margin: "12px 0 48px", textAlign: "center" }}>
+        <div style={{ margin: "12px 0 8px", textAlign: "center" }}>
           <a
             href="/sample-report.pdf"
             target="_blank"
             rel="noopener noreferrer"
+            // Fires a Google Analytics custom event so we can see how many
+            // visitors download the sample PDF vs how many actually run a
+            // report from the address-input box. Event name kept in sync
+            // with the GA4 custom-event definition; if you rename it here,
+            // also rename it in the GA UI to keep historical reporting.
+            onClick={() => {
+              sendGAEvent("event", "sample_report_download", {
+                file_name: "sample-report.pdf",
+                location: "landing_below_form",
+              });
+            }}
             style={{
               fontSize: 13, color: "#457B9D", textDecoration: "none",
               borderBottom: "1px solid #457B9D", paddingBottom: 1,
@@ -1160,6 +1216,78 @@ export default function DealBrief() {
             View a sample report to see what&rsquo;s included &rarr;
           </a>
         </div>
+
+      </div>{/* /end first 540px wrapper (HERO + INPUT + SAMPLE link) */}
+
+      {/* WHAT YOU GET — sample page previews. Lives OUTSIDE the 540px text
+          column so the 3 previews can render at a comfortable 350px each
+          on desktop without needing a CSS breakout. Renders 3 across at
+          every viewport — cards shrink on mobile rather than stacking. */}
+      <div style={{ maxWidth: 1100, margin: "0 auto 48px", padding: "0 24px" }}>
+        <h2 style={{
+          fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px",
+          textTransform: "uppercase", display: "block", marginBottom: 14, margin: "0 0 14px 0",
+        }}>
+          What you get in 60 seconds
+        </h2>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 16,
+        }}>
+          {[
+            { src: "/sample-debt-service.png",  alt: "Sample debt service scenarios page" },
+            { src: "/sample-demographics.png",  alt: "Sample crime and demographics page" },
+            { src: "/sample-key-flags.png",     alt: "Sample deal context and key flags page" },
+          ].map((s) => (
+            <a
+              key={s.src}
+              href="/sample-report.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                sendGAEvent("event", "sample_report_download", {
+                  file_name: "sample-report.pdf",
+                  location: "landing_preview_card",
+                });
+              }}
+              style={{
+                display: "block",
+                borderRadius: 8,
+                overflow: "hidden",
+                boxShadow: "0 4px 12px rgba(29, 53, 87, 0.10), 0 1px 3px rgba(0,0,0,0.05)",
+                border: "1px solid #E5E7EB",
+                background: "white",
+                transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 6px 20px rgba(29, 53, 87, 0.14), 0 2px 4px rgba(0,0,0,0.06)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(29, 53, 87, 0.10), 0 1px 3px rgba(0,0,0,0.05)";
+              }}
+            >
+              {/* Plain <img> instead of next/image: these are static
+                  bitmaps in /public, not above-the-fold critical, and
+                  next/image's required dimensions add boilerplate
+                  without measurable benefit at this size. */}
+              <img
+                src={s.src}
+                alt={s.alt}
+                style={{ width: "100%", height: "auto", display: "block" }}
+              />
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* Re-open the narrow 540px column for the rest of the landing
+          (Coverage, Features, Market Suggestion). Top padding is 0 here
+          since the previous block already supplied bottom margin. */}
+      <div style={{ maxWidth: 540, margin: "0 auto", padding: "0 24px 48px" }}>
 
         {/* COVERAGE */}
         <div style={{ margin: "0 0 48px", paddingLeft: 2 }}>

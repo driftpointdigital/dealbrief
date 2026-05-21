@@ -23,6 +23,20 @@ export interface ReportData {
   reappraisalYear?: string;  // NC: year of next scheduled countywide reappraisal
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
   taxFeePerUnit?: string;  // Per-unit municipal fee (Charlotte multifamily solid waste, etc.)
+  // TX MUD / WCID / drainage / special-district breakdown — each entry is a
+  // detected taxing district at the parcel via TCEQ spatial join. Summed
+  // rates are already folded into `taxRate`; this list is for display only.
+  txDistricts?: Array<{ name: string; type: string; ratePct: number | null }>;
+  // NV abatement growth cap (3% / 8%) or OH CRA/TIF active — when true the
+  // report renders a banner explaining the actual tax may differ from the
+  // rate × value estimate. `capPct` is the statutory growth limit (e.g.
+  // "0.08" for NV non-owner-occupied) for completeness.
+  abatementFlag?: boolean;
+  capPct?: string;
+  // FIPS state code (e.g. "20", "47", "29", "18"). Used to apply class-
+  // threshold rate adjustments for KS/TN/MO/IN where 5+ unit MF is
+  // commercial and 1-4 unit residential gets a lower assessment ratio.
+  fipsState?: string;
   // Deal inputs
   askingPrice: string; brokerCapRate: string; occupancy: string;
   inPlaceRents: string; brokerClaims: string; buyerCapRate: string;
@@ -1196,6 +1210,45 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                       })()} alt />
                   )}
                 </>
+              )}
+              {/* TX special taxing districts — MUD / WCID / drainage / etc.
+                  Detected via TCEQ iwud spatial join. Each district's rate
+                  is already folded into Effective Tax Rate above; this block
+                  shows the breakdown so the user can see what's in the
+                  rate stack (vs the MUD-free in-city baseline). */}
+              {Array.isArray(data.txDistricts) && data.txDistricts.length > 0 && (
+                <View style={{ marginTop: 4, paddingTop: 4, borderTopWidth: 1, borderTopColor: RULE }}>
+                  <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 2 }}>
+                    Special Taxing Districts (already in Effective Tax Rate)
+                  </Text>
+                  {data.txDistricts.map((d, i) => (
+                    <View key={i} style={{ flexDirection: "row", paddingVertical: 1.5 }}>
+                      <Text style={{ width: 168, fontSize: 8, color: "#374151", paddingLeft: 8 }}>
+                        • {d.name}
+                      </Text>
+                      <Text style={{ flex: 1, fontSize: 8, color: "#374151" }}>
+                        {d.type}{d.ratePct != null ? `  +${d.ratePct.toFixed(3)}%` : ""}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {/* NV / OH abatement banner — actual tax may differ from
+                  the rate × value estimate due to growth caps (NV NRS
+                  361.4722, 3%/8% YoY) or active CRA/TIF (OH urban cores). */}
+              {data.abatementFlag && (
+                <View style={{
+                  marginTop: 6, padding: 6, backgroundColor: AMBER_BG,
+                  borderLeftWidth: 3, borderLeftColor: AMBER, borderRadius: 2,
+                }}>
+                  <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: AMBER, marginBottom: 2 }}>
+                    ⚠ Active abatement / growth cap detected
+                  </Text>
+                  <Text style={{ fontSize: 7.5, color: "#374151", lineHeight: 1.4 }}>
+                    Actual annual tax may be {data.capPct ? `lower than rate × value due to a ${(parseFloat(data.capPct) * 100).toFixed(0)}% year-over-year assessed-value growth cap` : "different from the estimate above"}.
+                    Verify the current bill with the county treasurer/auditor before relying on the modeled figure.
+                  </Text>
+                </View>
               )}
             </View>
             <Text style={s.note}>

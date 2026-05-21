@@ -39,6 +39,27 @@ export function metadataToReportData(
     taxFeePerUnit:  get("taxFeePerUnit"),
     parcelId:       get("parcelId"),
     assessorSource: get("assessorSource"),
+    // TX special-district breakdown (MUD, drainage, WCID, etc.) — list of
+    // { name, type, ratePct } parsed from the compact JSON blob.
+    txDistricts: (() => {
+      const raw = get("txDistricts");
+      if (!raw) return [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((d: { n?: string; t?: string; r?: number | null }) => ({
+          name: String(d.n || ""),
+          type: String(d.t || ""),
+          ratePct: d.r != null ? Number(d.r) : null,
+        }));
+      } catch { return []; }
+    })(),
+    // NV abatement / OH CRA banner trigger + cap percentage (e.g. 0.08).
+    abatementFlag: get("abatementFlag") === "1",
+    capPct:        get("capPct"),
+    // FIPS state — used by frontend to apply class-threshold rate logic
+    // (KS / TN / MO / IN split residential 1-4 vs commercial 5+ ratios).
+    fipsState:     get("fipsState"),
     // Deal inputs
     askingPrice:    get("askingPrice"),
     brokerCapRate:  get("brokerCapRate"),

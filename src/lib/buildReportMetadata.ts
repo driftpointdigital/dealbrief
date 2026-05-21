@@ -51,6 +51,10 @@ export function buildReportMetadata(
   metadata.revAssumptions = `${vac},${bd},${oth}`.slice(0, 50);
   if (body.opexOverrides) metadata.opexOverrides = String(body.opexOverrides).slice(0, 100);
 
+  // Geo — FIPS state for class-threshold rate logic (KS/TN/MO/IN)
+  const geoData = (p.geo ?? {}) as Record<string, unknown>;
+  if (geoData.fipsState) metadata.fipsState = String(geoData.fipsState).slice(0, 4);
+
   // Pipeline — Assessor extras
   if (assessor.parcelId)    metadata.parcelId       = String(assessor.parcelId).slice(0, 100);
   if (assessor.source)      metadata.assessorSource = String(assessor.source).slice(0, 100);
@@ -61,6 +65,26 @@ export function buildReportMetadata(
   const saleP = assessor.salePrice ? String(assessor.salePrice) : "";
   const saleY = assessor.saleYear  ? String(assessor.saleYear)  : "";
   if (saleP || saleY) metadata.saleInfo = `${saleP}|${saleY}`.slice(0, 100);
+  // TX special taxing districts (MUDs, drainage, WCID, etc.) — compact JSON.
+  // Each entry: { n: name, t: type, r: ratePct }. Used by the PDF template
+  // to render a per-district breakdown under the tax row.
+  const txSDs = (assessor.txSpecialDistricts ?? []) as Array<Record<string, unknown>>;
+  if (Array.isArray(txSDs) && txSDs.length > 0) {
+    const compact = txSDs.slice(0, 8).map(d => ({
+      n: String(d.name || "").slice(0, 60),
+      t: String(d.type || "").slice(0, 20),
+      r: d.ratePct != null ? Number(d.ratePct) : null,
+    }));
+    metadata.txDistricts = JSON.stringify(compact).slice(0, 490);
+  }
+  // NV / OH abatement flag — surface so the PDF can render a warning banner
+  // about actual tax potentially differing from the rate × value estimate.
+  if (assessor.abatementFlag) metadata.abatementFlag = "1";
+  // Cap percentage for IN circuit-breaker or NV abatement growth cap (e.g.
+  // 0.03 for NV non-owner-occupied). Surfaced for completeness; the
+  // frontend renders an explanatory note when present.
+  if (assessor.capPct != null)
+    metadata.capPct = String(assessor.capPct).slice(0, 10);
 
   // Pipeline — FEMA
   if (fema.floodZone) metadata.femaZone = String(fema.floodZone).slice(0, 100);
