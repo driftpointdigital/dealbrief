@@ -373,6 +373,14 @@ export default function DealBrief() {
     return total > 0 ? `$${total.toLocaleString()}` : "";
   })();
   const formRef = useRef<HTMLFormElement>(null);
+  // GA funnel: tracks whether `ra_first_edit` has been fired for the
+  // current R&A session, so we only count the "user actually engaged
+  // with the form" event ONCE per session (rather than once per
+  // keystroke). Reset whenever the view leaves R&A (back to landing).
+  const raFirstEditFiredRef = useRef(false);
+  useEffect(() => {
+    if (view !== "confirm") raFirstEditFiredRef.current = false;
+  }, [view]);
 
   const handleGenerate = async () => {
     if (!formRef.current) return;
@@ -460,6 +468,12 @@ export default function DealBrief() {
             throw new Error(freeJson.error || `Server error ${freeRes.status}`);
           }
           if (!freeJson.id) throw new Error("No report id returned");
+          // GA funnel — bottom of the funnel for the free path (visitor
+          // successfully generated a report). `path: "free"` distinguishes
+          // from the paid path so you can compare conversion rates.
+          sendGAEvent("event", "report_run", {
+            path: "free",
+          });
           window.location.href = `/report/${freeJson.id}`;
           return;
         }
@@ -477,6 +491,15 @@ export default function DealBrief() {
       }
       const { url } = json;
       if (!url) throw new Error("No checkout URL returned");
+      // GA funnel — paid-path completion. User is being redirected to
+      // Stripe; we count this as "report_run" with path="paid" so the
+      // overall conversion metric covers both free and paid users. (The
+      // actual report only renders after Stripe payment succeeds; we
+      // could add a separate `report_purchased` event from the Stripe
+      // webhook later if we want to distinguish intent from completion.)
+      sendGAEvent("event", "report_run", {
+        path: "paid",
+      });
       window.location.href = url;
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
@@ -541,6 +564,15 @@ export default function DealBrief() {
     if (!address.trim()) return;
     setPipelineError("");
     setAssessorNote("");
+    // GA funnel — visitor intends to research this address. Fires regardless
+    // of whether the pipeline ultimately succeeds, so the count = "how many
+    // landing visitors submitted an address" (the top of our conversion
+    // funnel). `address_length` is a coarse signal for whether they typed
+    // something realistic vs a single word; never sends the address itself
+    // (PII concerns).
+    sendGAEvent("event", "run_brief_click", {
+      address_length: address.trim().length,
+    });
     setView("loading");
     try {
       const res = await fetch("/api/pipeline", {
@@ -550,6 +582,10 @@ export default function DealBrief() {
       });
       const pipeline = await res.json();
       if (!res.ok || pipeline.error) {
+        sendGAEvent("event", "pipeline_error", {
+          status: res.status,
+          error_kind: "api_error",
+        });
         setPipelineError(pipeline.error || `Server error ${res.status}. Please try again.`);
         setView("landing");
         return;
@@ -619,8 +655,19 @@ export default function DealBrief() {
       const yr = parseInt(yrStr) || 0;
       setMaintenancePerUnit(yr >= 2000 ? "500" : yr >= 1980 ? "750" : yr > 0 ? "1000" : "750");
       setReservesPerUnit(yr >= 2000 ? "250" : yr >= 1980 ? "400" : yr > 0 ? "500" : "400");
+      // GA funnel — user successfully reached the R&A page. `state` is the
+      // 2-letter geo state from the geocoder when known; helps see which
+      // markets convert at the address-submit stage.
+      sendGAEvent("event", "pipeline_success", {
+        has_assessed_value: Boolean(a.assessedValue),
+        state: pipelineData?.geo?.state || "",
+      });
       setView("confirm");
     } catch (err) {
+      sendGAEvent("event", "pipeline_error", {
+        error_kind: "network",
+        error_msg: err instanceof Error ? err.message.slice(0, 60) : "unknown",
+      });
       setPipelineError(err instanceof Error ? err.message : "Unable to reach the server. Please try again.");
       setView("landing");
     }
@@ -676,7 +723,25 @@ export default function DealBrief() {
         </button>
       </div>
 
-      <form key={data.address} ref={formRef} autoComplete="off">
+      <form
+        key={data.address}
+        ref={formRef}
+        autoComplete="off"
+        // GA funnel — fires ONCE per R&A session when the user first
+        // edits any form field. Captures engagement intent (vs just
+        // viewing R&A and bouncing). `field_name` records which field
+        // they touched first so we can see which row is the typical
+        // entry point. Reset by the view-change useEffect when they
+        // leave R&A and come back.
+        onInput={(e) => {
+          if (raFirstEditFiredRef.current) return;
+          raFirstEditFiredRef.current = true;
+          const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+          sendGAEvent("event", "ra_first_edit", {
+            field_name: (target?.name || target?.id || "unknown").slice(0, 40),
+          });
+        }}
+      >
       <div style={{ maxWidth: 660, margin: "0 auto", padding: "36px 24px 64px" }}>
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
