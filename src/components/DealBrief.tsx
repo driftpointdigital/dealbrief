@@ -1245,10 +1245,14 @@ export default function DealBrief() {
               href="/sample-report.pdf"
               target="_blank"
               rel="noopener noreferrer"
+              // Separate GA event from the text-link's `sample_report_download`
+              // so the two click targets show up as distinct rows in GA reports
+              // (no need to slice by an event parameter). `card_name` lets us
+              // also see which of the three previews is doing the most work.
               onClick={() => {
-                sendGAEvent("event", "sample_report_download", {
+                sendGAEvent("event", "sample_preview_click", {
                   file_name: "sample-report.pdf",
-                  location: "landing_preview_card",
+                  card_name: s.src.replace("/sample-", "").replace(".png", ""),
                 });
               }}
               style={{
