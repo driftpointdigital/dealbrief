@@ -862,11 +862,15 @@ export default function DealBrief() {
                 </>
               ) : (
                 <FieldRow label="Annual Taxes" name="annualTaxes" value={data.annualTaxes || ""} placeholder="e.g. $21,000"
-                  tooltip={isAZ ? "Estimated from LPV × assessment ratio × jurisdiction levy rate. Verify against actual tax bill." : ""} />
+                  tooltip={isAZ
+                    ? "Estimated from LPV × assessment ratio × jurisdiction levy rate. Verify against actual tax bill."
+                    : "Current owner's annual property tax bill. Used as Year-1 taxes in the in-place NOI."} />
               )}
               <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%"
                 onChange={(e) => setTaxRateEdit(e.target.value)}
-                tooltip={isAZ ? "Effective rate applied to Adj. LPV (Net Assessed Value), not raw LPV. AZ taxes = LPV × assessment ratio × levy rate." : ""} />
+                tooltip={isAZ
+                  ? "Effective rate applied to Adj. LPV (Net Assessed Value), not raw LPV. AZ taxes = LPV × assessment ratio × levy rate."
+                  : "Tax rate used when calculating reassessed taxes."} />
             </SectionCard>
           );
         })()}
