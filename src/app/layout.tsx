@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import Script from "next/script";
 import "./globals.css";
+
+// Reddit Ads pixel ID. Hardcoded because it's public client-side data
+// (visible in the served HTML anyway) and avoids a stale env-var on
+// Vercel that would silently break conversion tracking. Update here if
+// the Reddit Ads account ever changes.
+const REDDIT_PIXEL_ID = "a2_j5a9d7bhxv19";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -128,6 +135,13 @@ export default function RootLayout({
       {process.env.NEXT_PUBLIC_GA_ID && (
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
       )}
+      {/* Reddit Ads pixel — base PageVisit fires on every page load.
+          Conversion events (SignUp on free-report success, Lead on
+          Stripe redirect) are fired client-side from DealBrief.tsx so
+          they align with the existing GA `report_run` instrumentation. */}
+      <Script id="reddit-pixel" strategy="afterInteractive">
+        {`!function(w,d){if(!w.rdt){var p=w.rdt=function(){p.sendEvent?p.sendEvent.apply(p,arguments):p.callQueue.push(arguments)};p.callQueue=[];var t=d.createElement("script");t.src="https://www.redditstatic.com/ads/pixel.js?pixel_id=${REDDIT_PIXEL_ID}",t.async=!0;var s=d.getElementsByTagName("script")[0];s.parentNode.insertBefore(t,s)}}(window,document);rdt('init','${REDDIT_PIXEL_ID}');rdt('track','PageVisit');`}
+      </Script>
     </html>
   );
 }

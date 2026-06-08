@@ -474,6 +474,16 @@ export default function DealBrief() {
           sendGAEvent("event", "report_run", {
             path: "free",
           });
+          // Reddit Ads pixel — fire SignUp conversion. Reddit's algorithm
+          // uses this to optimize bidding once we have enough conversion
+          // data (typically ~30 events). The base PageVisit fires from
+          // layout.tsx on every page load; this is the value event.
+          if (typeof window !== "undefined") {
+            const w = window as unknown as { rdt?: (...args: unknown[]) => void };
+            if (typeof w.rdt === "function") {
+              w.rdt("track", "SignUp");
+            }
+          }
           window.location.href = `/report/${freeJson.id}`;
           return;
         }
@@ -500,6 +510,18 @@ export default function DealBrief() {
       sendGAEvent("event", "report_run", {
         path: "paid",
       });
+      // Reddit Ads pixel — fire Lead conversion. We use Lead (not
+      // Purchase) because at this point the user is being redirected to
+      // Stripe but hasn't completed payment yet. If we later add a
+      // Stripe-webhook-triggered confirmation event, that would be the
+      // place to fire Reddit's Purchase event with the actual order
+      // value for ROAS optimization.
+      if (typeof window !== "undefined") {
+        const w = window as unknown as { rdt?: (...args: unknown[]) => void };
+        if (typeof w.rdt === "function") {
+          w.rdt("track", "Lead");
+        }
+      }
       window.location.href = url;
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
