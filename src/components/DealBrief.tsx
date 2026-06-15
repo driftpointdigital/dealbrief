@@ -1,7 +1,16 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import Script from "next/script";
 import { sendGAEvent } from "@next/third-parties/google";
+
+// Google Maps Places API key — exposed client-side because the API
+// requires it for browser-side autocomplete. SHOULD be HTTP-referrer
+// restricted in Google Cloud Console to getdealbrief.com (+ Vercel
+// preview URLs + localhost) — otherwise anyone can scrape it from
+// our JS bundle and run autocomplete calls on our bill. Different
+// key from the server-side pipeline GOOGLE_MAPS_API_KEY.
+const GOOGLE_MAPS_PUBLIC_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
 const MOCK_RETURN_DATA = {
   address: "2718 Cleveland St, Dallas, TX 75215",
@@ -267,6 +276,22 @@ export default function DealBrief() {
   const [pipelineError, setPipelineError] = useState("");
   const [assessorNote, setAssessorNote]   = useState("");
 
+  // Mobile-detect for conditionally rendering a compact preview strip
+  // above the address input on phone-sized screens. `mounted` guards
+  // against SSR hydration mismatch — the mobile-only UI only paints
+  // after first client render, so server-rendered HTML always matches
+  // the initial client paint (desktop layout).
+  const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Google Places autocomplete on the address input. Loaded lazily via
+  // a <Script> tag below — when the API is ready, `placesReady` flips
+  // to true and the useEffect below attaches the autocomplete widget
+  // to the input ref. If the API key is missing or the script fails,
+  // the input still works as a plain text field (graceful degradation).
+  const addressInputRef = useRef<HTMLInputElement>(null);
+  const [placesReady, setPlacesReady] = useState(false);
+
   useEffect(() => {
     setTimeout(() => setHeroVisible(true), 50);
     // Read ?dev=KEY from URL — enables the dev bypass button
@@ -274,7 +299,78 @@ export default function DealBrief() {
       const k = new URLSearchParams(window.location.search).get("dev") || "";
       setDevKey(k);
     }
+    // Mobile detection — 640px breakpoint matches typical "phone" cutoff
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    setMounted(true);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  // Attach Google Places Autocomplete to the address input once both
+  // (a) the Maps JS API has loaded AND (b) the input element exists.
+  // The widget mutates the input value as the user picks suggestions —
+  // we listen for the `place_changed` event and sync that value back
+  // into React's `address` state so the rest of the flow stays in sync.
+  useEffect(() => {
+    if (!placesReady) return;
+    if (!addressInputRef.current) return;
+    if (typeof window === "undefined") return;
+    // Cast through unknown so we don't have to vendor @types/google.maps
+    // for this single integration point. The shape we use is stable
+    // across legacy Autocomplete and the current Places library.
+    const g = (window as unknown as {
+      google?: {
+        maps?: {
+          LatLng: new (lat: number, lng: number) => unknown;
+          LatLngBounds: new (sw: unknown, ne: unknown) => unknown;
+          places?: {
+            Autocomplete: new (
+              input: HTMLInputElement,
+              opts: Record<string, unknown>,
+            ) => {
+              addListener: (event: string, callback: () => void) => void;
+              getPlace: () => { formatted_address?: string };
+            };
+          };
+        };
+      };
+    }).google;
+    if (!g?.maps?.places?.Autocomplete) return;
+    // Bias suggestions toward the continental US. Without this, Google
+    // defaults to the user's geo-detected location — so a New York
+    // visitor typing "2718" gets 5 Brooklyn suggestions, which is bad UX
+    // for a tool whose audience is multi-market multifamily buyers. The
+    // bounds cover ~all of continental US (Pacific NW to Florida); we
+    // still keep `componentRestrictions: us` as a hard country filter.
+    const usBounds = new g.maps.LatLngBounds(
+      new g.maps.LatLng(24.5, -125.0),  // SW corner — southern Texas / Pacific
+      new g.maps.LatLng(49.5, -66.5),   // NE corner — northern Maine
+    );
+    const autocomplete = new g.maps.places.Autocomplete(addressInputRef.current, {
+      types: ["address"],
+      componentRestrictions: { country: "us" },
+      fields: ["formatted_address"],
+      bounds: usBounds,
+      // strictBounds: false (default) — bias toward inside the box but
+      // still allow results outside if the user's typed query points
+      // unambiguously elsewhere.
+    });
+    const listener = autocomplete.addListener("place_changed", () => {
+      const place = autocomplete.getPlace();
+      if (place.formatted_address) {
+        setAddress(place.formatted_address);
+      }
+    });
+    // No standard cleanup on the listener handle from the legacy
+    // Autocomplete API — letting it sit is harmless since the input
+    // unmounts when the user leaves the landing view.
+    return () => {
+      // Suppress unused-listener warning while still satisfying React's
+      // expectation that effects return a cleanup function.
+      void listener;
+    };
+  }, [placesReady]);
 
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState("");
@@ -723,14 +819,14 @@ export default function DealBrief() {
   ];
 
   if (view === "loading") return (
-    <div style={{ minHeight: "100vh", background: "#FAFAFA", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <LoadingSequence />
     </div>
   );
 
   if (view === "confirm" && data) return (
-    <div style={{ minHeight: "100vh", background: "#FAFAFA", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
       
       {/* Top bar */}
@@ -1193,8 +1289,28 @@ export default function DealBrief() {
 
   // LANDING
   return (
-    <div style={{ minHeight: "100vh", background: "#FAFAFA", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+      {/* Google Maps JS API — loaded lazily for the address autocomplete
+          widget. afterInteractive strategy means it doesn't block first
+          paint. If NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is missing the script
+          tag is omitted entirely and the input falls back to plain text
+          behavior — the rest of the form still works fine. */}
+      {GOOGLE_MAPS_PUBLIC_KEY && (
+        <Script
+          // NOTE: do NOT add `&loading=async` here. With async loading
+          // enabled, Google's API expects callers to use
+          // `await google.maps.importLibrary("places")` to load libraries
+          // dynamically — the synchronous `new google.maps.places.Autocomplete()`
+          // pattern below would never see places populated as a global.
+          // The non-async query loads the places library directly via
+          // `&libraries=places` and exposes Autocomplete on the global.
+          src={`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_PUBLIC_KEY}&libraries=places`}
+          strategy="afterInteractive"
+          onLoad={() => setPlacesReady(true)}
+        />
+      )}
 
       {/* HEADER */}
       <div style={{
@@ -1210,37 +1326,105 @@ export default function DealBrief() {
       </div>
 
       <div style={{ maxWidth: 540, margin: "0 auto", padding: "32px 24px 16px" }}>
-        {/* HERO */}
-        <div style={{
-          marginBottom: 20,
-          // Was previously gated behind a fade-in animation
-          // (opacity 0 → 1 + translateY) driven by a useState +
-          // setTimeout. That occasionally stayed at opacity 0 across
-          // refreshes (cause unclear — likely HMR / state-init race),
-          // hiding the hero text. Render immediately for reliability;
-          // we can reintroduce the animation later if it matters.
-        }}>
+        {/* HERO — calm/professional positioning. H1 leads with a concrete
+            tax-reassessment number (defensible at 30%+ across most US
+            multifamily markets; FL non-homestead resets and TX CAD spikes
+            run much higher). Sub-head follows Pipedrive's "category +
+            audience + scope" formula so a 5-second scroller knows what
+            DealBrief is and who it's for. The "first report free" hook
+            has been moved into the stat strip below + a friction-killer
+            line under the input, where it's more decision-relevant. */}
+        <div style={{ marginBottom: 18 }}>
           <h1 style={{
-            fontSize: 32, fontWeight: 600, color: "#111827", lineHeight: 1.25,
+            fontSize: 32, fontWeight: 600, color: "#1F2937", lineHeight: 1.25,
             margin: "0 0 14px", letterSpacing: "-0.5px",
           }}>
-            The research brief you'd build yourself — if you had 3 hours.
+            Catch the 30%+ post-sale tax hike before you submit an LOI.
           </h1>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6, margin: 0, fontWeight: 300 }}>
-            Enter a multifamily or single-family address. Get tax assessment, permit records, flood zone, crime, demographics, cap rates, debt service analysis, and more in one report.
-          </p>
-          <p style={{
-            fontSize: 15, color: "#1D3557", lineHeight: 1.5,
-            margin: "14px 0 0", fontWeight: 600, letterSpacing: "-0.1px",
-          }}>
-            Your first report is free. No credit card required.
+            Pre-offer property research for multifamily buyers. Tax, permits, FEMA flood, crime, demographics, and debt service scenarios — one 60-second PDF.
           </p>
         </div>
+
+        {/* STAT STRIP — deliverable-led, with "First report free" as
+            the bolded credibility/friction-reducer at the end. Pattern
+            borrowed from Shovels / PropertyRadar landing pages. Centered
+            so it visually sits with the input box below rather than
+            with the left-aligned hero text above. */}
+        <p style={{
+          fontSize: 12,
+          color: "#6B7280",
+          letterSpacing: "0.2px",
+          margin: "0 0 18px",
+          lineHeight: 1.6,
+          textAlign: "center",
+        }}>
+          Tax{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Permits{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Flood{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Crime{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Demographics{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Debt service{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          <strong style={{ color: "#1D3557", fontWeight: 600 }}>First report free</strong>
+        </p>
+
+        {/* MOBILE-ONLY preview strip — small horizontal row of 3
+            thumbnails above the input so phone visitors see "what
+            you actually get" before they're asked to engage. Hidden
+            on desktop (where the full 1100px preview band below the
+            input still renders). Gated behind `mounted` to avoid SSR
+            hydration mismatch — server renders the desktop layout,
+            client adds this on first mount if viewport is < 640px. */}
+        {mounted && isMobile && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 6,
+            marginBottom: 16,
+          }}>
+            {[
+              { src: "/sample-debt-service.png",  alt: "Sample debt service scenarios page" },
+              { src: "/sample-demographics.png",  alt: "Sample crime and demographics page" },
+              { src: "/sample-key-flags.png",     alt: "Sample deal context and key flags page" },
+            ].map((s) => (
+              <a
+                key={s.src}
+                href="/sample-report.pdf"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  sendGAEvent("event", "sample_preview_click", {
+                    file_name: "sample-report.pdf",
+                    card_name: s.src.replace("/sample-", "").replace(".png", ""),
+                    location: "mobile_above_fold",
+                  });
+                }}
+                style={{
+                  display: "block",
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  boxShadow: "0 2px 6px rgba(29, 53, 87, 0.08), 0 1px 2px rgba(0,0,0,0.04)",
+                  border: "1px solid #E5E7EB",
+                  background: "white",
+                }}
+              >
+                <img
+                  src={s.src}
+                  alt={s.alt}
+                  style={{ width: "100%", height: "auto", display: "block" }}
+                />
+              </a>
+            ))}
+          </div>
+        )}
 
         {/* INPUT */}
         <div style={{
           background: "white", borderRadius: 8, padding: "24px",
-          border: "1.5px solid #1D3557",
+          // Softened from 1.5px solid navy to 1px solid light gray —
+          // less corporate-form, more modern. Inner input still has
+          // navy focus state for action feedback.
+          border: "1px solid #E5E7EB",
           marginBottom: 12,
         }}>
           <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 8, letterSpacing: "0.5px", textTransform: "uppercase" }}>
@@ -1248,11 +1432,15 @@ export default function DealBrief() {
           </label>
           <div style={{ display: "flex", gap: 8 }}>
             <input
+              ref={addressInputRef}
               type="text"
               placeholder="2718 Cleveland St, Dallas, TX 75215"
               value={address}
               onChange={e => setAddress(e.target.value)}
               onKeyDown={e => e.key === "Enter" && go()}
+              // Disable browser autofill — Google Places suggestions are
+              // the only autocomplete experience we want on this input.
+              autoComplete="off"
               style={{
                 flex: 1, padding: "12px 14px", fontSize: 15, border: "1.5px solid #D1D5DB",
                 borderRadius: 6, outline: "none", color: "#111827", background: "white",
@@ -1263,16 +1451,49 @@ export default function DealBrief() {
             />
             <button onClick={go} style={{
               padding: "12px 24px", fontSize: 14, fontWeight: 500,
-              background: "#1D3557", color: "white", border: "none", borderRadius: 6,
+              background: "#0F1F38", color: "white", border: "none", borderRadius: 6,
               cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
               transition: "background 0.12s", letterSpacing: "-0.1px",
             }}
-              onMouseEnter={e => e.currentTarget.style.background = "#152A47"}
-              onMouseLeave={e => e.currentTarget.style.background = "#1D3557"}>
+              onMouseEnter={e => e.currentTarget.style.background = "#0A1426"}
+              onMouseLeave={e => e.currentTarget.style.background = "#0F1F38"}>
               Run Brief
             </button>
           </div>
+          {/* Friction-killer microcopy directly under the input row —
+              the highest-friction decision point in the funnel. Pattern
+              borrowed from Pipedrive's "14-day free trial, no credit
+              card required" placement. */}
+          <p style={{
+            fontSize: 12,
+            color: "#6B7280",
+            margin: "10px 0 0",
+            lineHeight: 1.5,
+          }}>
+            First report free. No credit card. No subscription.
+          </p>
         </div>
+
+        {/* CREDIBILITY STACK — signals legitimacy via association with
+            authoritative public-sector data sources. Sits below the
+            input box where a skeptical visitor would think "is this
+            real data or made-up scores?" The answer is: public records. */}
+        <p style={{
+          fontSize: 11,
+          color: "#9CA3AF",
+          letterSpacing: "0.2px",
+          margin: "0 0 28px",
+          lineHeight: 1.6,
+          textAlign: "center",
+        }}>
+          Data from FEMA{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Regrid{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          U.S. Census{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          BLS{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          Shovels{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          GreatSchools{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
+          county tax assessors
+        </p>
 
         {/* PIPELINE ERROR */}
         {pipelineError && (
@@ -1392,7 +1613,7 @@ export default function DealBrief() {
           }}>
             Multifamily Markets We Cover
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 32px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 24px" }}>
             {[
               "Dallas-Ft. Worth, TX",
               "Houston, TX",

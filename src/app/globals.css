@@ -5,3 +5,55 @@
   margin: 0;
   padding: 0;
 }
+
+/* Google Places Autocomplete dropdown styling — overrides Google's
+   default look so the suggestions feel native to DealBrief's design.
+   Targets the .pac-container div Google injects into <body>. Use !important
+   throughout because Google's default styles use the same selectors and
+   we need to win the specificity battle without nesting selectors. */
+.pac-container {
+  border: 1px solid #E5E7EB !important;
+  border-radius: 8px !important;
+  box-shadow: 0 6px 18px rgba(15, 31, 56, 0.10), 0 1px 3px rgba(0,0,0,0.05) !important;
+  margin-top: 6px !important;
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif !important;
+  font-size: 14px !important;
+  padding: 6px 0 !important;
+  background: white !important;
+  overflow: hidden !important;
+}
+.pac-item {
+  padding: 10px 16px !important;
+  border-top: none !important;
+  cursor: pointer !important;
+  color: #6B7280 !important;          /* secondary text (city, state) */
+  line-height: 1.4 !important;
+  font-size: 13px !important;
+}
+.pac-item:hover,
+.pac-item-selected {
+  background: #F1F5F9 !important;     /* subtle slate hover, matches site palette */
+}
+.pac-item-query {
+  color: #111827 !important;          /* primary address line, near-black */
+  font-size: 14px !important;
+  font-weight: 400 !important;        /* normal weight; emphasis comes from .pac-matched */
+  padding-right: 8px !important;      /* breathing room before the city suffix */
+}
+.pac-matched {
+  font-weight: 600 !important;        /* bold the typed portion for clarity */
+  color: #111827 !important;          /* same color as rest — emphasis via weight, not hue */
+}
+.pac-icon,
+.pac-icon-marker {
+  display: none !important;           /* hide Google's default pin icon */
+}
+/* Leave the "powered by Google" attribution visible — required by the
+   Maps Platform Terms of Service when Places API results are shown
+   outside of a Google Map. Style it subtly so it doesn't compete with
+   the address suggestions. */
+.pac-logo:after {
+  margin: 6px 14px 4px !important;
+  opacity: 0.55 !important;
+  background-position-x: right !important;
+}
