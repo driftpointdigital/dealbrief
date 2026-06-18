@@ -1222,7 +1222,7 @@ export default function DealBrief() {
             display: "block", fontSize: 13, fontWeight: 500,
             color: "#374151", marginBottom: 6, letterSpacing: "-0.1px",
           }}>
-            Email address <span style={{ color: "#9CA3AF", fontWeight: 400 }}>(optional)</span>
+            Email address <span style={{ color: "#1D3557", fontWeight: 500 }}>(for free first report)</span>
           </label>
           <input
             type="email"
@@ -1238,9 +1238,16 @@ export default function DealBrief() {
             onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
             onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
           />
+          {/* Decision-led microcopy — previous copy ("Your first report is
+              free. Use your email to check eligibility...") was ambiguous
+              and visitors interpreted email as report delivery rather than
+              free-report claim. New copy makes the two paths (with email
+              vs without) explicit and names the paid price up front so
+              there's no Stripe-page sticker shock. */}
           <p style={{ fontSize: 12, color: "#6B7280", marginTop: 8, marginBottom: 0, lineHeight: 1.5, maxWidth: 480 }}>
-            Your first report is free. Use your email to check eligibility.
-            We will never sell, share, or rent it.
+            Enter your email to claim your free first report.
+            Leave blank to skip straight to paid checkout ($29 per report).
+            We don't send marketing emails or share your address.
           </p>
         </div>
 
@@ -1281,6 +1288,18 @@ export default function DealBrief() {
             {generating ? "Redirecting to checkout…" : "Generate DealBrief →"}
           </button>
           </div>
+          {/* Price callout right under the Generate button — pre-empts
+              the Stripe-page sticker shock that was likely a factor in
+              the one paid-path drop we saw this week. Right-aligned to
+              hug the Generate button. */}
+          <p style={{
+            fontSize: 11, color: "#6B7280", margin: 0,
+            textAlign: "right", letterSpacing: "0.2px", lineHeight: 1.5,
+          }}>
+            <span style={{ color: "#1D3557", fontWeight: 600 }}>First report free</span>
+            {" "}with email above. Additional reports{" "}
+            <span style={{ color: "#1F2937", fontWeight: 600 }}>$29 each</span>.
+          </p>
         </div>
       </div>
       </form>
