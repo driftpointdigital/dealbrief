@@ -39,6 +39,7 @@ export function metadataToReportData(
     taxFeePerUnit:  get("taxFeePerUnit"),
     parcelId:       get("parcelId"),
     assessorSource: get("assessorSource"),
+    owner:          get("owner"),
     // TX special-district breakdown (MUD, drainage, WCID, etc.) — list of
     // { name, type, ratePct } parsed from the compact JSON blob.
     txDistricts: (() => {

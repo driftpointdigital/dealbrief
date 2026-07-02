@@ -58,6 +58,9 @@ export function buildReportMetadata(
   // Pipeline — Assessor extras
   if (assessor.parcelId)    metadata.parcelId       = String(assessor.parcelId).slice(0, 100);
   if (assessor.source)      metadata.assessorSource = String(assessor.source).slice(0, 100);
+  // Deeded owner name — feeds the condo / master-file / HOA detection in the
+  // PDF template. Truncated to fit Stripe's 500-char metadata value limit.
+  if (assessor.owner)       metadata.owner          = String(assessor.owner).slice(0, 200);
   if (assessor.taxRate != null)
     metadata.taxRate = String(assessor.taxRate).slice(0, 20);
   if (assessor.taxFeePerUnit)

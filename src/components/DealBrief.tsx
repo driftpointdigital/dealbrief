@@ -231,7 +231,7 @@ function FieldRow({ label, name, value, placeholder, editable = true, tooltip, o
   );
 }
 
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+function SectionCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div style={{
       background: "white", borderRadius: 8, border: "1px solid #E5E7EB",
@@ -241,6 +241,11 @@ function SectionCard({ title, children }: { title: string; children: React.React
         <span style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", letterSpacing: "0.8px", textTransform: "uppercase" }}>
           {title}
         </span>
+        {subtitle && (
+          <span style={{ marginLeft: 10, fontSize: 11, fontStyle: "italic", color: "#9CA3AF", letterSpacing: "0" }}>
+            {subtitle}
+          </span>
+        )}
       </div>
       {children}
     </div>
@@ -272,6 +277,12 @@ export default function DealBrief() {
   const [reservesPerUnit, setReservesPerUnit] = useState("400");
   const [propertyType, setPropertyType] = useState("Multifamily");
   const [unitsKey, setUnitsKey] = useState(0);
+  // Same remount trick as unitsKey — Tax Rate FieldRow uses `defaultValue`
+  // (uncontrolled input), so programmatic changes to `taxRateEdit` from the
+  // TN/KS/MO/IN class-scale useEffect below don't reach the DOM. Bump this
+  // key whenever the class-scale flips the rate, forcing a remount so the
+  // input re-reads its `value` prop.
+  const [rateKey, setRateKey] = useState(0);
   const [devKey, setDevKey] = useState("");
   const [pipelineError, setPipelineError] = useState("");
   const [assessorNote, setAssessorNote]   = useState("");
@@ -359,6 +370,10 @@ export default function DealBrief() {
     const listener = autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace();
       if (place.formatted_address) {
+        // Keep React's controlled-input state in sync with the DOM value
+        // that Places just mutated. go() reads input.value directly so it
+        // doesn't depend on this state update, but the controlled <input>
+        // would snap back to typed text on next render without this.
         setAddress(place.formatted_address);
       }
     });
@@ -430,6 +445,11 @@ export default function DealBrief() {
     const targetStr = `${(targetRate * 100).toFixed(2)}%`;
     if (taxRateEdit !== targetStr) {
       setTaxRateEdit(targetStr);
+      // Force the Tax Rate input to remount so its defaultValue reads the
+      // new class-scaled rate. Without this the DOM value stays stuck on
+      // the initial commercial-MF rate and downstream reassessed-tax calc
+      // uses the wrong rate on submit.
+      setRateKey(k => k + 1);
     }
     // Intentionally NOT depending on taxRateEdit — we want one-way
     // sync from units → rate, not the inverse.
@@ -460,12 +480,18 @@ export default function DealBrief() {
   //   assessed × rate + units × feePerUnit
   const taxFeePerUnit = parseFloat(data?.taxFeePerUnit || "") || 0;
   const hasPerUnitFee = taxFeePerUnit > 0;
+  // Annual Taxes: computed live from Appraised × Rate (+ per-unit fee where
+  // applicable). Keeps the trio consistent when the user changes units on a
+  // TN parcel (rate scales down 40% → 25% class, so taxes should scale too),
+  // when Land / Improvements are edited, or when Tax Rate is edited directly.
   const computedAnnualTaxes = (() => {
-    if (!hasPerUnitFee) return "";
     const assessed = _parseDol(summedAssessed);
-    const rate = _parsePct(taxRateEdit);
+    const rateStr = taxRateEdit || data?.taxRate || "";
+    const rate = _parsePct(rateStr);
+    if (!assessed || !rate) return "";
     const units = _parseInt(unitsEdit);
-    const total = Math.round(assessed * rate + units * taxFeePerUnit);
+    const perUnit = hasPerUnitFee ? units * taxFeePerUnit : 0;
+    const total = Math.round(assessed * rate + perUnit);
     return total > 0 ? `$${total.toLocaleString()}` : "";
   })();
   const formRef = useRef<HTMLFormElement>(null);
@@ -678,8 +704,23 @@ export default function DealBrief() {
     }
   };
 
-  const go = async () => {
-    if (!address.trim()) return;
+  const go = async (overrideAddress?: string) => {
+    // Source-of-truth precedence for the address we submit:
+    //   1. Explicit override (rarely used; place_changed listener path).
+    //   2. Input element's current DOM value. Google Places mutates the
+    //      input value SYNCHRONOUSLY in its own keydown handler when the
+    //      user picks a suggestion via arrow+Enter or click. That handler
+    //      runs before React's onKeyDown, so by the time we get here the
+    //      DOM already reflects the resolved formatted_address. React's
+    //      `address` state lags by one tick because setAddress hasn't
+    //      flushed yet.
+    //   3. React state, as a final fallback (e.g. SSR or programmatic).
+    const addr = (
+      overrideAddress
+      ?? addressInputRef.current?.value
+      ?? address
+    ).trim();
+    if (!addr) return;
     setPipelineError("");
     setAssessorNote("");
     // GA funnel — visitor intends to research this address. Fires regardless
@@ -689,14 +730,14 @@ export default function DealBrief() {
     // something realistic vs a single word; never sends the address itself
     // (PII concerns).
     sendGAEvent("event", "run_brief_click", {
-      address_length: address.trim().length,
+      address_length: addr.length,
     });
     setView("loading");
     try {
       const res = await fetch("/api/pipeline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify({ address: addr }),
       });
       const pipeline = await res.json();
       if (!res.ok || pipeline.error) {
@@ -715,7 +756,25 @@ export default function DealBrief() {
       // the user understands why the fields are blank and knows to enter values
       // manually. Only show when the lookup actually failed (no assessed value).
       const aErrs: string[] = Array.isArray(a.errors) ? a.errors : [];
-      if (!a.assessedValue && aErrs.length > 0) {
+      // Show the yellow banner for either (a) a failed lookup with no values,
+      // or (b) an informational advisory that fires even when values populate
+      // — e.g. Jackson MO's "values reflect the 2024 tax roll" stale-data
+      // note, TIF/abatement warnings, etc. Prefer the advisory over the raw
+      // first error when values populated, so the user sees the "here's
+      // what to double-check" message rather than a generic status line.
+      const ADVISORY_PATTERNS = [
+        /reflect the .* tax roll/i,
+        /tyler iasworld/i,
+        /may be outdated/i,
+        /publicaccess\./i,
+        /active exemption|abatement/i,
+        /full ad-valorem/i,
+        /TIF/i,
+      ];
+      const advisory = aErrs.find(e => ADVISORY_PATTERNS.some(p => p.test(String(e))));
+      if (advisory) {
+        setAssessorNote(String(advisory).replace(/^[A-Za-z]+:\s*/, ""));
+      } else if (!a.assessedValue && aErrs.length > 0) {
         const msg = String(aErrs[0]).replace(/^[A-Za-z]+:\s*/, "");
         setAssessorNote(msg);
       } else {
@@ -723,8 +782,8 @@ export default function DealBrief() {
       }
       // Prefer the geocoded formatted address for proper commas/casing, but restore
       // hyphenated range prefixes (e.g. "2429-2431") that the geocoder drops.
-      const geoAddr = pipeline?.geo?.formattedAddress || address;
-      const userRangeMatch = address.trim().match(/^(\d+-\d+)\b/);
+      const geoAddr = pipeline?.geo?.formattedAddress || addr;
+      const userRangeMatch = addr.match(/^(\d+-\d+)\b/);
       const geoNumMatch    = geoAddr.match(/^(\d+)\b/);
       const displayAddr = userRangeMatch && geoNumMatch
         ? geoAddr.replace(geoNumMatch[1], userRangeMatch[1])
@@ -918,8 +977,62 @@ export default function DealBrief() {
           // for cross-state underwriting. Show the market value as a read-only
           // row so users see both numbers.
           const isPA = /(?:,\s*|\s+)PA(?:\s|,|$|\s*\d{5})/.test(data.address || "");
+          // Split-assessment-ratio states: assessedValue here is the 100%
+          // appraised (true) value, but brokers / tax bills quote the taxable
+          // value at the state's statutory ratio. Show both so the terminology
+          // matches whichever number the broker screenshot cited.
+          //
+          // Ratios reflect the DealBrief investor-MF (5+ unit) audience:
+          //   OH: 35% (single statutory ratio, all classes)
+          //   TN: 40% (Class C commercial + MF 5+ per T.C.A. §67-5-801)
+          //   MS: 15% (Class II other real property incl. apartments)
+          //   MO: 19% (Class 1 residential — 5+ unit MF per RSMo §137.115)
+          //   KS: 11.5% (Class 1 residential — 5+ unit MF per §79-1439)
+          //
+          // Prefer the pipeline's `assessmentRatio` if the collector populated
+          // it (Jackson MO does), otherwise fall back to the state default.
+          const stateForRatio = (() => {
+            const m = /(?:,\s*|\s+)(OH|TN|MS|MO|KS)(?:\s|,|$|\s*\d{5})/.exec(data.address || "");
+            return m ? m[1] : "";
+          })();
+          // TN is the only split-ratio state that flips MF ratio based on
+          // unit count: Class R (25%) for 1-4 unit, Class C (40%) for 5+.
+          // MO/KS statutes treat residential rental as Class 1 residential
+          // regardless of unit count; MS Class I is owner-occupied SFR only
+          // (investor rentals are always Class II 15%); OH is a single flat
+          // 35% across all classes. So we only vary TN.
+          const unitCountForRatio = (() => {
+            const raw = (unitsEdit || data.units || "").toString().trim();
+            const n = parseInt(raw, 10);
+            return isFinite(n) && n > 0 ? n : 5;  // default to 5+ (MF) if unset
+          })();
+          const stateDefaultRatio: Record<string, number> = {
+            OH: 0.35,
+            TN: unitCountForRatio <= 4 ? 0.25 : 0.40,
+            MS: 0.15, MO: 0.19, KS: 0.115,
+          };
+          const splitRatio = (() => {
+            const raw = (data.assessmentRatio || "").toString().replace(/%/g, "").trim();
+            const parsed = parseFloat(raw);
+            if (isFinite(parsed) && parsed > 0 && parsed < 1) return parsed;
+            if (isFinite(parsed) && parsed >= 1 && parsed <= 100) return parsed / 100;
+            return stateForRatio ? stateDefaultRatio[stateForRatio] : 0;
+          })();
+          const isSplitRatioState = Boolean(stateForRatio) && splitRatio > 0;
+          const ratioTaxable = (() => {
+            if (!isSplitRatioState) return "";
+            // Use `summedAssessed` (reactive to Land / Improvement edits) not
+            // `data.assessedValue` (initial pipeline value). Keeps the trio
+            // consistent: Appraised = user-edited sum; Taxable = that sum ×
+            // ratio; Annual Taxes = that sum × rate.
+            const raw = ((summedAssessed || data.assessedValue) || "").toString().replace(/[$,]/g, "");
+            const n = parseFloat(raw);
+            if (!isFinite(n) || n <= 0) return "";
+            return "$" + Math.round(n * splitRatio).toLocaleString();
+          })();
+          const ratioPctLabel = `${(splitRatio * 100).toFixed(splitRatio * 100 < 20 ? 1 : 0)}%`;
           return (
-            <SectionCard title="Tax Assessment">
+            <SectionCard title="Tax Assessment" subtitle="(based on available data, please confirm and adjust if necessary)">
               {assessorNote && (
                 <div style={{
                   margin: "12px 24px 4px",
@@ -957,11 +1070,25 @@ export default function DealBrief() {
                       tooltip="Outbuildings, paving, and other yard items the assessor records in the parcel total but tracks separately from the main improvement value. Common in NC. Sums into Assessed Value." />
                   )}
                   <FieldRow
-                    label={isPA ? "Assessed Value (Base Year)" : "Assessed Value"}
+                    label={isPA ? "Assessed Value (Base Year)" : isSplitRatioState ? "Appraised Value" : "Assessed Value"}
                     value={summedAssessed || "—"}
                     editable={false}
-                    tooltip={isPA ? "Pennsylvania assessments are anchored to the county's last reassessment year (e.g. 1972 in Bucks, 2013 in Lehigh). This raw base-year value is what brokers, tax bills, and public records cite — and what your annual tax bill is computed against." : undefined}
+                    tooltip={
+                      isPA
+                        ? "Pennsylvania assessments are anchored to the county's last reassessment year (e.g. 1972 in Bucks, 2013 in Lehigh). This raw base-year value is what brokers, tax bills, and public records cite — and what your annual tax bill is computed against."
+                        : isSplitRatioState
+                          ? `County Assessor's true (100%) fair-market value — sum of land + improvements. ${stateForRatio} taxes ${ratioPctLabel} of this figure as the taxable (assessed) value; the tax rate below is calibrated to apply directly to appraised value. Brokers and tax bills quote the ${ratioPctLabel} number as 'Assessed Value.'`
+                          : undefined
+                    }
                   />
+                  {isSplitRatioState && ratioTaxable && (
+                    <FieldRow
+                      label={`Taxable Value (${ratioPctLabel})`}
+                      value={ratioTaxable}
+                      editable={false}
+                      tooltip={`${stateForRatio}'s statutory ${ratioPctLabel} assessment ratio applied to the appraised value above. This is the number the county Assessor and most brokers refer to as 'Assessed Value.' The tax rate below is expressed as an effective rate on APPRAISED value, so it's applied to the row above — not this row.`}
+                    />
+                  )}
                   {isPA && data.marketValue && (
                     <FieldRow
                       label="Est. Market Value (STEB CLR)"
@@ -972,10 +1099,14 @@ export default function DealBrief() {
                   )}
                 </>
               )}
-              {hasPerUnitFee ? (
+              {(computedAnnualTaxes || hasPerUnitFee) ? (
                 <>
                   <FieldRow label="Annual Taxes" value={computedAnnualTaxes || "—"} editable={false}
-                    tooltip={`Computed live as Assessed × Tax Rate + Units × $${taxFeePerUnit.toFixed(0)} per-unit fee. The per-unit fee is the Charlotte multifamily solid waste charge, billed on top of ad-valorem taxes. Edit Units, Land/Improvements, or Tax Rate to see this update.`} />
+                    tooltip={
+                      hasPerUnitFee
+                        ? `Computed live as Appraised × Tax Rate + Units × $${taxFeePerUnit.toFixed(0)} per-unit fee. The per-unit fee is the Charlotte multifamily solid waste charge, billed on top of ad-valorem taxes. Edit Units, Land/Improvements, or Tax Rate to see this update.`
+                        : "Computed live as Appraised × Tax Rate. Edit Units (rescales the rate in TN 5+/1-4 class), Land/Improvements, or Tax Rate directly to see this update."
+                    } />
                   <input type="hidden" name="annualTaxes" value={computedAnnualTaxes} />
                 </>
               ) : (
@@ -984,7 +1115,7 @@ export default function DealBrief() {
                     ? "Estimated from LPV × assessment ratio × jurisdiction levy rate. Verify against actual tax bill."
                     : "Current owner's annual property tax bill. Used as Year-1 taxes in the in-place NOI."} />
               )}
-              <FieldRow label="Tax Rate" name="taxRate" value={data.taxRate || ""} placeholder="e.g. 2.20%"
+              <FieldRow key={rateKey} label="Tax Rate" name="taxRate" value={taxRateEdit || data.taxRate || ""} placeholder="e.g. 2.20%"
                 onChange={(e) => setTaxRateEdit(e.target.value)}
                 tooltip={isAZ
                   ? "Effective rate applied to Adj. LPV (Net Assessed Value), not raw LPV. AZ taxes = LPV × assessment ratio × levy rate."
@@ -1456,7 +1587,13 @@ export default function DealBrief() {
               placeholder="2718 Cleveland St, Dallas, TX 75215"
               value={address}
               onChange={e => setAddress(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && go()}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                // Always call go() — it reads addressInputRef.current.value,
+                // which Places has already updated to the resolved
+                // formatted_address if the user selected a suggestion.
+                go();
+              }}
               // Disable browser autofill — Google Places suggestions are
               // the only autocomplete experience we want on this input.
               autoComplete="off"
@@ -1468,7 +1605,7 @@ export default function DealBrief() {
               onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
               onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
             />
-            <button onClick={go} style={{
+            <button onClick={() => go()} style={{
               padding: "12px 24px", fontSize: 14, fontWeight: 500,
               background: "#0F1F38", color: "white", border: "none", borderRadius: 6,
               cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
@@ -1632,24 +1769,62 @@ export default function DealBrief() {
           }}>
             Multifamily Markets We Cover
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 24px", alignItems: "start" }}>
             {[
-              "Dallas-Ft. Worth, TX",
-              "Houston, TX",
-              "Phoenix, AZ",
-              "Charlotte, NC",
-              "Atlanta, GA",
-              "Louisville / Lexington, KY",
-              "Tampa, FL",
-              "Orlando, FL",
-              "Jacksonville, FL",
-              "Miami – Fort Lauderdale – West Palm, FL",
-              "Raleigh-Durham, NC",
-              "Philadelphia, PA",
-            ].map((label) => (
-              <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
-                <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
-                <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
+              {
+                heading: "Texas / Southwest",
+                markets: [
+                  "Dallas-Ft. Worth, TX",
+                  "Houston, TX",
+                  "San Antonio, TX",
+                  "Austin, TX",
+                  "El Paso, TX",
+                  "Phoenix, AZ",
+                  "Las Vegas, NV",
+                ],
+              },
+              {
+                heading: "Southeast",
+                markets: [
+                  "Charlotte, NC",
+                  "Raleigh-Durham, NC",
+                  "Atlanta, GA",
+                  "Louisville / Lexington, KY",
+                  "Northern Kentucky",
+                  "Tampa, FL",
+                  "Orlando, FL",
+                  "Jacksonville, FL",
+                  "Miami – Fort Lauderdale – West Palm, FL",
+                ],
+              },
+              {
+                heading: "Midwest / Mid-Atlantic",
+                markets: [
+                  "Philadelphia, PA",
+                  "Toledo, OH",
+                  "Cleveland / Akron, OH",
+                  "Columbus, OH",
+                  "Cincinnati, OH",
+                  "Nashville, TN",
+                  "Memphis, TN-MS",
+                  "Kansas City, MO-KS",
+                  "Indianapolis, IN",
+                ],
+              },
+            ].map(({ heading, markets }) => (
+              <div key={heading}>
+                <h3 style={{
+                  fontSize: 10, fontWeight: 600, color: "#9CA3AF", letterSpacing: "0.6px",
+                  textTransform: "uppercase", margin: "0 0 6px 0",
+                }}>
+                  {heading}
+                </h3>
+                {markets.map((label) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+                    <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
+                    <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>

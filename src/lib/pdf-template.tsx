@@ -22,6 +22,10 @@ export interface ReportData {
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
   reappraisalYear?: string;  // NC: year of next scheduled countywide reappraisal
   taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
+  // Deeded owner name — used to detect condo common-element / master-file
+  // parcels (owner contains "CONDOMINIUM ASSOCIATION" / "HOA" / etc.) so the
+  // report can warn the address resolved to the wrong parcel.
+  owner?: string;
   taxFeePerUnit?: string;  // Per-unit municipal fee (Charlotte multifamily solid waste, etc.)
   // TX MUD / WCID / drainage / special-district breakdown — each entry is a
   // detected taxing district at the parcel via TCEQ spatial join. Summed
@@ -500,12 +504,53 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
     }
   }
 
+  // ── Condominium / data-lag detection ─────────────────────────────────────
+  // The assessor record can be incomplete in two distinct cases that BOTH
+  // make the assessed-vs-ask comparison misleading:
+  //
+  // (1) Condo common element / master file — owner is the HOA, the parcel
+  //     carries land only ($0 improvements), and the actual unit being
+  //     sold has its own parcel ID that the address didn't resolve to.
+  //     Common in TX/FL condo projects. Surfaces as: owner contains
+  //     "CONDOMINIUM ASSOCIATION", "MASTER FILE", "COMMON ELEMENT", or "HOA".
+  //
+  // (2) Recently-built where the county hasn't pushed improvements to the
+  //     public record yet — $0 improvements on a structure >1000 SF built
+  //     in the last 10 years. Common in TX where supplemental rolls lag
+  //     the public-facing display.
+  //
+  // In either case, the displayed assessed value is materially below the
+  // property's true assessment, so the standard "reassessment risk = av/ask"
+  // logic produces a false-alarm flag. We surface a dedicated warning and
+  // suppress the reassessment-vs-ask flag below.
+  const _ownerStr   = (data.owner || "").toUpperCase();
+  const _isCondoMF  = /(?:CON|COM)DOMINIUM(?:\s+(?:ASSOCIATION|COMMUNITY|COMMONS|TRUST))?|MASTER FILE|COMMON ELEMENT|\bHOA\b/.test(_ownerStr);
+  const _impVal     = parseDol(data.improvements);
+  const _avForCheck = parseDol(data.assessedValue);
+  const _baForCheck = parseInt((data.buildingArea || "").replace(/[^\d]/g, ""), 10) || 0;
+  const _ybForCheck = parseInt((data.yearBuilt || "").replace(/[^\d]/g, ""), 10) || 0;
+  const _curYear    = new Date().getFullYear();
+  const _noImpOnExistingBuild =
+    _impVal === 0 && _avForCheck > 0 && _baForCheck > 1000 && _ybForCheck >= _curYear - 10;
+  const _taxDataIncomplete = _isCondoMF || _noImpOnExistingBuild;
+  if (_isCondoMF) {
+    flags.push({ level: "red", title: "Condominium Common Element — Wrong Parcel",
+      body: `Owner record shows "${data.owner}" — this is the HOA's master / common element parcel, not the individual unit being sold. The assessed value (${fmtDol(data.assessedValue)}) and tax amount (${fmtDol(data.annualTaxes)}) shown reflect only the common area; the actual unit has its own parcel ID at the same street address. Pull the correct unit parcel from the county directly, or confirm the unit-level taxes with the broker, before underwriting.` });
+  } else if (_noImpOnExistingBuild) {
+    flags.push({ level: "amber", title: "Tax Data Appears Incomplete",
+      body: `County record shows $0 improvements on a ${_ybForCheck}-built, ${data.buildingArea} structure. The public assessor record likely hasn't been updated with the building's appraised value yet (common for recent construction in TX). The displayed tax amount (${fmtDol(data.annualTaxes)}) and any tax-adjusted projections are likely materially low — confirm actual taxes with the broker's T-12 or by pulling the bill directly from the county before LOI.` });
+  }
+
   // Assessment vs. ask — skip for LPV states (AZ) where taxes don't reset at purchase
   const _stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
   const _isLpvState = _stateM?.[1] === "AZ";
   const _isNCState  = _stateM?.[1] === "NC";
   const _isFLState  = _stateM?.[1] === "FL";
   const _isPAState  = _stateM?.[1] === "PA";
+  // NV Clark investor MF — abatement cap survives the sale, so treat like
+  // AZ LPV for the assessment-vs-ask reassessment flag (skip it — the tax
+  // burden won't reset to purchase price).
+  const _isNVCappedFlag = _stateM?.[1] === "NV" && Boolean(data.abatementFlag);
   // NC: values lock flat until next countywide reappraisal — no mid-cycle reset on sale.
   // Describe the reassessment as keyed to the reappraisal year rather than "next cycle".
   const _ncTiming   = _isNCState
@@ -524,7 +569,10 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
   // and only reset at irregular countywide reassessments. So "purchase will
   // trigger reassessment" is wrong here. Frame the FMV-vs-ask gap as an
   // appeal opportunity (uniformity / unequal-assessment) instead.
-  if (av > 0 && ask > 0 && !_isLpvState) {
+  // Suppress reassessment-vs-ask when tax data is incomplete (condo master
+  // file, missing improvements on recent build, etc.) — the assessed/ask
+  // ratio is meaningless and the dedicated warning above covers the user.
+  if (av > 0 && ask > 0 && !_isLpvState && !_isNVCappedFlag && !_taxDataIncomplete) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
     if (ratio > 1.0) {
@@ -590,7 +638,20 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
   // else raw assessed.
   const _avThesisStr = _isPAThesis && data.marketValue ? data.marketValue : data.assessedValue;
   const _avThesisLbl = _isPAThesis && data.marketValue ? "STEB-rescaled assessed FMV" : (_isLpvThesis ? "County Full Cash Value" : "County assessment");
-  if (av > 0 && ask > 0) {
+  // Detect incomplete tax data (condo master file / data lag) — same logic as
+  // the flags block above. When detected, swap the reassessment narrative for
+  // a parcel-resolution caveat so the deal context isn't anchored on a wrong
+  // assessed-vs-ask ratio.
+  const _thesisOwnerStr = (data.owner || "").toUpperCase();
+  const _thesisIsCondoMF = /(?:CON|COM)DOMINIUM(?:\s+(?:ASSOCIATION|COMMUNITY|COMMONS|TRUST))?|MASTER FILE|COMMON ELEMENT|\bHOA\b/.test(_thesisOwnerStr);
+  const _thesisImpVal = parseDol(data.improvements);
+  const _thesisBa = parseInt((data.buildingArea || "").replace(/[^\d]/g, ""), 10) || 0;
+  const _thesisYb = parseInt((data.yearBuilt || "").replace(/[^\d]/g, ""), 10) || 0;
+  const _thesisCurYr = new Date().getFullYear();
+  const _thesisNoImpRecent =
+    _thesisImpVal === 0 && av > 0 && _thesisBa > 1000 && _thesisYb >= _thesisCurYr - 10;
+  const _thesisTaxIncomplete = _thesisIsCondoMF || _thesisNoImpRecent;
+  if (av > 0 && ask > 0 && !_thesisTaxIncomplete) {
     const ratio = av / ask;
     const pct = Math.round(ratio * 100);
     if (ratio > 1.0) {
@@ -827,13 +888,23 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     // AZ uses Limited Property Value (LPV) — the tax base is capped at 5%/yr and does NOT
     // reset to purchase price on sale. Return 0 to suppress the tax-adjusted NOI scenario.
     if (_stateAbbr === "AZ") return 0;
-    const taxes = parseDol(data.annualTaxes);
-    const av    = parseDol(data.assessedValue);
-    // Tier 1: actual taxes ÷ assessed value = true effective rate
-    if (taxes > 0 && av > 0) return taxes / av;
-    // Tier 2: tax rate field passed directly from assessor
+    // Tier 1: jurisdiction effective rate from `tax_rates.py` (carried in
+    // data.taxRate). This is the right rate for the post-sale reassessment
+    // scenario — at sale the new owner loses any owner-occupied / non-business
+    // / abatement credits the prior owner had, so reassessed taxes apply the
+    // full jurisdiction levy × purchase price. Using `taxes / assessedValue`
+    // would bake the prior owner's exemptions into the projection, plus it
+    // breaks badly when the user overrides only one of taxes/av on R&A
+    // (e.g. enters the broker's actual bill but leaves the auditor's stale
+    // assessed value, producing a nonsensical effective rate).
     const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
     if (!isNaN(tr) && tr > 0) return tr / 100;
+    // Tier 2 (fallback): if no jurisdiction rate is available, back into one
+    // from the property's actual taxes ÷ assessed value. Less accurate but
+    // better than the Tier 3 state default.
+    const taxes = parseDol(data.annualTaxes);
+    const av    = parseDol(data.assessedValue);
+    if (taxes > 0 && av > 0) return taxes / av;
     // Tier 3: state average effective rate for investor-owned multifamily.
     // FL/NC/SC/GA updated 2026-04 based on statutory research (see dealbrief/pipeline/orchestrator.py).
     // PA note: this is a fallback for effTaxRate, whose tier 1 returns
@@ -869,6 +940,59 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   // the scheduled-reappraisal-year concept (PA reassessments are irregular,
   // multi-decade, and only happen by ordinance).
   const isPAState  = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
+  // NV Clark: 8% abatement growth cap does NOT reset on sale for investor MF
+  // (NRS 361.4722). Buyer inherits seller's trailing capped bill × 1.08 rather
+  // than paying rate × purchase price. Detect + treat like AZ LPV — use the
+  // in-place tax bill × (1 + capPct) for the reassessment scenario, not
+  // rate × ask.
+  const isNVCappedState = (() => {
+    const isNV = /(?:,\s*|\s+)NV\s*,?\s*\d{5}/.test(data.address || "");
+    if (!isNV) return false;
+    // Only trigger the cap logic when the pipeline actually flagged the
+    // parcel as abated + provided a capPct. Otherwise fall through to the
+    // default rate × ask reassessment path.
+    return Boolean(data.abatementFlag) && Boolean(data.capPct);
+  })();
+  const nvCapMultiplier = isNVCappedState
+    ? 1 + (parseFloat(data.capPct || "0.08") || 0.08)
+    : 1.08;
+  // Split-assessment-ratio states: `assessedValue` is the 100% appraised value;
+  // brokers / bills cite the taxable value at the state's statutory ratio.
+  // Ratios reflect the DealBrief investor-MF (5+ unit) audience.
+  const splitRatioStateMatch = /(?:,\s*|\s+)(OH|TN|MS|MO|KS)\s*,?\s*\d{5}/.exec(data.address || "");
+  const splitRatioState = splitRatioStateMatch ? splitRatioStateMatch[1] : "";
+  // TN is the only split-ratio state that flips MF ratio based on unit
+  // count: Class R (25%) for 1-4 unit, Class C (40%) for 5+. MO/KS treat
+  // residential rental as Class 1 residential regardless of unit count;
+  // MS Class I is owner-occupied SFR only (investor rentals always Class II
+  // 15%); OH is single flat 35%. Only TN flips.
+  const _splitRatioUnits = (() => {
+    const n = parseInt(data.units) || 0;
+    return n > 0 ? n : 5;  // default to 5+ (MF) when unset
+  })();
+  const splitRatioMap: Record<string, number> = {
+    OH: 0.35,
+    TN: _splitRatioUnits <= 4 ? 0.25 : 0.40,
+    MS: 0.15, MO: 0.19, KS: 0.115,
+  };
+  const splitRatioPct = (() => {
+    const raw = (data.assessmentRatio || "").toString().replace(/%/g, "").trim();
+    const parsed = parseFloat(raw);
+    if (isFinite(parsed) && parsed > 0 && parsed < 1) return parsed;
+    if (isFinite(parsed) && parsed >= 1 && parsed <= 100) return parsed / 100;
+    return splitRatioState ? splitRatioMap[splitRatioState] : 0;
+  })();
+  const isSplitRatioState = Boolean(splitRatioState) && splitRatioPct > 0;
+  const splitRatioLabel = splitRatioPct > 0
+    ? `${(splitRatioPct * 100).toFixed(splitRatioPct * 100 < 20 ? 1 : 0)}%`
+    : "";
+  const splitRatioTaxableStr = (() => {
+    if (!isSplitRatioState) return "";
+    const raw = (data.assessedValue || "").replace(/[$,]/g, "");
+    const n = parseFloat(raw);
+    if (!isFinite(n) || n <= 0) return "";
+    return "$" + Math.round(n * splitRatioPct).toLocaleString();
+  })();
 
   // Implied acquisition price — closed-form so that tax-adj NOI ÷ price = buyer cap exactly.
   // Default derivation: taxAdjNoi = (NOI_inplace + taxes_current) - effTaxRate × price
@@ -924,6 +1048,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const taxAdjTaxes = (() => {
     if (!boe) return 0;
     if (isLpvState && boe.taxes > 0) return Math.round(boe.taxes * 1.05);
+    // NV Clark investor MF: cap doesn't reset on sale; buyer inherits the
+    // seller's trailing bill × (1 + capPct). No rate × ask jump.
+    if (isNVCappedState && boe.taxes > 0) return Math.round(boe.taxes * nvCapMultiplier);
     // PA: assessment locks to the 1998 base year; sale does not trigger
     // reassessment, so taxAdjTaxes == in-place taxes. Return 0 so the
     // tax-adjusted scenario is suppressed.
@@ -1143,6 +1270,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               {isPAState && data.marketValue && (
                 <Row label="Est. Market Value (STEB CLR)"
                   value={fmtDol(data.marketValue) + "  (raw assessed ÷ Common-Level Ratio)"} alt />
+              )}
+              {isSplitRatioState && splitRatioTaxableStr && (
+                <Row label={`Taxable Value (${splitRatioLabel})`}
+                  value={splitRatioTaxableStr + `  (${splitRatioState} statutory ratio; broker / Assessor call this 'Assessed Value')`} alt />
               )}
               {isLpvState ? (
                 <>
