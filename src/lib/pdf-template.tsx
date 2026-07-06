@@ -940,6 +940,16 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   // the scheduled-reappraisal-year concept (PA reassessments are irregular,
   // multi-decade, and only happen by ordinance).
   const isPAState  = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
+  // CO: sales do NOT reset assessed value. Colorado reassesses biennially
+  // (odd years) using a June 30 prior-year level-of-value; buyer inherits
+  // the current LOV until the next cycle. For year-1 underwriting the tax
+  // burden is effectively unchanged from the seller's current bill —
+  // treat like PA (taxAdjTaxes = current, no rate × ask jump).
+  const isCOState  = /(?:,\s*|\s+)CO\s*,?\s*\d{5}/.test(data.address || "");
+  // OK: 5% growth cap on taxable value BUT resets to FMV on transfer.
+  // Buyer's year-1 tax = FMV × 11% × mill (the standard rate × ask path).
+  // No special treatment needed — falls into the default reassessment
+  // scenario like TX. Advisory banner surfaces the reset-on-sale nuance.
   // NV Clark: 8% abatement growth cap does NOT reset on sale for investor MF
   // (NRS 361.4722). Buyer inherits seller's trailing capped bill × 1.08 rather
   // than paying rate × purchase price. Detect + treat like AZ LPV — use the
@@ -1055,6 +1065,11 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
     // reassessment, so taxAdjTaxes == in-place taxes. Return 0 so the
     // tax-adjusted scenario is suppressed.
     if (isPAState) return 0;
+    // CO: sale does not reset value; buyer inherits current LOV until next
+    // biennial reassessment. Year-1 tax = seller's in-place. Suppress the
+    // tax-adj scenario like PA (biennial jumps are unpredictable — user
+    // can override the Annual Taxes field to project).
+    if (isCOState) return 0;
     if (effTaxRate > 0 && effectiveAskNum > 0) {
       const basis = isFLState ? effectiveAskNum * 0.95 : effectiveAskNum;
       return Math.round(basis * effTaxRate);
