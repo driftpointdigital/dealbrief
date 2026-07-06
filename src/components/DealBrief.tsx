@@ -1767,7 +1767,7 @@ export default function DealBrief() {
             fontSize: 11, fontWeight: 600, color: "#374151", letterSpacing: "0.8px",
             display: "block", marginBottom: 12, margin: "0 0 12px 0", textTransform: "uppercase",
           }}>
-            Multifamily Markets We Cover
+            Markets We Cover
           </h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 24px", alignItems: "start" }}>
             {[
@@ -1792,8 +1792,9 @@ export default function DealBrief() {
                   "Charlotte, NC",
                   "Raleigh-Durham, NC",
                   "Atlanta, GA",
+                  "Nashville, TN",
+                  "Memphis, TN-MS",
                   "Louisville / Lexington, KY",
-                  "Northern Kentucky",
                   "Tampa, FL",
                   "Orlando, FL",
                   "Jacksonville, FL",
@@ -1807,10 +1808,8 @@ export default function DealBrief() {
                   "Toledo, OH",
                   "Cleveland / Akron, OH",
                   "Columbus, OH",
-                  "Cincinnati, OH",
+                  "Cincinnati, OH-KY",
                   "Dayton, OH",
-                  "Nashville, TN",
-                  "Memphis, TN-MS",
                   "Kansas City, MO-KS",
                   "St. Louis, MO",
                   "Indianapolis, IN",
