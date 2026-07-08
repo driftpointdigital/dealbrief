@@ -632,12 +632,12 @@ export default function DealBrief() {
       sendGAEvent("event", "report_run", {
         path: "paid",
       });
-      // Reddit Ads pixel — fire Lead conversion. We use Lead (not
-      // Purchase) because at this point the user is being redirected to
-      // Stripe but hasn't completed payment yet. If we later add a
-      // Stripe-webhook-triggered confirmation event, that would be the
-      // place to fire Reddit's Purchase event with the actual order
-      // value for ROAS optimization.
+      // Reddit Ads pixel — fires when user is redirected to Stripe.
+      // NOTE: primary Lead fire is now at Pipeline Success (mid-funnel) to
+      // give Reddit's optimizer usable signal volume. This end-of-funnel
+      // fire is retained as an additional Lead until we swap it to Purchase
+      // once a Stripe webhook confirms payment. When we do that swap, this
+      // should become rdt("track","Purchase") with order value for ROAS.
       if (typeof window !== "undefined") {
         const w = window as unknown as { rdt?: (...args: unknown[]) => void };
         if (typeof w.rdt === "function") {
@@ -839,6 +839,18 @@ export default function DealBrief() {
         has_assessed_value: Boolean(a.assessedValue),
         state: pipelineData?.geo?.state || "",
       });
+      // Reddit Ads pixel — fire Lead conversion at Pipeline Success. This is
+      // mid-funnel (address submitted + valid parcel returned), NOT end of
+      // funnel. We fire early to give Reddit's optimizer enough signal
+      // volume to actually learn (~1-5 events/wk vs. 0 end-of-funnel today).
+      // Once end-of-funnel conversions exceed ~30/wk we should move Lead
+      // back to Stripe redirect and add Purchase on payment success.
+      if (typeof window !== "undefined") {
+        const w = window as unknown as { rdt?: (...args: unknown[]) => void };
+        if (typeof w.rdt === "function") {
+          w.rdt("track", "Lead");
+        }
+      }
       setView("confirm");
     } catch (err) {
       sendGAEvent("event", "pipeline_error", {
