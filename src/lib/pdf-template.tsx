@@ -464,16 +464,22 @@ function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | n
     }
   }
 
-  // No permits on old building (also flag when age is unknown — can't assume it's new)
-  if (permitNum === 0 && age === 0) {
-    flags.push({ level: "amber", title: "No Permit History — Building Age Unknown",
-      body: `Zero building permits on record and building age could not be determined from available data. Major system conditions are unknown. Budget conservatively and do not rely on broker representations about capital improvements without documentation.` });
-  } else if (permitNum === 0 && age > 30) {
-    flags.push({ level: "red", title: `No Permit History on ${age}-Year-Old Building`,
-      body: `Zero building permits on record suggests major systems (roof, HVAC, plumbing, electrical) may be original or replaced without documentation. Budget aggressively for systems replacement and do not rely on broker representations about capital improvements.` });
-  } else if (permitNum === 0 && age > 15) {
-    flags.push({ level: "amber", title: "No Permit History — Verify Improvements",
-      body: `No building permits found. Verify any broker claims about capital improvements during due diligence. Request receipts and warranties.` });
+  // Permit-based flags. Suppress entirely when the permit collector was
+  // disabled (source="unavailable") — we didn't check, so we can't flag
+  // "no permits = red." Age-based inspection recommendations elsewhere
+  // in the report still cover the underlying due diligence guidance.
+  const _permitsUnavailable = data.permitSource === "unavailable";
+  if (!_permitsUnavailable) {
+    if (permitNum === 0 && age === 0) {
+      flags.push({ level: "amber", title: "No Permit History — Building Age Unknown",
+        body: `Zero building permits on record and building age could not be determined from available data. Major system conditions are unknown. Budget conservatively and do not rely on broker representations about capital improvements without documentation.` });
+    } else if (permitNum === 0 && age > 30) {
+      flags.push({ level: "red", title: `No Permit History on ${age}-Year-Old Building`,
+        body: `Zero building permits on record suggests major systems (roof, HVAC, plumbing, electrical) may be original or replaced without documentation. Budget aggressively for systems replacement and do not rely on broker representations about capital improvements.` });
+    } else if (permitNum === 0 && age > 15) {
+      flags.push({ level: "amber", title: "No Permit History — Verify Improvements",
+        body: `No building permits found. Verify any broker claims about capital improvements during due diligence. Request receipts and warranties.` });
+    }
   }
 
   // Cash flow / DSCR — use broker NOI if available; fall back to BOE estimated NOI
@@ -626,7 +632,11 @@ function buildThesis(data: ReportData, flags: Flag[]): string {
   if (data.brokerClaims) {
     parts.push(`Broker represents: "${data.brokerClaims}." These claims require independent verification during due diligence.`);
   }
-  if (permitNum === 0 && age > 25) {
+  const _pSrc = data.permitSource === "unavailable";
+  if (_pSrc) {
+    // Skip permit-based narrative; the age-based inspection guidance
+    // elsewhere in the report still covers the substantive point.
+  } else if (permitNum === 0 && age > 25) {
     parts.push(`Zero permits on record for a ${age}-year-old building. Verify condition of all major systems during inspection and cross-reference against any broker capital improvement claims.`);
   } else if (permitNum > 0) {
     parts.push(`${permitNum} permit record${permitNum > 1 ? "s" : ""} found — verify scope and quality of documented improvements during inspection.`);
@@ -1730,7 +1740,14 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
 
         {/* CITY PERMIT HISTORY */}
         <SectionHead title="CITY PERMIT HISTORY" />
-        {permitNum === 0 ? (
+        {data.permitSource === "unavailable" ? (
+          <View style={{ marginBottom: 8 }}>
+            <Bullet
+              bold="Permit data temporarily unavailable. "
+              rest="Our permit data provider is offline for this address. Check the municipal building department directly for permit history. Age-based inspection guidance is covered in the Recommended Next Steps section."
+            />
+          </View>
+        ) : permitNum === 0 ? (
           <View style={{ marginBottom: 8 }}>
             {age > 0 && age <= 5 ? (
               <>
@@ -2172,7 +2189,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
         <Bullet bold="Order a thorough property inspection. "
           rest={age > 0 && age <= 5
             ? `On a ${age}-year-old building, verify construction quality, confirm certificates of occupancy are in order, and check for any outstanding punch-list items. Request builder warranties for structural, mechanical, and appliance systems.`
-            : `On ${age > 0 ? "a " + age + "-year-old" : "an older"} building${permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (including drain lines), electrical panels (load capacity and age), and foundation.`
+            : `On ${age > 0 ? "a " + age + "-year-old" : "an older"} building${data.permitSource !== "unavailable" && permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (including drain lines), electrical panels (load capacity and age), and foundation.`
           } />
         {hasCrime && ["F","D-","D","D+"].includes(crimeGrade) && (
           <Bullet bold="Speak with local portfolio lenders before making an offer. "
