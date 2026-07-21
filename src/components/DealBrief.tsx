@@ -20,6 +20,24 @@ import { DEMO_PIPELINE, DEMO_ADDRESS } from "@/lib/demoReport";
 // key from the server-side pipeline GOOGLE_MAPS_API_KEY.
 const GOOGLE_MAPS_PUBLIC_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
+// Maps a "Markets We Cover" label to its blog post slug. Markets with a post
+// render as internal links (homepage → post) so Google crawls + values them;
+// markets without a post yet stay plain text. Add entries as posts ship.
+const MARKET_POST_SLUG: Record<string, string> = {
+  "Dallas-Ft. Worth, TX": "buying-multifamily-dallas-fort-worth",
+  "Houston, TX": "buying-multifamily-houston",
+  "Phoenix, AZ": "buying-multifamily-phoenix",
+  "Charlotte, NC": "buying-multifamily-charlotte",
+  "Raleigh-Durham, NC": "buying-multifamily-raleigh",
+  "Atlanta, GA": "buying-multifamily-atlanta",
+  "Louisville / Lexington, KY": "buying-multifamily-louisville",
+  "Tampa, FL": "buying-multifamily-tampa",
+  "Orlando, FL": "buying-multifamily-orlando",
+  "Jacksonville, FL": "buying-multifamily-jacksonville",
+  "Miami – Fort Lauderdale – West Palm, FL": "buying-multifamily-miami",
+  "Philadelphia, PA": "buying-multifamily-philadelphia",
+};
+
 const MOCK_RETURN_DATA = {
   address: "2718 Cleveland St, Dallas, TX 75215",
   yearBuilt: "1961",
@@ -1668,12 +1686,23 @@ export default function DealBrief() {
                 }}>
                   {heading}
                 </h3>
-                {markets.map((label) => (
-                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
-                    <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
-                    <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
-                  </div>
-                ))}
+                {markets.map((label) => {
+                  const slug = MARKET_POST_SLUG[label];
+                  return (
+                    <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+                      <span style={{ fontSize: 10, color: "#9CA3AF" }}>●</span>
+                      {slug ? (
+                        <Link href={`/blog/${slug}`} style={{ fontSize: 13, color: "#374151", textDecoration: "none" }}
+                          onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
+                          onMouseLeave={e => e.currentTarget.style.color = "#374151"}>
+                          {label}
+                        </Link>
+                      ) : (
+                        <span style={{ fontSize: 13, color: "#374151" }}>{label}</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
