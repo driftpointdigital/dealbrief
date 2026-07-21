@@ -50,6 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user ?? null);
       setLoading(false);
@@ -68,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithPassword = useCallback(
     async (email: string, password: string) => {
+      if (!supabase) return { error: "Auth is unavailable. Please try again later." };
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error?.message ?? null };
     },
@@ -76,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUpWithPassword = useCallback(
     async (email: string, password: string) => {
+      if (!supabase) return { error: "Auth is unavailable. Please try again later." };
       const { error } = await supabase.auth.signUp({ email, password });
       return { error: error?.message ?? null };
     },
@@ -83,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    if (supabase) await supabase.auth.signOut();
     setAccount(null);
   }, [supabase]);
 

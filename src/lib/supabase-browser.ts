@@ -6,11 +6,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 let _client: SupabaseClient | null = null;
 
-export function supabaseBrowser(): SupabaseClient {
+// Returns null when the public env vars are absent (e.g. during a build with
+// missing config) so prerendering never crashes — callers must handle null.
+export function supabaseBrowser(): SupabaseClient | null {
   if (_client) return _client;
-  _client = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  _client = createBrowserClient(url, key);
   return _client;
 }

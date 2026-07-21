@@ -166,7 +166,8 @@ export default async function BlogPostPage({ params }: RouteParams) {
           <p style={{ fontSize: 14, color: "#374151", margin: "0 0 14px", lineHeight: 1.55 }}>
             Enter a multifamily address. DealBrief pulls tax assessment,
             permits, flood zone, crime, demographics, debt service, and more
-            into a single PDF. Your first report is free.
+            into a live, editable report you can adjust and export. Your first
+            report is free.
           </p>
           <Link href="/" style={{
             display: "inline-block", padding: "10px 22px", fontSize: 14, fontWeight: 500,
