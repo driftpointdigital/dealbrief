@@ -1,6 +1,18 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import { runFinancialModel, FinancialSummary, fmt$, fmtPct, fmtX } from "./financial";
+import { runFinancialModel, FinancialSummary, fmt$, fmtPct, fmtX, CLOSING_COST_RATE } from "./financial";
+import {
+  parseDol, parseCapRateInput, parseRentPerUnit,
+  parseOpexOverrides, computeBoe, computeDerivations,
+  type BoeInputs, type BoeEst,
+} from "./underwriting";
+import {
+  NAT_RATES, vsNat,
+  parsePermits, parseSchools, parseCrimeData, parseBLS,
+  type PermitDetail, type SchoolDetail, type ParsedCrime,
+} from "./reportParsers";
+import { computeFlags, dealVerdictLevel, type Flag } from "./reportFlags";
+import { DISCLAIMER_TITLE, DISCLAIMER_TEXT } from "./reportCopy";
 
 export interface ReportData {
   // Property
@@ -21,7 +33,7 @@ export interface ReportData {
   adjustedLpv?: string;      // AZ: LPV × assessment ratio = NAV (actual tax base)
   assessmentRatio?: string;  // AZ: 0.10 (Class 4), 0.18 (Class 1), etc.
   reappraisalYear?: string;  // NC: year of next scheduled countywide reappraisal
-  taxRate: string; annualTaxes: string; parcelId: string; assessorSource: string;
+  taxRate: string; proFormaTaxRate?: string; annualTaxes: string; parcelId: string; assessorSource: string;
   // Deeded owner name — used to detect condo common-element / master-file
   // parcels (owner contains "CONDOMINIUM ASSOCIATION" / "HOA" / etc.) so the
   // report can warn the address resolved to the wrong parcel.
@@ -71,6 +83,8 @@ export interface ReportData {
   proximityMiles: string; proximityMinutes: string; proximityCity: string;
   // MSA comparison
   msaName: string; msaIncome: string; msaHomeVal: string; msaRent: string; msaPoverty: string; msaBachPlus: string;
+  msaPop?: string; msaAge?: string; msaRenterPct?: string;
+  msaHouseholds?: string; msaAvgHHSize?: string; msaAvgRenterSize?: string;
   // Census household composition
   censusHouseholds: string; censusAvgHHSize: string; censusAvgRenterSize: string;
   // HUD subsidized housing
@@ -137,10 +151,6 @@ const s = StyleSheet.create({
 });
 
 // ── helper: parse ─────────────────────────────────────────────────────────────
-function parseDol(str: string): number {
-  return parseFloat(str.replace(/[$,]/g, "")) || 0;
-}
-
 // Format any dollar string (user input or pipeline) as $X,XXX,XXX
 function fmtDol(str: string): string {
   if (!str) return str;
@@ -157,37 +167,12 @@ function fmtSFStr(str: string): string {
   return Math.round(n).toLocaleString("en-US") + " SF";
 }
 
-// Parse a user-entered cap rate / percentage string into a numeric percent value.
-// Input is always assumed to be in percent form (e.g. "10.362" or "10.362%" → 10.362).
-// Never treats the value as a decimal fraction — "7.5" means 7.5%, not 0.75%.
-function parseCapRateInput(str: string): number | null {
-  if (!str) return null;
-  // Strip %, commas (accidental thousands separators), and whitespace
-  const cleaned = str.replace(/%/g, "").replace(/,/g, "").trim();
-  const n = parseFloat(cleaned);
-  return isNaN(n) ? null : n;
-}
-
 // Format a percentage string to "X.XX%"
 function fmtPctDisplay(str: string): string {
   if (!str) return str;
   const n = parseCapRateInput(str);
   if (n === null) return str;
   return n.toFixed(2) + "%";
-}
-
-// Parse a rent-per-unit from user input like "$1,975" or "1975"
-// Returns null if the string has multiple rent tiers (e.g. "3BR: $1,100 / 4BR: $1,300")
-function parseRentPerUnit(str: string): number | null {
-  if (!str) return null;
-  // Reject multi-tier strings
-  if (str.includes("/") && str.toLowerCase().includes("br")) return null;
-  const match = str.replace(/,/g, "").match(/\$?([\d]+(?:\.\d+)?)/);
-  if (match) {
-    const val = parseFloat(match[1]);
-    if (val > 100 && val < 50000) return val;
-  }
-  return null;
 }
 
 // Alias kept for existing usage
@@ -197,519 +182,27 @@ function dscrColor(v: number | null) { return v === null ? "#1F2937" : v >= 1.10
 function cocColor(v: number | null)  { return v === null ? "#1F2937" : v >= 0.06 ? GREEN : v >= 0.03 ? AMBER : RED; }
 
 // ── BOE estimate ──────────────────────────────────────────────────────────────
-interface BoeEst {
-  brokerNoi: number;
-  taxes: number; taxesSource: string; taxesIsEstimate: boolean;
-  insurance: number; maintenance: number;
-  utilities: number; management: number; totalOpEx: number;
-  marketing: number; admin: number; reserves: number;
-  opexInputs: BoeInputs;
-  egi: number; gpr: number; gprPerUnitPerMonth: number;
-  occupancyRate: number;
-  estNoi: number;
-  // Revenue breakdown
-  vacancyAmt: number; badDebtAmt: number; otherIncomeAmt: number;
-  vacancyPct: number; badDebtPct: number; otherIncomePct: number;
-  // Breakeven
-  breakevenOcc: number;   // physical occupancy % at which EGI = OpEx (no debt)
-}
+// The bottom-up NOI model (computeBoe), operating-expense parser
+// (parseOpexOverrides), and BoeEst / BoeInputs types now live in ./underwriting
+// so the live Review & Adjust page and this PDF compute IDENTICAL numbers.
+// They are imported at the top of this file.
 
-interface BoeInputs {
-  insurancePerUnit: number;
-  maintenancePerUnit: number;
-  utilitiesPerUnit: number;
-  managementPct: number;
-  marketingPerUnit: number;
-  adminPerUnit: number;
-  reservesPerUnit: number;
-}
-
-function parseOpexOverrides(str: string, yr: number): BoeInputs {
-  const parts = (str || "").split(",");
-  const maintDefault    = yr >= 2000 ? 500 : yr >= 1980 ? 750 : yr > 0 ? 1000 : 750;
-  const reservesDefault = yr >= 2000 ? 250 : yr >= 1980 ? 400 : yr > 0 ?  500 :  400;
-  // Use NaN-safe helper so user-entered 0 is respected (|| would silently swap to default)
-  const p = (i: number, def: number) => { const v = parseFloat(parts[i]); return isNaN(v) ? def : v; };
-  return {
-    insurancePerUnit:   p(0, 800),
-    maintenancePerUnit: p(1, maintDefault),
-    utilitiesPerUnit:   p(2, 250),
-    managementPct:      p(3, 8.0),
-    marketingPerUnit:   p(4, 150),
-    adminPerUnit:       p(5, 100),
-    reservesPerUnit:    p(6, reservesDefault),
-  };
-}
-
-function computeBoe(data: ReportData): BoeEst | null {
-  const ask     = parseDol(data.askingPrice);
-  const cap     = parseCapRateInput(data.brokerCapRate) ?? 0;
-  const buyerCap = parseCapRateInput(data.buyerCapRate) ?? 0;
-  const units = parseInt(data.units) || 0;
-  const yr    = parseInt(data.yearBuilt) || 0;
-  // Need asking price OR buyer cap rate — buyer cap allows implied-price mode
-  if (!ask && !buyerCap) return null;
-  // Broker cap rate is a comparison point only — analysis runs from rents or census median
-  const hasRevenue = cap > 0
-    || !!parseRentPerUnit(data.inPlaceRents)
-    || parseDol(data.censusRent) > 0;
-  if (!hasRevenue) return null;
-  // Without a unit count and without any cap rate there is no way to derive GPR or
-  // work backwards from NOI — return null so we don't render a section full of $0s.
-  if (units === 0 && !cap && !buyerCap) return null;
-  const brokerNoi = ask * (cap / 100);
-
-  // State avg effective tax rates — fallback when no parcel data at all.
-  // These multiply asking/implied price (≈ FMV) to estimate annual taxes,
-  // so they MUST be FMV-relative (tax/FMV), regardless of how each state's
-  // assessor reports values internally. PA stays at 0.015 (~1.5% of FMV is
-  // PA's statewide effective burden) even though PA's `tax_rate` field is
-  // raw-relative ~3.5%; multiplying raw-relative × price would over-estimate
-  // PA taxes by ~2.3× because price ≈ FMV ≈ raw_assessed / CLR (~0.494 to
-  // 0.0586 depending on county).
-  const _STATE_TAX_RATES: Record<string, number> = {
-    TX: 0.022, GA: 0.010, NC: 0.009, FL: 0.009, SC: 0.006, AZ: 0.006,
-    CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.015, IL: 0.021,
-    NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
-    MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010, KY: 0.009,
-    AL: 0.004, MS: 0.007, LA: 0.006, AR: 0.006, OK: 0.009, KS: 0.013,
-    NE: 0.015, IA: 0.015, ND: 0.009, SD: 0.011, MT: 0.007, ID: 0.007,
-    WY: 0.006, UT: 0.006, NV: 0.006, NM: 0.007, AK: 0.010, HI: 0.003,
-  };
-  const _stateFromAddr = (addr: string): string => {
-    // Match state abbreviation (2 uppercase letters) followed by an optional
-    // separator and a 5-digit ZIP — handles both "City, TX, 76114" and "City TX 76114"
-    const m = addr.match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
-    return m ? m[1] : "";
-  };
-
-  // Taxes: tier 1 — actual from county assessor or user input
-  let taxes = parseDol(data.annualTaxes);
-  const hasAssessorData = parseDol(data.assessedValue) > 0;
-  let taxesSource = taxes > 0 ? (hasAssessorData ? "from county assessor" : "user input") : "from county assessor";
-  let taxesIsEstimate = false;
-  // Tier 2 — computed from assessed value × tax rate
-  if (!taxes && data.assessedValue && data.taxRate) {
-    const av = parseDol(data.assessedValue);
-    const rate = parseFloat(data.taxRate.replace(/%/g, "")) / 100;
-    if (av && rate) { taxes = Math.round(av * rate); taxesSource = "est. from assessment × tax rate"; }
-  }
-  // Tier 3 — state avg tax rate × price (shown in red as rough estimate)
-  // When no asking price, derive a rough implied price from rents + buyer cap to estimate taxes.
-  if (!taxes) {
-    const priceForTax = ask > 0 ? ask : (() => {
-      if (!buyerCap) return 0;
-      const rentPU = parseRentPerUnit(data.inPlaceRents) || parseDol(data.censusRent) || 0;
-      if (!rentPU || !units) return 0;
-      // Rough NOI ≈ 42% of GPR (conservative pre-tax multifamily margin)
-      return Math.round((rentPU * units * 12 * 0.42) / (buyerCap / 100));
-    })();
-    if (priceForTax > 0) {
-      const stateRate = _STATE_TAX_RATES[_stateFromAddr(data.address || "")];
-      if (stateRate) {
-        taxes = Math.round(priceForTax * stateRate);
-        taxesSource = ask > 0 ? "county avg rate × asking price" : "county avg rate × est. price";
-        taxesIsEstimate = true;
-      }
-    }
-  }
-
-  const opexInputs = parseOpexOverrides(data.opexOverrides || "", yr);
-  const mgmtPct = opexInputs.managementPct / 100;
-  // Guard: management 100%+ means EGI denominator hits zero — not a valid input
-  if (mgmtPct >= 1) return null;
-
-  const insurance  = units > 0 ? units * opexInputs.insurancePerUnit   : Math.round(brokerNoi * 0.08);
-  const maintenance= units > 0 ? units * opexInputs.maintenancePerUnit  : Math.round(brokerNoi * 0.10);
-  const utilities  = units > 0 ? units * opexInputs.utilitiesPerUnit    : Math.round(brokerNoi * 0.04);
-  const marketing  = units > 0 ? units * opexInputs.marketingPerUnit    : Math.round(brokerNoi * 0.02);
-  const admin      = units > 0 ? units * opexInputs.adminPerUnit        : Math.round(brokerNoi * 0.02);
-  const reserves   = units > 0 ? units * opexInputs.reservesPerUnit     : Math.round(brokerNoi * 0.04);
-  const opExExMgmt = taxes + insurance + maintenance + utilities + marketing + admin + reserves;
-
-  // Revenue assumptions — use NaN-safe parse so user-entered 0 is respected
-  const parseRate = (s: string, def: number) => { const n = parseFloat(s); return isNaN(n) ? def : n; };
-  const vacPct  = parseRate(data.vacancyPct,      5.0);
-  const bdPct   = parseRate(data.badDebtPct,      1.0);
-  const othPct  = parseRate(data.otherIncomePct,  50);
-
-  // GPR: use in-place rents if provided, fall back to ZIP median rent, then derive from broker NOI
-  let gpr: number, egi: number, management: number, totalOpEx: number;
-  const rentPerUnit = parseRentPerUnit(data.inPlaceRents)
-    || (units > 0 && parseDol(data.censusRent) > 0 ? parseDol(data.censusRent) : null);
-  if (rentPerUnit && units > 0) {
-    gpr = rentPerUnit * units * 12;
-    const vacancyAmt  = gpr * (vacPct / 100);
-    const badDebtAmt  = gpr * (bdPct / 100);
-    const otherIncome = gpr / 12 * (othPct / 100);
-    egi = gpr - vacancyAmt - badDebtAmt + otherIncome;
-    management = egi * mgmtPct;
-    totalOpEx = opExExMgmt + management;
-  } else {
-    // Backward from broker NOI: EGI = (brokerNoi + opExExMgmt) / (1 - mgmtPct)
-    egi = (brokerNoi + opExExMgmt) / (1 - mgmtPct);
-    management = egi * mgmtPct;
-    totalOpEx = opExExMgmt + management;
-    const revenueMultiplier = 1 - vacPct / 100 - bdPct / 100 + othPct / 1200;
-    gpr = revenueMultiplier > 0 ? egi / revenueMultiplier : egi / 0.94;
-  }
-
-  const vacancyAmt     = gpr * (vacPct / 100);
-  const badDebtAmt     = gpr * (bdPct / 100);
-  const otherIncomeAmt = gpr / 12 * (othPct / 100);
-  const gprPerUnitPerMonth = units > 0 ? gpr / 12 / units : 0;
-
-  const occupancyRaw = parseFloat((data.occupancy || "").replace(/%/g, ""));
-  const occupancyRate = occupancyRaw > 0 ? occupancyRaw / 100 : Math.max(0, 1 - vacPct / 100);
-
-  const estNoi = egi - totalOpEx;
-
-  const breakevenOcc = (gpr + otherIncomeAmt) > 0
-    ? (totalOpEx / (gpr + otherIncomeAmt)) * 100
-    : 0;
-
-  return {
-    brokerNoi, taxes, taxesSource, taxesIsEstimate, insurance, maintenance, utilities,
-    marketing, admin, reserves, opexInputs,
-    management, totalOpEx, egi, gpr, gprPerUnitPerMonth, occupancyRate, estNoi,
-    vacancyAmt, badDebtAmt, otherIncomeAmt,
-    vacancyPct: vacPct, badDebtPct: bdPct, otherIncomePct: othPct,
-    breakevenOcc,
-  };
-}
-
-// ── flags ─────────────────────────────────────────────────────────────────────
-interface Flag { level: "red" | "amber" | "green"; title: string; body: string; }
-
-function computeFlags(data: ReportData, model: FinancialSummary, boe: BoeEst | null): Flag[] {
-  const flags: Flag[] = [];
-  const yr = parseInt(data.yearBuilt) || 0;
-  const age = yr > 0 ? new Date().getFullYear() - yr : 0;
-  const permitNum = parseInt(data.permitCount) || 0;
-  // PA reports raw 1998 base-year assessed (matches broker / tax bill) which is
-  // structurally a fraction of FMV. For ratio-vs-ask flags use the STEB-CLR
-  // -rescaled market_value when present so we don't trip "significant
-  // reassessment risk" on every PA deal.
-  const _isPAFlags = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
-  const _avForRatio = _isPAFlags && data.marketValue
-    ? parseDol(data.marketValue)
-    : parseDol(data.assessedValue);
-  const av  = _avForRatio;
-  const ask = parseDol(data.askingPrice);
-
-  // Crime
-  const _parsedCrime = parseCrimeData(data.crimeData ?? "");
-  const _crimeGrade = _parsedCrime?.overallGrade || data.crimeOverall || "";
-  if (_crimeGrade) {
-    const _rateStr = _parsedCrime?.crateTotal != null
-      ? ` (${_parsedCrime.crateTotal.toFixed(2)} per 1,000 residents)`
-      : data.crimeRate ? ` (${data.crimeRate} per 1,000 residents)` : "";
-    const _pctStr = _parsedCrime?.pct != null
-      ? `; safer than only ${_parsedCrime.pct}% of U.S. ZIP codes`
-      : data.crimePct ? `; safer than only ${data.crimePct}% of U.S. ZIP codes` : "";
-    if (["F","D-","D"].includes(_crimeGrade)) {
-      flags.push({ level: "red", title: `High Crime — Grade ${_crimeGrade}`,
-        body: `Crime grade ${_crimeGrade}${_rateStr}${_pctStr}. Expect higher insurance premiums, lender scrutiny, and ongoing tenant quality challenges.` });
-    } else if (["D+","C-","C"].includes(_crimeGrade)) {
-      flags.push({ level: "amber", title: `Elevated Crime — Grade ${_crimeGrade}`,
-        body: `Crime index is ${_crimeGrade}. Factor into tenant screening, insurance budget, and exit cap assumptions.` });
-    }
-  }
-
-  // Flood zone
-  if (data.femaZone && !data.femaZone.includes("Zone X") && !data.femaZone.includes("X")) {
-    flags.push({ level: "red", title: `Flood Zone — ${data.femaZone} — Insurance Required`,
-      body: `Property falls in FEMA ${data.femaZone}. Flood insurance is required by lenders and will cost $1,500–$5,000+/yr depending on coverage, adding directly to operating expenses.` });
-  }
-
-  // Miami-Dade / Broward SB 4-D milestone structural inspection. Florida SB 4-D
-  // (signed May 2022 after the Surfside collapse) plus county-level ordinances
-  // require buildings to undergo a Milestone Structural Inspection at 30 years
-  // from original CO, or 25 years if within 3 miles of the coast, with
-  // subsequent inspections every 10 years. We trigger on ZIP prefixes 330-333
-  // (Miami-Dade + most of Broward; substantially all of these areas are
-  // coastal-adjacent enough that the 25-year threshold is the safe assumption).
-  const _flZipMatchSB = (data.address || "").match(/(?:,\s*|\s+)FL\s*,?\s*(\d{5})/);
-  const _flZip3SB = _flZipMatchSB?.[1]?.slice(0, 3);
-  const _isMiamiBrowardSB = _flZip3SB === "330" || _flZip3SB === "331" || _flZip3SB === "332" || _flZip3SB === "333";
-  if (_isMiamiBrowardSB && age >= 25) {
-    flags.push({ level: "amber", title: `Milestone Structural Inspection Likely Required (SB 4-D)`,
-      body: `Florida SB 4-D (signed May 2022 after the Surfside collapse) plus Miami-Dade and Broward county ordinances require a Milestone Structural Inspection by a Florida licensed engineer or architect at 30 years from original certificate of occupancy, or 25 years if within 3 miles of the coast. Subsequent inspections every 10 years. This ${age}-year-old building is at or past that threshold. Ask the seller for the most recent inspection report (and the Structural Integrity Reserve Study if it's a condominium-form property). Recertification can require $50,000–$500,000+ in concrete restoration, balcony rebuilds, and structural repairs on older coastal buildings.` });
-  }
-
-  // Philadelphia tax abatement detection. Philly OPA already nets the abatement
-  // out of `annual_taxes`, so if the stated tax is materially below what a
-  // full-rate calculation produces (assessed × 1.3998%), an abatement (or other
-  // exemption) is almost certainly in effect. For non-homestead investment
-  // property, the most common reason is the 10-year residential or commercial
-  // abatement on new construction / major rehab. Post-Jan-2022 residential
-  // applications phase down 10%/yr; pre-2022 are grandfathered at 100% for the
-  // full 10 years; commercial is unaffected by the phase-down.
-  const _isPhillyCity = /(?:,\s*)PHILADELPHIA(?:,\s*PA|\s+PA)/i.test(data.address || "");
-  if (_isPhillyCity) {
-    const _phillyRate = 0.013998;
-    const _phillyAssessed = parseDol(data.assessedValue);
-    const _phillyTaxes = parseDol(data.annualTaxes);
-    if (_phillyAssessed > 0 && _phillyTaxes > 0) {
-      const _expectedTax = _phillyAssessed * _phillyRate;
-      if (_phillyTaxes < _expectedTax * 0.7) {
-        const _exemptPct = Math.round((1 - _phillyTaxes / _expectedTax) * 100);
-        const _annualSavings = Math.round(_expectedTax - _phillyTaxes);
-        flags.push({
-          level: "amber",
-          title: `Philadelphia Tax Abatement Likely Active — Year-N Step-Up Risk`,
-          body: `Reported annual taxes are roughly ${_exemptPct}% below what a full-rate calculation would produce (${fmtDol(String(Math.round(_expectedTax)))} expected vs. ${fmtDol(data.annualTaxes)} on file), implying an active exemption of ~${fmtDol(String(_annualSavings))}/yr. For non-homestead investment property, the most common cause is Philly's 10-year tax abatement. Abatements run from approval, and RESIDENTIAL applications filed on or after January 1, 2022 (Bill 200366 reform) phase down 10 percentage points per year (100% in year 1, declining to 10% by year 10). Pre-2022 residential applications are grandfathered at 100% for the full 10 years. Commercial applications are not affected by the phase-down. Ask the seller for the abatement type and application date, then model the year-by-year tax step-up across your hold period.`
-        });
-      }
-    }
-  }
-
-  // Permit-based flags. Suppress entirely when the permit collector was
-  // disabled (source="unavailable") — we didn't check, so we can't flag
-  // "no permits = red." Age-based inspection recommendations elsewhere
-  // in the report still cover the underlying due diligence guidance.
-  const _permitsUnavailable = data.permitSource === "unavailable";
-  if (!_permitsUnavailable) {
-    if (permitNum === 0 && age === 0) {
-      flags.push({ level: "amber", title: "No Permit History — Building Age Unknown",
-        body: `Zero building permits on record and building age could not be determined from available data. Major system conditions are unknown. Budget conservatively and do not rely on broker representations about capital improvements without documentation.` });
-    } else if (permitNum === 0 && age > 30) {
-      flags.push({ level: "red", title: `No Permit History on ${age}-Year-Old Building`,
-        body: `Zero building permits on record suggests major systems (roof, HVAC, plumbing, electrical) may be original or replaced without documentation. Budget aggressively for systems replacement and do not rely on broker representations about capital improvements.` });
-    } else if (permitNum === 0 && age > 15) {
-      flags.push({ level: "amber", title: "No Permit History — Verify Improvements",
-        body: `No building permits found. Verify any broker claims about capital improvements during due diligence. Request receipts and warranties.` });
-    }
-  }
-
-  // Cash flow / DSCR — use broker NOI if available; fall back to BOE estimated NOI
-  const hiLtvScenarios = model.scenarios.filter(sc => sc.ltv === Math.max(...model.scenarios.map(s => s.ltv)));
-  if (hiLtvScenarios.length > 0) {
-    const boeNoi = boe && boe.estNoi > 0 ? boe.estNoi : null;
-    // Per scenario: use BOE NOI to match what the debt service table shows.
-    // Fall back to broker-derived DSCR only when no BOE NOI is available.
-    const getDscr = (sc: { dscr: number | null; annualDebtService: number }) => {
-      if (boeNoi !== null && sc.annualDebtService > 0) return boeNoi / sc.annualDebtService;
-      if (sc.dscr !== null) return sc.dscr;
-      return null;
-    };
-    const usingBoe = boeNoi !== null;
-    const allNegative = hiLtvScenarios.every(sc => { const d = getDscr(sc); return d !== null && d < 1.0; });
-    // Fire "thin coverage" only when a majority (≥ half) of high-LTV scenarios are below 1.10x.
-    // Using some() would falsely flag deals where only the worst-case rate is tight while
-    // most rates are comfortable (common with IO periods or conservative rate grids).
-    const below110Count = hiLtvScenarios.filter(sc => { const d = getDscr(sc); return d !== null && d < 1.10; }).length;
-    const someBelow110 = below110Count >= Math.ceil(hiLtvScenarios.length / 2);
-    if (allNegative) {
-      flags.push({ level: "red",
-        title: usingBoe ? "Negative Cash Flow at Estimated NOI" : "Negative Cash Flow at Broker-Stated NOI",
-        body: `At the highest LTV scenario, DSCR is below 1.0x using ${usingBoe ? "estimated NOI from rents" : "the broker's cap rate"}. The deal does not cover debt service — verify NOI with T-12 actuals before proceeding.` });
-    } else if (someBelow110) {
-      flags.push({ level: "amber", title: "Thin Coverage — DSCR Below 1.10x",
-        body: `Cash flow coverage is marginal at current rate scenarios. Any NOI shortfall from ${usingBoe ? "DealBrief estimates" : "broker representations"} could push the deal into negative territory. Stress-test with actual operating statements.` });
-    }
-  }
-
-  // ── Condominium / data-lag detection ─────────────────────────────────────
-  // The assessor record can be incomplete in two distinct cases that BOTH
-  // make the assessed-vs-ask comparison misleading:
-  //
-  // (1) Condo common element / master file — owner is the HOA, the parcel
-  //     carries land only ($0 improvements), and the actual unit being
-  //     sold has its own parcel ID that the address didn't resolve to.
-  //     Common in TX/FL condo projects. Surfaces as: owner contains
-  //     "CONDOMINIUM ASSOCIATION", "MASTER FILE", "COMMON ELEMENT", or "HOA".
-  //
-  // (2) Recently-built where the county hasn't pushed improvements to the
-  //     public record yet — $0 improvements on a structure >1000 SF built
-  //     in the last 10 years. Common in TX where supplemental rolls lag
-  //     the public-facing display.
-  //
-  // In either case, the displayed assessed value is materially below the
-  // property's true assessment, so the standard "reassessment risk = av/ask"
-  // logic produces a false-alarm flag. We surface a dedicated warning and
-  // suppress the reassessment-vs-ask flag below.
-  const _ownerStr   = (data.owner || "").toUpperCase();
-  const _isCondoMF  = /(?:CON|COM)DOMINIUM(?:\s+(?:ASSOCIATION|COMMUNITY|COMMONS|TRUST))?|MASTER FILE|COMMON ELEMENT|\bHOA\b/.test(_ownerStr);
-  const _impVal     = parseDol(data.improvements);
-  const _avForCheck = parseDol(data.assessedValue);
-  const _baForCheck = parseInt((data.buildingArea || "").replace(/[^\d]/g, ""), 10) || 0;
-  const _ybForCheck = parseInt((data.yearBuilt || "").replace(/[^\d]/g, ""), 10) || 0;
-  const _curYear    = new Date().getFullYear();
-  const _noImpOnExistingBuild =
-    _impVal === 0 && _avForCheck > 0 && _baForCheck > 1000 && _ybForCheck >= _curYear - 10;
-  const _taxDataIncomplete = _isCondoMF || _noImpOnExistingBuild;
-  if (_isCondoMF) {
-    flags.push({ level: "red", title: "Condominium Common Element — Wrong Parcel",
-      body: `Owner record shows "${data.owner}" — this is the HOA's master / common element parcel, not the individual unit being sold. The assessed value (${fmtDol(data.assessedValue)}) and tax amount (${fmtDol(data.annualTaxes)}) shown reflect only the common area; the actual unit has its own parcel ID at the same street address. Pull the correct unit parcel from the county directly, or confirm the unit-level taxes with the broker, before underwriting.` });
-  } else if (_noImpOnExistingBuild) {
-    flags.push({ level: "amber", title: "Tax Data Appears Incomplete",
-      body: `County record shows $0 improvements on a ${_ybForCheck}-built, ${data.buildingArea} structure. The public assessor record likely hasn't been updated with the building's appraised value yet (common for recent construction in TX). The displayed tax amount (${fmtDol(data.annualTaxes)}) and any tax-adjusted projections are likely materially low — confirm actual taxes with the broker's T-12 or by pulling the bill directly from the county before LOI.` });
-  }
-
-  // Assessment vs. ask — skip for LPV states (AZ) where taxes don't reset at purchase
-  const _stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
-  const _isLpvState = _stateM?.[1] === "AZ";
-  const _isNCState  = _stateM?.[1] === "NC";
-  const _isFLState  = _stateM?.[1] === "FL";
-  const _isPAState  = _stateM?.[1] === "PA";
-  // NV Clark investor MF — abatement cap survives the sale, so treat like
-  // AZ LPV for the assessment-vs-ask reassessment flag (skip it — the tax
-  // burden won't reset to purchase price).
-  const _isNVCappedFlag = _stateM?.[1] === "NV" && Boolean(data.abatementFlag);
-  // NC: values lock flat until next countywide reappraisal — no mid-cycle reset on sale.
-  // Describe the reassessment as keyed to the reappraisal year rather than "next cycle".
-  const _ncTiming   = _isNCState
-    ? (data.reappraisalYear ? ` at the next countywide reappraisal (${data.reappraisalYear})` : " at the next countywide reappraisal")
-    : " at next cycle";
-  const _flJVNote   = _isFLState ? " (FL Just Value resets to ~95% of sale price)" : "";
-  // PA reports the raw 1998 base-year assessed value (matches broker / tax bill /
-  // public record). The ratio above already uses STEB-CLR-rescaled marketValue
-  // when present, so the comparison line should display the same FMV figure
-  // rather than the raw base-year — otherwise the percentages won't line up.
-  const _avForLabel = _isPAState && data.marketValue ? data.marketValue : data.assessedValue;
-  const _avLeadIn   = _isPAState && data.marketValue
-    ? `Estimated FMV (STEB CLR-rescaled from base-year assessment) is ${fmtDol(_avForLabel)}`
-    : `County appraised at ${fmtDol(_avForLabel)}`;
-  // PA does NOT reassess on sale — assessments are locked to the 1998 base year
-  // and only reset at irregular countywide reassessments. So "purchase will
-  // trigger reassessment" is wrong here. Frame the FMV-vs-ask gap as an
-  // appeal opportunity (uniformity / unequal-assessment) instead.
-  // Suppress reassessment-vs-ask when tax data is incomplete (condo master
-  // file, missing improvements on recent build, etc.) — the assessed/ask
-  // ratio is meaningless and the dedicated warning above covers the user.
-  if (av > 0 && ask > 0 && !_isLpvState && !_isNVCappedFlag && !_taxDataIncomplete) {
-    const ratio = av / ask;
-    const pct = Math.round(ratio * 100);
-    if (ratio > 1.0) {
-      flags.push({ level: "amber", title: `Assessment Exceeds Ask — ${pct}% of Ask Price`,
-        body: `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). You are purchasing below the assessed value. The current tax burden is based on this higher assessment — a property tax consultant may be able to challenge it downward after purchase. Do not assume taxes will increase; they may decrease.` });
-    } else if (ratio > 0.90) {
-      flags.push({ level: "amber", title: `Assessment Near Ask — ${pct}% of Ask Price`,
-        body: _isPAState
-          ? `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). PA does not reassess on sale — taxes track the 1998 base-year assessment, not the purchase price — so the tax burden is unlikely to change materially after closing.`
-          : `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). Minimal reassessment risk — assessment is already close to purchase price, so the tax burden is unlikely to change materially${_ncTiming}.` });
-    } else if (ratio > 0.75) {
-      flags.push({ level: "amber", title: _isPAState ? `Tax Appeal Opportunity — Assessed FMV at ${pct}% of Ask` : `Reassessment Risk — Assessed at ${pct}% of Ask`,
-        body: _isPAState
-          ? `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking. PA does not reassess on sale, so the in-place tax burden is locked. The gap suggests assessment uniformity may be appealable post-closing under PA's "unequal assessment" doctrine — engage a PA property tax counsel.`
-          : `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking. A purchase at ask will likely trigger reassessment upward${_ncTiming}${_flJVNote}, increasing annual taxes. Model the delta in your pro forma.` });
-    } else {
-      flags.push({ level: "amber", title: _isPAState ? `Tax Appeal Opportunity — Assessed FMV at Only ${pct}% of Ask` : `Significant Reassessment Risk — Assessed at Only ${pct}% of Ask`,
-        body: _isPAState
-          ? `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). PA does not reassess on sale, so taxes will not jump at closing — but the wide gap to ask is grounds to challenge the assessment under PA's uniformity clause. A successful appeal could materially reduce taxes.`
-          : `${_avLeadIn} vs. ${fmtDol(data.askingPrice)} asking (${pct}%). A purchase at ask will almost certainly trigger a substantial upward reassessment${_ncTiming}${_flJVNote} — model a meaningful tax increase in your pro forma before LOI.` });
-    }
-  }
-
-  // Aging infrastructure (if no permit flag already covers it)
-  if (age > 45 && !flags.some(f => f.title.includes("Permit"))) {
-    flags.push({ level: "amber", title: `Aging Asset — Built ${yr}`,
-      body: `${age}-year-old property likely has original cast iron drain lines, pre-modern electrical panels, and aging HVAC. Confirm scope of prior capital work during inspection and reserve accordingly.` });
-  }
-
-  return flags;
-}
-
-// ── value-add thesis (rule-based) ─────────────────────────────────────────────
-function buildThesis(data: ReportData, flags: Flag[]): string {
-  const parts: string[] = [];
-  const yr   = parseInt(data.yearBuilt) || 0;
-  const age  = yr > 0 ? new Date().getFullYear() - yr : 0;
-  const units = parseInt(data.units) || 0;
-  const permitNum = parseInt(data.permitCount) || 0;
-  // PA: prefer STEB-CLR-rescaled marketValue for ratio math (raw base-year
-  // assessed is structurally fractional and would always trip the alarm).
-  const _isPAThesisRatio = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
-  const av  = _isPAThesisRatio && data.marketValue
-    ? parseDol(data.marketValue)
-    : parseDol(data.assessedValue);
-  const ask = parseDol(data.askingPrice);
-
-  if (units > 0 && age > 0) {
-    parts.push(`${age}-year-old, ${units}-unit${data.propertyType ? " " + data.propertyType.toLowerCase() : " multifamily asset"}.`);
-  }
-  if (data.brokerClaims) {
-    parts.push(`Broker represents: "${data.brokerClaims}." These claims require independent verification during due diligence.`);
-  }
-  const _pSrc = data.permitSource === "unavailable";
-  if (_pSrc) {
-    // Skip permit-based narrative; the age-based inspection guidance
-    // elsewhere in the report still covers the substantive point.
-  } else if (permitNum === 0 && age > 25) {
-    parts.push(`Zero permits on record for a ${age}-year-old building. Verify condition of all major systems during inspection and cross-reference against any broker capital improvement claims.`);
-  } else if (permitNum > 0) {
-    parts.push(`${permitNum} permit record${permitNum > 1 ? "s" : ""} found — verify scope and quality of documented improvements during inspection.`);
-  }
-  const _bThesisStateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
-  const _isLpvThesis = _bThesisStateM?.[1] === "AZ";
-  const _isPAThesis  = _bThesisStateM?.[1] === "PA";
-  // Display the same value used in the ratio: PA → STEB-rescaled marketValue,
-  // else raw assessed.
-  const _avThesisStr = _isPAThesis && data.marketValue ? data.marketValue : data.assessedValue;
-  const _avThesisLbl = _isPAThesis && data.marketValue ? "STEB-rescaled assessed FMV" : (_isLpvThesis ? "County Full Cash Value" : "County assessment");
-  // Detect incomplete tax data (condo master file / data lag) — same logic as
-  // the flags block above. When detected, swap the reassessment narrative for
-  // a parcel-resolution caveat so the deal context isn't anchored on a wrong
-  // assessed-vs-ask ratio.
-  const _thesisOwnerStr = (data.owner || "").toUpperCase();
-  const _thesisIsCondoMF = /(?:CON|COM)DOMINIUM(?:\s+(?:ASSOCIATION|COMMUNITY|COMMONS|TRUST))?|MASTER FILE|COMMON ELEMENT|\bHOA\b/.test(_thesisOwnerStr);
-  const _thesisImpVal = parseDol(data.improvements);
-  const _thesisBa = parseInt((data.buildingArea || "").replace(/[^\d]/g, ""), 10) || 0;
-  const _thesisYb = parseInt((data.yearBuilt || "").replace(/[^\d]/g, ""), 10) || 0;
-  const _thesisCurYr = new Date().getFullYear();
-  const _thesisNoImpRecent =
-    _thesisImpVal === 0 && av > 0 && _thesisBa > 1000 && _thesisYb >= _thesisCurYr - 10;
-  const _thesisTaxIncomplete = _thesisIsCondoMF || _thesisNoImpRecent;
-  if (av > 0 && ask > 0 && !_thesisTaxIncomplete) {
-    const ratio = av / ask;
-    const pct = Math.round(ratio * 100);
-    if (ratio > 1.0) {
-      parts.push(`${_avThesisLbl} (${fmtDol(_avThesisStr)}) exceeds the asking price by ${pct - 100}%${_isLpvThesis ? " — AZ FCV is a market estimate, not the tax base (LPV). A tax consultant review may find grounds to reduce the LPV." : " — buyer is purchasing below assessed value. Current taxes reflect the higher assessment; a tax consultant review is worthwhile."}`);
-    } else if (pct < 80 && !_isLpvThesis && !_isPAThesis) {
-      parts.push(`County assessment (${fmtDol(data.assessedValue)}) is ${pct}% of ask, suggesting risk of future tax reassessment. A purchase at or near ask will likely trigger reassessment at the higher price at next cycle.`);
-    } else if (pct < 80 && _isPAThesis) {
-      parts.push(`${_avThesisLbl} (${fmtDol(_avThesisStr)}) is ${pct}% of ask. PA does not reassess on sale (assessments are locked to the 1998 base year), so the in-place tax burden carries through closing — but the gap to ask is appealable under PA's uniformity clause.`);
-    }
-  }
-  const _thesisCrimeGrade = parseCrimeData(data.crimeData ?? "")?.overallGrade || data.crimeOverall || "";
-  if (_thesisCrimeGrade && ["F","D-","D","D+"].includes(_thesisCrimeGrade)) {
-    parts.push(`Crime profile (grade ${_thesisCrimeGrade}) positions this as a workforce / C-class housing play. Operators with experience in challenged submarkets may find value; institutional capital will largely pass.`);
-  }
-  if (data.censusIncome && data.censusRent) {
-    const inc = parseDol(data.censusIncome);
-    const rent = parseDol(data.censusRent);
-    if (inc > 0 && rent > 0) {
-      const rentToIncome = Math.round((rent * 12 / inc) * 100);
-      parts.push(`Area median HH income of ${data.censusIncome} vs. median gross rent of ${data.censusRent}/mo implies a rent-to-income ratio of ~${rentToIncome}% for the median resident.`);
-    }
-  }
-  return parts.join(" ") || "Insufficient data to generate analysis. Enter deal inputs and rerun.";
-}
-
-// ── deal verdict ──────────────────────────────────────────────────────────────
+// ── flags + deal verdict ──────────────────────────────────
+// computeFlags + dealVerdictLevel are shared with the live HTML mirror and live
+// in ./reportFlags. The verdict colours below are PDF-specific presentation.
 function dealVerdict(flags: Flag[]) {
-  const reds = flags.filter(f => f.level === "red").length;
-  const ambers = flags.filter(f => f.level === "amber").length;
-  if (reds >= 2) return { color: RED, bg: RED_BG, label: "SIGNIFICANT RISK — PROCEED WITH CAUTION", desc: "Multiple material risk factors identified. Do not move forward without resolving these issues through due diligence." };
-  if (reds === 1 || ambers >= 3) return { color: RED, bg: RED_BG, label: "ELEVATED RISK — CAREFUL DUE DILIGENCE REQUIRED", desc: "Material risk factor(s) present. Verify independently and stress-test assumptions before committing to LOI." };
-  if (ambers >= 1) return { color: AMBER, bg: AMBER_BG, label: "MODERATE RISK — STANDARD DUE DILIGENCE APPLIES", desc: "Some risk factors noted. Review flagged items carefully. No automatic deal-killers identified." };
-  return { color: GREEN, bg: GREEN_BG, label: "ACCEPTABLE RISK PROFILE", desc: "No major red flags identified based on available data. Standard due diligence applies." };
+  const v = dealVerdictLevel(flags);
+  const map = {
+    red:   { color: RED,   bg: RED_BG },
+    amber: { color: AMBER, bg: AMBER_BG },
+    green: { color: GREEN, bg: GREEN_BG },
+  } as const;
+  return { ...map[v.level], label: v.label, desc: v.desc };
 }
 
-// ── permit detail parser ──────────────────────────────────────────────────────
-interface PermitDetail { t: string; d: string; dt: string; v: number | null; }
-
-function parsePermits(raw: string): PermitDetail[] {
-  try { return JSON.parse(raw) as PermitDetail[]; } catch { return []; }
-}
-
-// ── school parser ─────────────────────────────────────────────────────────────
-interface SchoolDetail { n: string; l: string; r: string; d: string | null; }
-
-function parseSchools(raw: string): SchoolDetail[] {
-  try { return JSON.parse(raw) as SchoolDetail[]; } catch { return []; }
-}
+// Parsers for permits / schools / crime + NAT_RATES + vsNat now live in
+// ./reportParsers (shared with the live HTML mirror). Colour helpers stay here
+// because the PDF palette differs from the on-screen palette.
 
 function schoolRatingColor(band: string): string {
   const b = band.toLowerCase();
@@ -719,66 +212,6 @@ function schoolRatingColor(band: string): string {
   return GRAY;
 }
 
-// ── BLS employment parser ─────────────────────────────────────────────────────
-interface ParsedBLS {
-  ur: number | null; nat: number | null;
-  emp: number | null; lf: number | null;
-  per: string; co: string;
-}
-
-function parseBLS(raw: string): ParsedBLS | null {
-  if (!raw) return null;
-  try {
-    const d = JSON.parse(raw);
-    return {
-      ur:  d.ur  ?? null,
-      nat: d.nat ?? null,
-      emp: d.emp ?? null,
-      lf:  d.lf  ?? null,
-      per: d.per || "",
-      co:  d.co  || "",
-    };
-  } catch { return null; }
-}
-
-// ── crime data parser ─────────────────────────────────────────────────────────
-// National FBI UCR 2022 rates per 1,000 (hardcoded; matches Python constants)
-const NAT_RATES = {
-  violent: 3.80, murder: 0.063, robbery: 0.609, assault: 2.743,
-  property: 19.54, burglary: 3.14, larceny: 13.46, vehicleTheft: 2.94,
-};
-
-interface ParsedCrime {
-  source: string; yearRange: string; population: number; agencyName: string;
-  overallGrade: string; violentGrade: string; propertyGrade: string; pct: number | null;
-  // CrimeGrade / FBI CDE path
-  crateTotal: number | null; crateViolent: number | null;
-  // Dallas Open Data path — local rates per 1,000 (annual avg)
-  vr: number | null; mr: number | null; rr: number | null; ar: number | null;
-  pr: number | null; br: number | null; lr: number | null; vtr: number | null;
-}
-
-function parseCrimeData(raw: string): ParsedCrime | null {
-  if (!raw) return null;
-  try {
-    const d = JSON.parse(raw);
-    return {
-      source: d.src || "",
-      yearRange: d.yr || "",
-      population: d.pop || 0,
-      agencyName: d.ag || "",
-      overallGrade: d.og || "",
-      violentGrade: d.vg || "",
-      propertyGrade: d.pg || "",
-      pct: d.pct ?? null,
-      crateTotal: d.cr ?? null,
-      crateViolent: d.vr1k ?? null,
-      vr: d.vr ?? null, mr: d.mr ?? null, rr: d.rr ?? null, ar: d.ar ?? null,
-      pr: d.pr ?? null, br: d.br ?? null, lr: d.lr ?? null, vtr: d.vtr ?? null,
-    };
-  } catch { return null; }
-}
-
 function crimeGradeColor(grade: string): string {
   if (!grade) return GRAY;
   const g = grade.toUpperCase();
@@ -786,12 +219,6 @@ function crimeGradeColor(grade: string): string {
   if (g === "B+" || g === "B" || g === "B-") return GREEN;
   if (g === "C+" || g === "C" || g === "C-") return AMBER;
   return RED;
-}
-
-function vsNat(local: number, nat: number): string {
-  if (!nat) return "";
-  const pct = Math.round((local - nat) / nat * 100);
-  return pct >= 0 ? `+${pct}%` : `${pct}%`;
 }
 
 function vsNatColor(local: number, nat: number): string {
@@ -888,230 +315,19 @@ function PageFooter() {
 export function DealBriefPDF({ data }: { data: ReportData }) {
   // BOE computed first so buyer cap rate can back-calculate an implied acquisition price
   const boe     = computeBoe(data);
-  const buyerCR = (parseCapRateInput(data.buyerCapRate) ?? 0) / 100;
-
-  // Effective tax rate — computed before impliedPrice so the closed-form can use it
-  const effTaxRate = (() => {
-    if (!boe) return 0;
-    const stateM = (data.address || "").match(/(?:,\s*|\s+)([A-Z]{2})\s*,?\s*\d{5}/);
-    const _stateAbbr = stateM?.[1] || "";
-    // AZ uses Limited Property Value (LPV) — the tax base is capped at 5%/yr and does NOT
-    // reset to purchase price on sale. Return 0 to suppress the tax-adjusted NOI scenario.
-    if (_stateAbbr === "AZ") return 0;
-    // Tier 1: jurisdiction effective rate from `tax_rates.py` (carried in
-    // data.taxRate). This is the right rate for the post-sale reassessment
-    // scenario — at sale the new owner loses any owner-occupied / non-business
-    // / abatement credits the prior owner had, so reassessed taxes apply the
-    // full jurisdiction levy × purchase price. Using `taxes / assessedValue`
-    // would bake the prior owner's exemptions into the projection, plus it
-    // breaks badly when the user overrides only one of taxes/av on R&A
-    // (e.g. enters the broker's actual bill but leaves the auditor's stale
-    // assessed value, producing a nonsensical effective rate).
-    const tr = parseFloat((data.taxRate || "").replace(/%/g, ""));
-    if (!isNaN(tr) && tr > 0) return tr / 100;
-    // Tier 2 (fallback): if no jurisdiction rate is available, back into one
-    // from the property's actual taxes ÷ assessed value. Less accurate but
-    // better than the Tier 3 state default.
-    const taxes = parseDol(data.annualTaxes);
-    const av    = parseDol(data.assessedValue);
-    if (taxes > 0 && av > 0) return taxes / av;
-    // Tier 3: state average effective rate for investor-owned multifamily.
-    // FL/NC/SC/GA updated 2026-04 based on statutory research (see dealbrief/pipeline/orchestrator.py).
-    // PA note: this is a fallback for effTaxRate, whose tier 1 returns
-    // taxes / assessedValue. Because PA assessedValue is now raw 1998-base
-    // (matches public record, NOT FMV), tier 1 returns a raw-relative rate
-    // (~3-6%). The fallback is set to a raw-relative ~3.5% to keep the
-    // convention self-consistent. effTaxRate's downstream consumers
-    // (taxAdjTaxes, impliedPrice closed-form, tax-adj cap-rate row) are
-    // all gated off for PA via isPAState, so this value never multiplies
-    // a price for PA in practice — it's only used when effTaxRate appears
-    // in cosmetic labels.
-    const _STATE_RATES: Record<string, number> = {
-      TX: 0.022, GA: 0.013, NC: 0.010, FL: 0.018, SC: 0.025, AZ: 0.008,
-      CA: 0.008, CO: 0.006, TN: 0.007, OH: 0.016, PA: 0.035, IL: 0.021,
-      NY: 0.016, NJ: 0.022, VA: 0.008, MD: 0.010, WA: 0.009, OR: 0.010,
-      MI: 0.016, MN: 0.011, WI: 0.016, IN: 0.009, MO: 0.010,
-    };
-    return stateM ? (_STATE_RATES[_stateAbbr] || 0) : 0;
-  })();
-
-  // State-specific tax treatment flags — used by impliedPrice, taxAdjTaxes, and render logic.
-  //   AZ:  LPV capped 5%/yr, no reset on sale → taxAdjTaxes = current × 1.05.
-  //   FL:  investor parcels fully reset on sale to Just Value; JV historically ≈ 85-95% of
-  //        recent sale price per F.S. 193.011(8) cost-of-sale deduction → apply 0.95 haircut.
-  //   NC:  values LOCK FLAT between countywide reappraisals (N.C.G.S. § 105-287). The
-  //        "reassessed" scenario applies post-reappraisal at the purchase price; we surface
-  //        the specific reappraisal year per county so buyers can time the tax shock.
-  const isLpvState = /(?:,\s*|\s+)AZ\s*,?\s*\d{5}/.test(data.address || "");
-  const isFLState  = /(?:,\s*|\s+)FL\s*,?\s*\d{5}/.test(data.address || "");
-  const isNCState  = /(?:,\s*|\s+)NC\s*,?\s*\d{5}/.test(data.address || "");
-  // PA: assessments are locked to the 1998 base year; sale does NOT trigger
-  // reassessment. Treat like NC for the "no reset on sale" rule, but without
-  // the scheduled-reappraisal-year concept (PA reassessments are irregular,
-  // multi-decade, and only happen by ordinance).
-  const isPAState  = /(?:,\s*|\s+)PA\s*,?\s*\d{5}/.test(data.address || "");
-  // CO: sales do NOT reset assessed value. Colorado reassesses biennially
-  // (odd years) using a June 30 prior-year level-of-value; buyer inherits
-  // the current LOV until the next cycle. For year-1 underwriting the tax
-  // burden is effectively unchanged from the seller's current bill —
-  // treat like PA (taxAdjTaxes = current, no rate × ask jump).
-  const isCOState  = /(?:,\s*|\s+)CO\s*,?\s*\d{5}/.test(data.address || "");
-  // OK: 5% growth cap on taxable value BUT resets to FMV on transfer.
-  // Buyer's year-1 tax = FMV × 11% × mill (the standard rate × ask path).
-  // No special treatment needed — falls into the default reassessment
-  // scenario like TX. Advisory banner surfaces the reset-on-sale nuance.
-  // NV Clark: 8% abatement growth cap does NOT reset on sale for investor MF
-  // (NRS 361.4722). Buyer inherits seller's trailing capped bill × 1.08 rather
-  // than paying rate × purchase price. Detect + treat like AZ LPV — use the
-  // in-place tax bill × (1 + capPct) for the reassessment scenario, not
-  // rate × ask.
-  const isNVCappedState = (() => {
-    const isNV = /(?:,\s*|\s+)NV\s*,?\s*\d{5}/.test(data.address || "");
-    if (!isNV) return false;
-    // Only trigger the cap logic when the pipeline actually flagged the
-    // parcel as abated + provided a capPct. Otherwise fall through to the
-    // default rate × ask reassessment path.
-    return Boolean(data.abatementFlag) && Boolean(data.capPct);
-  })();
-  const nvCapMultiplier = isNVCappedState
-    ? 1 + (parseFloat(data.capPct || "0.08") || 0.08)
-    : 1.08;
-  // Split-assessment-ratio states: `assessedValue` is the 100% appraised value;
-  // brokers / bills cite the taxable value at the state's statutory ratio.
-  // Ratios reflect the DealBrief investor-MF (5+ unit) audience.
-  const splitRatioStateMatch = /(?:,\s*|\s+)(OH|TN|MS|MO|KS)\s*,?\s*\d{5}/.exec(data.address || "");
-  const splitRatioState = splitRatioStateMatch ? splitRatioStateMatch[1] : "";
-  // TN is the only split-ratio state that flips MF ratio based on unit
-  // count: Class R (25%) for 1-4 unit, Class C (40%) for 5+. MO/KS treat
-  // residential rental as Class 1 residential regardless of unit count;
-  // MS Class I is owner-occupied SFR only (investor rentals always Class II
-  // 15%); OH is single flat 35%. Only TN flips.
-  const _splitRatioUnits = (() => {
-    const n = parseInt(data.units) || 0;
-    return n > 0 ? n : 5;  // default to 5+ (MF) when unset
-  })();
-  const splitRatioMap: Record<string, number> = {
-    OH: 0.35,
-    TN: _splitRatioUnits <= 4 ? 0.25 : 0.40,
-    MS: 0.15, MO: 0.19, KS: 0.115,
-  };
-  const splitRatioPct = (() => {
-    const raw = (data.assessmentRatio || "").toString().replace(/%/g, "").trim();
-    const parsed = parseFloat(raw);
-    if (isFinite(parsed) && parsed > 0 && parsed < 1) return parsed;
-    if (isFinite(parsed) && parsed >= 1 && parsed <= 100) return parsed / 100;
-    return splitRatioState ? splitRatioMap[splitRatioState] : 0;
-  })();
-  const isSplitRatioState = Boolean(splitRatioState) && splitRatioPct > 0;
-  const splitRatioLabel = splitRatioPct > 0
-    ? `${(splitRatioPct * 100).toFixed(splitRatioPct * 100 < 20 ? 1 : 0)}%`
-    : "";
-  const splitRatioTaxableStr = (() => {
-    if (!isSplitRatioState) return "";
-    const raw = (data.assessedValue || "").replace(/[$,]/g, "");
-    const n = parseFloat(raw);
-    if (!isFinite(n) || n <= 0) return "";
-    return "$" + Math.round(n * splitRatioPct).toLocaleString();
-  })();
-
-  // Implied acquisition price — closed-form so that tax-adj NOI ÷ price = buyer cap exactly.
-  // Default derivation: taxAdjNoi = (NOI_inplace + taxes_current) - effTaxRate × price
-  //                     price = (NOI_inplace + taxes) / (buyerCR + effTaxRate)
-  // FL variant:         taxAdjNoi = (NOI_inplace + taxes_current) - 0.95 × effTaxRate × price
-  //                     price = (NOI_inplace + taxes) / (buyerCR + 0.95 × effTaxRate)
-  // Falls back to NOI ÷ buyer cap when no effective rate is available.
-  const impliedPrice = (() => {
-    if (!boe || boe.estNoi <= 0 || !buyerCR) return 0;
-    // PA: assessments are locked to base year and do NOT reset on sale.
-    // The closed-form would gross up the price by an effTaxRate that's
-    // applied to the raw 1998-base assessed (~3–6% raw-relative), which
-    // overstates the implied price. Skip the tax-adj closed-form for PA
-    // and use straight NOI ÷ cap.
-    if (isPAState) return Math.round(boe.estNoi / buyerCR);
-    if (effTaxRate > 0) {
-      const taxMult = isFLState ? 0.95 : 1.0;
-      return Math.round((boe.estNoi + boe.taxes) / (buyerCR + taxMult * effTaxRate));
-    }
-    return Math.round(boe.estNoi / buyerCR);
-  })();
-
-  const effectiveAskStr = data.askingPrice || (impliedPrice > 0 ? String(impliedPrice) : "");
-
-  const model = runFinancialModel({
-    askingPriceStr: effectiveAskStr,
-    brokerCapRateStr: data.brokerCapRate,
-    rates: data.rates,
-    ltvs: data.ltvs,
-    amortYears: data.amortYears,
-    ioPeriod: data.ioPeriod,
-  });
-
-  const ioYears     = parseFloat(data.ioPeriod) || 0;
-  const amortYrsNum = parseFloat(data.amortYears) || 30;
-  const isIO        = ioYears > 0;
-  const ioLabel     = isIO
-    ? ioYears >= amortYrsNum
-      ? `${ioYears}-yr I/O (exceeds ${data.amortYears}-yr loan term — verify inputs)`
-      : `${ioYears}-yr I/O, then ${data.amortYears}-yr amort`
-    : `${data.amortYears}-yr amortization`;
-  const askFmt        = fmtAskingPrice(data.askingPrice);   // user's stated price only
-  const askNum        = parseDol(data.askingPrice);          // user's stated price only
-  const effectiveAskNum = parseDol(effectiveAskStr);         // used for financial calcs
-  const unitsNum    = parseInt(data.units) || 0;
-
-  // Tax-adjusted NOI — for DSCR sub-table.
-  //   AZ: taxes don't reset at purchase — model max LPV growth of 5%/yr instead.
-  //   FL: Just Value assumed = 95% of sale price (F.S. 193.011(8) cost-of-sale deduction).
-  //   NC: reassessment occurs at next countywide reappraisal (value flat until then);
-  //       applies effective rate × purchase price in the reappraisal scenario.
-  //   Default (TX/GA/SC/etc.): reassessment at next cycle applies rate × purchase price.
-  const taxAdjTaxes = (() => {
-    if (!boe) return 0;
-    if (isLpvState && boe.taxes > 0) return Math.round(boe.taxes * 1.05);
-    // NV Clark investor MF: cap doesn't reset on sale; buyer inherits the
-    // seller's trailing bill × (1 + capPct). No rate × ask jump.
-    if (isNVCappedState && boe.taxes > 0) return Math.round(boe.taxes * nvCapMultiplier);
-    // PA: assessment locks to the 1998 base year; sale does not trigger
-    // reassessment, so taxAdjTaxes == in-place taxes. Return 0 so the
-    // tax-adjusted scenario is suppressed.
-    if (isPAState) return 0;
-    // CO: sale does not reset value; buyer inherits current LOV until next
-    // biennial reassessment. Year-1 tax = seller's in-place. Suppress the
-    // tax-adj scenario like PA (biennial jumps are unpredictable — user
-    // can override the Annual Taxes field to project).
-    if (isCOState) return 0;
-    if (effTaxRate > 0 && effectiveAskNum > 0) {
-      const basis = isFLState ? effectiveAskNum * 0.95 : effectiveAskNum;
-      return Math.round(basis * effTaxRate);
-    }
-    return 0;
-  })();
-  const taxAdjNoi   = boe && taxAdjTaxes > 0 ? boe.estNoi + boe.taxes - taxAdjTaxes : 0;
-  // Show tax-adjusted section when the swing is meaningful.
-  // Flat $500 threshold was too coarse for small properties. Use max($200, 5% of current taxes).
-  // AZ: always show when we have current taxes (5% growth is exactly the story here).
-  const taxAdjThreshold = boe ? Math.max(200, boe.taxes * 0.05) : 500;
-  const showTaxAdj  = boe !== null && taxAdjTaxes > 0 && (
-    isLpvState ? boe.taxes > 0 : Math.abs(taxAdjTaxes - boe.taxes) > taxAdjThreshold
-  );
-  // Short label for the tax-adjusted scenario (used in multiple render sites)
-  const taxAdjDesc = isLpvState
-    ? "AZ 5% LPV cap"
-    : isNCState
-      ? `${(effTaxRate * 100).toFixed(2)}% × ask upon ${data.reappraisalYear || "next"} reappraisal`
-      : isFLState
-        ? `${(effTaxRate * 100).toFixed(2)}% × 95% of ask (FL JV reset)`
-        : `${(effTaxRate * 100).toFixed(2)}% × ask`;
-
-  // Breakeven occupancy on tax-adjusted OpEx — when reassessment is material, the
-  // relevant breakeven uses taxes at the likely post-purchase rate, not current taxes.
-  const taxAdjBreakevenOcc = showTaxAdj && boe && (boe.gpr + boe.otherIncomeAmt) > 0
-    ? (boe.totalOpEx - boe.taxes + taxAdjTaxes) / (boe.gpr + boe.otherIncomeAmt) * 100
-    : boe?.breakevenOcc ?? 0;
-
-  const bldgSF      = parseDol(data.buildingArea.replace(/SF/gi, "").replace(/,/g, ""));
-  const pricePerUnit = unitsNum > 0 && effectiveAskNum > 0 ? fmt$(effectiveAskNum / unitsNum) + " / unit" : "";
-  const pricePerSF   = bldgSF > 0  && effectiveAskNum > 0 ? fmt$(effectiveAskNum / bldgSF)   + " / SF"   : "";
+  // All tax/state/price derivations now live in ./underwriting (shared with the
+  // live Review & Adjust page) so both surfaces compute IDENTICAL numbers.
+  const {
+    buyerCR, effTaxRate,
+    isLpvState, isFLState, isNCState, isPAState, isCOState, isNVCappedState, nvCapMultiplier,
+    splitRatioState, splitRatioPct, isSplitRatioState, splitRatioLabel, splitRatioTaxableStr,
+    impliedPrice, effectiveAskStr, effectiveAskNum, askNum, askFmt,
+    model,
+    ioYears, amortYrsNum, isIO, ioLabel,
+    unitsNum,
+    taxAdjTaxes, taxAdjNoi, taxAdjThreshold, showTaxAdj, taxAdjDesc, taxAdjBreakevenOcc,
+    bldgSF, pricePerUnit, pricePerSF,
+  } = computeDerivations(data, boe);
   const yrBuilt    = parseInt(data.yearBuilt) || 0;
   const age        = yrBuilt > 0 ? new Date().getFullYear() - yrBuilt : 0;
   const permitNum  = parseInt(data.permitCount) || 0;
@@ -1139,8 +355,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
   const zipMatch = data.address.match(/\b\d{5}\b/);
   const zip = zipMatch ? zipMatch[0] : "";
 
-  const flags  = computeFlags(data, model, boe);
-  const thesis = buildThesis(data, flags);
+  const flags  = computeFlags(data, boe);
   const verdict = dealVerdict(flags);
 
   return (
@@ -1744,7 +959,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           <View style={{ marginBottom: 8 }}>
             <Bullet
               bold="Permit data temporarily unavailable. "
-              rest="Our permit data provider is offline for this address. Check the municipal building department directly for permit history. Age-based inspection guidance is covered in the Recommended Next Steps section."
+              rest="Our permit data provider is offline for this address. Check the municipal building department directly for permit history before ordering an inspection."
             />
           </View>
         ) : permitNum === 0 ? (
@@ -1885,6 +1100,8 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                     total={fmt$(boe.maintenance) + "/yr"} unit={pu(boe.maintenance)} />
                   <BoeRow label={"Est. Utilities  (~$" + Math.round(boe.opexInputs.utilitiesPerUnit) + "/unit)"}
                     total={fmt$(boe.utilities) + "/yr"} unit={pu(boe.utilities)} alt />
+                  <BoeRow label={"Est. Payroll  (~$" + Math.round(boe.opexInputs.payrollPerUnit) + "/unit)"}
+                    total={fmt$(boe.payroll) + "/yr"} unit={pu(boe.payroll)} />
                   <BoeRow label={"Est. Marketing & Leasing  (~$" + Math.round(boe.opexInputs.marketingPerUnit) + "/unit)"}
                     total={fmt$(boe.marketing) + "/yr"} unit={pu(boe.marketing)} />
                   <BoeRow label={"Est. Administrative  (~$" + Math.round(boe.opexInputs.adminPerUnit) + "/unit)"}
@@ -2032,7 +1249,9 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
             {[...new Set(model.scenarios.map(sc => sc.ltv))].map(ltv => {
               const ltvScs  = model.scenarios.filter(sc => sc.ltv === ltv);
               const loanAmt = ltvScs[0]?.loanAmount ?? 0;
-              const equity  = effectiveAskNum * (1 - ltv / 100);
+              // Equity = down payment + closing costs (% of PURCHASE PRICE),
+              // matching runFinancialModel so CoC ties out across surfaces.
+              const equity  = effectiveAskNum * (1 - ltv / 100) + effectiveAskNum * CLOSING_COST_RATE;
 
               // Helper: render one rate table given a base NOI value
               // Tighter padding for DSCR tables to keep everything on one page
@@ -2053,7 +1272,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                   {ltvScs.map((sc, i) => {
                     const cf   = noiForCalc !== null ? noiForCalc - sc.annualDebtService : null;
                     const dscr = noiForCalc !== null && sc.annualDebtService > 0 ? noiForCalc / sc.annualDebtService : null;
-                    const coc  = cf !== null && equity > 0 ? cf / (equity * 1.015) : null;
+                    const coc  = cf !== null && equity > 0 ? cf / equity : null;
                     const sig  = dscr === null ? "—"
                       : dscr >= 1.10 && coc !== null && coc >= 0.06 ? "GO"
                       : dscr >= 1.0 ? "WATCH"
@@ -2085,7 +1304,7 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
               return (
                 <View key={ltv} style={{ marginBottom: 8 }}>
                   <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 3 }}>
-                    {fmtPct(ltv, 0)} LTV — {fmt$(loanAmt)} loan | {fmt$(equity)} down | {ioLabel}
+                    {fmtPct(ltv, 0)} LTV — {fmt$(loanAmt)} loan | {fmt$(equity)} equity in | {ioLabel}
                   </Text>
 
                   {/* In-place taxes sub-table */}
@@ -2139,20 +1358,16 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
                 </View>
               </View>
             )}
-            <Text style={s.note}>GO = DSCR 1.10x+ / CoC 6%+. WATCH = marginal. STOP = negative or sub-1.0x DSCR. Closing costs at 1.5%.</Text>
+            <Text style={s.note}>GO = DSCR 1.10x+ / CoC 6%+. WATCH = marginal. STOP = negative or sub-1.0x DSCR. Equity = down payment + 2% of purchase price (closing costs).</Text>
           </>
         )}
 
         <PageFooter />
       </Page>
 
-      {/* ════════ PAGE 5: DEAL CONTEXT + FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
+      {/* ════════ PAGE 5: FLAGS + NEXT STEPS + DISCLAIMER ════════ */}
       <Page size="LETTER" style={s.page}>
         <PageHeader address={data.address} page={5} />
-
-        {/* DEAL CONTEXT & ANALYSIS */}
-        <SectionHead title="DEAL CONTEXT & ANALYSIS" />
-        <Text style={[s.val, { lineHeight: 1.6, marginBottom: 6, fontSize: 8.5 }]}>{thesis}</Text>
 
         {/* KEY FLAGS & OBSERVATIONS */}
         <SectionHead title="KEY FLAGS & OBSERVATIONS" />
@@ -2183,78 +1398,10 @@ export function DealBriefPDF({ data }: { data: ReportData }) {
           ))
         )}
 
-        <SectionHead title="RECOMMENDED NEXT STEPS" />
-        <Bullet bold="Request T-12 operating statement and current rent roll. "
-          rest="The broker's cap rate is an assertion, not a fact. Verify every line of income and expenses against trailing-12 month actuals and expected future scenarios before submitting an LOI." />
-        <Bullet bold="Order a thorough property inspection. "
-          rest={age > 0 && age <= 5
-            ? `On a ${age}-year-old building, verify construction quality, confirm certificates of occupancy are in order, and check for any outstanding punch-list items. Request builder warranties for structural, mechanical, and appliance systems.`
-            : `On ${age > 0 ? "a " + age + "-year-old" : "an older"} building${data.permitSource !== "unavailable" && permitNum === 0 ? " with no permit history" : ""}, pay particular attention to: roof condition and remaining life, HVAC systems and ages, plumbing (including drain lines), electrical panels (load capacity and age), and foundation.`
-          } />
-        {hasCrime && ["F","D-","D","D+"].includes(crimeGrade) && (
-          <Bullet bold="Speak with local portfolio lenders before making an offer. "
-            rest={`The crime profile (${crimeGrade}) may limit conventional financing options. Regional banks and credit unions familiar with the submarket are more likely to lend here than national platforms.`} />
-        )}
-        <Bullet bold="Confirm the utility structure. "
-          rest="Get actual utility bills for the trailing 12 months. Determine which utilities are landlord-paid vs. tenant-paid — this has a direct, significant impact on actual NOI vs. broker-stated NOI." />
-        <Bullet bold="Verify occupancy, lease terms, and any concessions. "
-          rest="Confirm occupancy claim with a current rent roll and T12. Note lease expiration dates — a property with all leases expiring at closing carries significant rollover risk." />
-        {hasAssessor && data.assessedValue && data.askingPrice && (() => {
-          // PA: prefer STEB-rescaled marketValue for ratio comparisons (raw
-          // base-year is structurally fractional). Otherwise use raw assessed.
-          const _useMarketForCompare = isPAState && !!data.marketValue;
-          const av3 = _useMarketForCompare
-            ? parseDol(data.marketValue || "")
-            : parseDol(data.assessedValue);
-          const ask3 = parseDol(data.askingPrice);
-          if (av3 > ask3) {
-            return (
-              <Bullet bold="Consider a property tax appeal. "
-                rest={
-                  isPAState
-                    ? `Estimated FMV (STEB-rescaled from base-year assessment, ${fmtDol(data.marketValue || data.assessedValue)}) exceeds the purchase price (${askFmt}). PA does not reassess on sale — but purchasing below the rescaled FMV is a strong basis for an "unequal assessment" appeal under PA's uniformity clause. Engage a PA property tax counsel post-closing.`
-                    : `Current county assessment (${fmtDol(data.assessedValue)}) exceeds the purchase price (${askFmt}). Purchasing below assessed value is a strong basis to challenge the assessment downward. Engage a property tax consultant after closing — a successful appeal could reduce annual taxes materially.`
-                } />
-            );
-          }
-          if (isLpvState) {
-            return (
-              <Bullet bold="Model Arizona LPV tax growth. "
-                rest={`Arizona's Limited Property Value (LPV) is capped at 5% annual growth and does not reset to purchase price at closing. Current taxes are based on the LPV, not the Full Cash Value. Model the 5%/yr compounding scenario in your hold-period pro forma.`} />
-            );
-          }
-          if (isNCState) {
-            return (
-              <Bullet bold="Model North Carolina reappraisal timing. "
-                rest={`NC locks assessed value flat between countywide reappraisals (N.C.G.S. § 105-287) — the tax burden does NOT reset at closing. Current assessment is ${fmtDol(data.assessedValue)}. The next scheduled reappraisal${data.reappraisalYear ? ` is in ${data.reappraisalYear}` : ""}, at which point values will reset to market — effectively the purchase price. Hold-period taxes are near-term stable; model the reappraisal step-up into your exit-year pro forma.`} />
-            );
-          }
-          if (isFLState) {
-            return (
-              <Bullet bold="Model Florida Just Value reset. "
-                rest={`Florida fully resets the investor Just Value at change of ownership (F.S. 193.1554/193.1555) — Save Our Homes does NOT apply to rentals. JV typically settles at ~85-95% of sale price per F.S. 193.011(8) cost-of-sale deduction. Model first-year taxes at ~95% of purchase price × the county effective rate, plus non-ad-valorem assessments (CDDs/MSBUs/fire fees) shown on the TRIM notice.`} />
-            );
-          }
-          if (isPAState) {
-            return (
-              <Bullet bold="Pennsylvania assessments do not reset on sale. "
-                rest={`PA assessments are locked to the 1998 base year and only update when a county passes a countywide reassessment ordinance (irregular, multi-decade). The current "Assessed Value" of ${fmtDol(data.assessedValue)} (matching the broker / tax bill) carries through closing — your in-place tax burden is locked. The "Est. Market Value" shown is the STEB Common-Level Ratio rescaling and is provided for cross-state comparison and underwriting only.${data.marketValue ? ` If purchasing materially below the rescaled FMV (${fmtDol(data.marketValue)}), a uniformity appeal may be available.` : ""}`} />
-            );
-          }
-          return (
-            <Bullet bold="Model post-acquisition tax reassessment. "
-              rest={`Current assessment is ${fmtDol(data.assessedValue)}. A purchase at ${askFmt} will likely trigger reassessment upward at next cycle. Model the additional tax burden in your pro forma before submitting an LOI.`} />
-          );
-        })()}
-        <Bullet bold="Get quotes from local insurance brokers. "
-          rest={`Insurance estimates in this report are rule-of-thumb. Actual premiums depend on building age, condition, claims history, crime data, and flood zone${hasFema && !data.femaZone.includes("X") ? ` (flood insurance will be required for this property)` : ""}. Get a real quote before LOI.`} />
-
         {/* DISCLAIMER */}
         <View style={s.disclaimer}>
-          <Text style={s.disclaimerTitle}>IMPORTANT DISCLAIMER — READ BEFORE ACTING ON THIS REPORT</Text>
-          <Text style={s.disclaimerText}>
-            This report is generated by DealBrief (getdealbrief.com) and is provided for informational purposes only. It does not constitute investment advice, financial advice, legal advice, or a recommendation to buy, sell, or hold any real property or security. All data is sourced from publicly available databases including but not limited to: U.S. Census Bureau American Community Survey (ACS), FEMA National Flood Hazard Layer (NFHL), county appraisal district records, city building permit portals, and third-party aggregators. DealBrief makes no representations or warranties, express or implied, as to the accuracy, completeness, timeliness, or reliability of any data contained in this report. Public data may contain errors, omissions, or outdated information. Financial projections, cap rate analysis, debt service calculations, and operating expense estimates are illustrative only and are based on inputs provided by the user and/or broker-stated figures that have not been independently verified. Actual investment performance may differ materially from any estimates or projections herein. This report is not a substitute for professional due diligence. Before making any investment decision, consult qualified professionals including a licensed real estate broker, CPA, real estate attorney, lender, and property inspector. DealBrief and its operators shall not be liable for any damages, losses, or claims arising from reliance on this report. By using this report, you acknowledge that you have read this disclaimer and agree that DealBrief is not responsible for any investment outcomes.
-          </Text>
+          <Text style={s.disclaimerTitle}>{DISCLAIMER_TITLE}</Text>
+          <Text style={s.disclaimerText}>{DISCLAIMER_TEXT}</Text>
         </View>
 
         <PageFooter />

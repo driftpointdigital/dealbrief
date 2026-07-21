@@ -1,8 +1,16 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Script from "next/script";
+import Link from "next/link";
 import { sendGAEvent } from "@next/third-parties/google";
+import { computeBoe, computeDerivations } from "@/lib/underwriting";
+import { buildReportMetadata } from "@/lib/buildReportMetadata";
+import { metadataToReportData } from "@/lib/metadataToReportData";
+import LiveReport from "@/components/LiveReport";
+import AuthGate from "@/components/AuthGate";
+import AccountMenu from "@/components/AccountMenu";
+import { DEMO_PIPELINE, DEMO_ADDRESS } from "@/lib/demoReport";
 
 // Google Maps Places API key — exposed client-side because the API
 // requires it for browser-side autocomplete. SHOULD be HTTP-referrer
@@ -173,7 +181,10 @@ function Tooltip({ text }: { text: string }) {
   );
 }
 
-function FieldRow({ label, name, value, placeholder, editable = true, tooltip, onChange }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean; tooltip?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+function FieldRow({ label, name, value, placeholder, editable = true, tooltip, onChange, highlight }: { label: string; name?: string; value?: string; placeholder?: string; editable?: boolean; tooltip?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; highlight?: boolean }) {
+  // Declarative focus state so a reactive `highlight` (required-but-empty) can
+  // coexist with focus styling without imperative style conflicts.
+  const [focused, setFocused] = useState(false);
   // When the label wraps to two lines (e.g. "Limited Property Value (LPV)"),
   // we want the tooltip "?" glyph to wrap along with the last word so it
   // stays attached to the label — otherwise it visually hangs off the right
@@ -215,13 +226,15 @@ function FieldRow({ label, name, value, placeholder, editable = true, tooltip, o
           aria-autocomplete="none"
           style={{
             flex: 1, padding: "0 8px", height: 32, fontSize: 14, color: "#111827",
-            border: "1px solid transparent", borderRadius: 4,
-            background: "transparent", fontFamily: "inherit",
+            border: focused ? "1px solid #1D3557" : highlight ? "1.5px solid #F59E0B" : "1px solid transparent",
+            borderRadius: 4,
+            background: focused ? "#FAFAFA" : highlight ? "#FFFBEB" : "transparent",
+            fontFamily: "inherit",
             transition: "all 0.12s",
             outline: "none",
           }}
-          onFocus={(e) => { e.currentTarget.style.borderColor = "#D1D5DB"; e.currentTarget.style.background = "#FAFAFA"; }}
-          onBlur={(e) => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           onChange={onChange}
         />
       ) : (
@@ -252,8 +265,62 @@ function SectionCard({ title, subtitle, children }: { title: string; subtitle?: 
   );
 }
 
+// Maps a raw /api/pipeline response into the form's `data` shape. Shared by the
+// live run (go) and the pre-canned demo so both produce identical state.
+function pipelineToData(pipeline: Record<string, unknown>, addr: string) {
+  const a = (pipeline.assessor ?? {}) as Record<string, unknown>;
+  const geo = (pipeline.geo ?? {}) as Record<string, unknown>;
+  const geoAddr = (geo.formattedAddress as string) || addr;
+  const userRangeMatch = addr.match(/^(\d+-\d+)\b/);
+  const geoNumMatch = geoAddr.match(/^(\d+)\b/);
+  const displayAddr = userRangeMatch && geoNumMatch
+    ? geoAddr.replace(geoNumMatch[1], userRangeMatch[1])
+    : geoAddr;
+  const p = pipeline as Record<string, Record<string, unknown> | undefined>;
+  const s = (v: unknown) => (v == null ? "" : String(v));
+  return {
+    address: displayAddr,
+    yearBuilt:    s(a.yearBuilt),
+    buildingArea: s(a.buildingArea),
+    lotSize:      s(a.lotSize),
+    units:        s(a.units),
+    unitMix:      "",
+    zoning:       s(a.zoning),
+    assessedValue:    s(a.assessedValue),
+    marketValue:      s(a.marketValue),
+    landValue:        s(a.landValue),
+    improvementValue: s(a.improvements),
+    otherValue:       s(a.otherValue),
+    lpv:              s(a.lpv),
+    adjustedLpv:      s(a.adjustedLpv),
+    assessmentRatio:  typeof a.assessmentRatio === "number" ? String(a.assessmentRatio) : s(a.assessmentRatio),
+    reappraisalYear:  s(a.reappraisalYear),
+    annualTaxes:      s(a.annualTaxes),
+    taxRate:          s(a.taxRate),
+    taxFeePerUnit:    a.taxFeePerUnit != null ? String(a.taxFeePerUnit) : "",
+    fipsState:        s(geo.fipsState),
+    femaFloodZone:    s(p.fema?.floodZone),
+    walkScore:        s(p.walkscore?.walk),
+    bikeScore:        s(p.walkscore?.bike),
+    crimeGrade:       s(p.crime?.overallGrade),
+    crimeRate:        p.crime?.ratePerThousand ? `${p.crime.ratePerThousand} per 1,000` : "",
+    medianHHIncome:   s(p.census?.medianIncome),
+    population:       s(p.census?.population),
+    medianAge:        s(p.census?.medianAge),
+    medianHomeValue:  s(p.census?.medianHomeValue),
+    medianRent:       s(p.census?.medianRent),
+    _pipeline: pipeline,
+  } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown };
+}
+
 export default function DealBrief() {
   const [view, setView] = useState("landing");
+  // True when we've just returned from Stripe subscription checkout (?subscribed=1)
+  // — the gate then polls for the subscription to sync before unlocking.
+  const [justSubscribed, setJustSubscribed] = useState(false);
+  // Demo seed: the pre-canned sample pre-fills price (units handled via unitsEdit).
+  const [priceSeed, setPriceSeed] = useState("");
+  const [priceKey, setPriceKey] = useState(0);
   const [address, setAddress] = useState("");
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [suggestVal, setSuggestVal] = useState("");
@@ -271,10 +338,11 @@ export default function DealBrief() {
   const [insurancePerUnit, setInsurancePerUnit] = useState("800");
   const [maintenancePerUnit, setMaintenancePerUnit] = useState("750");
   const [utilitiesPerUnit, setUtilitiesPerUnit] = useState("250");
-  const [managementPct, setManagementPct] = useState("8.0");
+  const [managementPct, setManagementPct] = useState("3.0");
   const [marketingPerUnit, setMarketingPerUnit] = useState("150");
   const [adminPerUnit, setAdminPerUnit] = useState("100");
   const [reservesPerUnit, setReservesPerUnit] = useState("400");
+  const [payrollPerUnit, setPayrollPerUnit] = useState("1000");
   const [propertyType, setPropertyType] = useState("Multifamily");
   const [unitsKey, setUnitsKey] = useState(0);
   // Same remount trick as unitsKey — Tax Rate FieldRow uses `defaultValue`
@@ -283,7 +351,6 @@ export default function DealBrief() {
   // key whenever the class-scale flips the rate, forcing a remount so the
   // input re-reads its `value` prop.
   const [rateKey, setRateKey] = useState(0);
-  const [devKey, setDevKey] = useState("");
   const [pipelineError, setPipelineError] = useState("");
   const [assessorNote, setAssessorNote]   = useState("");
 
@@ -307,8 +374,24 @@ export default function DealBrief() {
     setTimeout(() => setHeroVisible(true), 50);
     // Read ?dev=KEY from URL — enables the dev bypass button
     if (typeof window !== "undefined") {
-      const k = new URLSearchParams(window.location.search).get("dev") || "";
-      setDevKey(k);
+      // Returning from Stripe subscription checkout — restore the report we
+      // stashed before the redirect and drop back onto the gate, which
+      // auto-unlocks once the subscription webhook syncs.
+      if (new URLSearchParams(window.location.search).get("subscribed") === "1") {
+        sendGAEvent("event", "subscribe_complete", {});
+        const w = window as unknown as { rdt?: (...args: unknown[]) => void };
+        if (typeof w.rdt === "function") w.rdt("track", "Purchase");
+        const saved = sessionStorage.getItem("db_pending_report");
+        if (saved) {
+          try {
+            setData(JSON.parse(saved) as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
+            setJustSubscribed(true);
+            setView("gate");
+          } catch { /* ignore malformed stash */ }
+          sessionStorage.removeItem("db_pending_report");
+        }
+        window.history.replaceState({}, "", window.location.pathname);
+      }
     }
     // Mobile detection — 640px breakpoint matches typical "phone" cutoff
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
@@ -387,12 +470,6 @@ export default function DealBrief() {
     };
   }, [placesReady]);
 
-  const [generating, setGenerating] = useState(false);
-  const [generateError, setGenerateError] = useState("");
-  // Email for first-free-report gating + Stripe receipt. Eligibility
-  // check happens on submit; the unique index on reports.email is the
-  // authoritative gate (see /api/free-report).
-  const [email, setEmail] = useState("");
 
   // Controlled state for land/improvement/other inputs so assessed value can be derived as their sum
   const [landEdit, setLandEdit] = useState("");
@@ -401,7 +478,11 @@ export default function DealBrief() {
   // Controlled state for units + tax rate so Annual Taxes reacts live when a
   // per-unit fee applies (e.g. Charlotte multifamily solid-waste fee).
   const [unitsEdit, setUnitsEdit] = useState("");
+  // Bumped on every form edit to re-run the live results memo below.
+  const [formTick, setFormTick] = useState(0);
   const [taxRateEdit, setTaxRateEdit] = useState("");
+  // Pro-forma (reassessment) tax rate — drives the tax-adjusted scenario only.
+  const [proFormaTaxRateEdit, setProFormaTaxRateEdit] = useState("");
 
   // Sync to pipeline data whenever a new address result arrives
   useEffect(() => {
@@ -504,44 +585,12 @@ export default function DealBrief() {
     if (view !== "confirm") raFirstEditFiredRef.current = false;
   }, [view]);
 
-  const handleGenerate = async () => {
-    if (!formRef.current) return;
-    setGenerateError("");
-    const fd = new FormData(formRef.current);
+  // Assemble the request body from the form + controlled assumption state.
+  // Used by BOTH handleGenerate (server request) and the live results panel
+  // (client-side preview) so the on-screen numbers match the generated PDF.
+  const buildBody = (fd: FormData): Record<string, unknown> => {
     const body: Record<string, unknown> = {};
     fd.forEach((val, key) => { body[key] = val; });
-
-    // Validation: at least one of asking price or buyer cap rate must be populated
-    if (!body.askingPrice && !body.buyerCapRate) {
-      setGenerateError("Please enter an Asking Price or Buyer Cap Rate before generating — at least one is required for the financial analysis.");
-      return;
-    }
-    // Soft warning surfaced inline if units is blank
-    if (!body.units) {
-      setGenerateError("⚠ Units is blank — enter the number of units to get per-unit expense estimates and breakeven analysis. You can still generate without it.");
-      // Don't return — allow the user to proceed if they confirm by clicking again
-      // or we just show the warning; for now we block until they fill it in
-      return;
-    }
-    // Email is OPTIONAL. It is used only as the free-report eligibility
-    // key (one free report per email address). If the user leaves it blank
-    // they skip eligibility entirely and go straight to Stripe checkout,
-    // which collects an email on the hosted page anyway. If they type
-    // something but it isn't a plausible email, reject so they can fix
-    // the typo before paying for a report tied to a bad address.
-    const emailTrimmed = String(body.email ?? email ?? "").trim();
-    const emailIsValid =
-      emailTrimmed.length > 0 &&
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed);
-    if (emailTrimmed.length > 0 && !emailIsValid) {
-      setGenerateError(
-        "That doesn't look like a valid email — fix it, or leave it blank to go straight to checkout."
-      );
-      return;
-    }
-    body.email = emailIsValid ? emailTrimmed.toLowerCase() : "";
-
-    setGenerating(true);
     body.rates = selectedRates;
     body.ltvs = selectedLtvs;
     body.amortYears = amortYears;
@@ -549,160 +598,57 @@ export default function DealBrief() {
     body.vacancyPct = vacancyPct;
     body.badDebtPct = badDebtPct;
     body.otherIncomePct = otherIncomePct;
-    body.opexOverrides = [insurancePerUnit, maintenancePerUnit, utilitiesPerUnit, managementPct, marketingPerUnit, adminPerUnit, reservesPerUnit].join(",");
+    body.opexOverrides = [insurancePerUnit, maintenancePerUnit, utilitiesPerUnit, managementPct, marketingPerUnit, adminPerUnit, reservesPerUnit, payrollPerUnit].join(",");
     if (data?._pipeline) body._pipeline = data._pipeline;
-
-    try {
-      // 1) Eligibility check — advisory, server is source of truth.
-      //    Only meaningful when the user actually supplied an email.
-      //    Blank email → skip eligibility and go straight to checkout.
-      let free = false;
-      if (emailIsValid) {
-        try {
-          const eligRes = await fetch("/api/eligibility", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: body.email }),
-          });
-          if (eligRes.ok) {
-            const eligJson = await eligRes.json();
-            free = Boolean(eligJson.free);
-          }
-        } catch {
-          // Network glitch on eligibility check → fall through to paid.
-        }
-      }
-
-      // 2a) Free path
-      if (free) {
-        const freeRes = await fetch("/api/free-report", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (freeRes.status === 409) {
-          // Lost the race against another tab/window with the same email
-          // — fall through to Stripe.
-          free = false;
-        } else {
-          const freeJson = await freeRes.json();
-          if (!freeRes.ok || freeJson.error) {
-            throw new Error(freeJson.error || `Server error ${freeRes.status}`);
-          }
-          if (!freeJson.id) throw new Error("No report id returned");
-          // GA funnel — bottom of the funnel for the free path (visitor
-          // successfully generated a report). `path: "free"` distinguishes
-          // from the paid path so you can compare conversion rates.
-          sendGAEvent("event", "report_run", {
-            path: "free",
-          });
-          // Reddit Ads pixel — fire SignUp conversion. Reddit's algorithm
-          // uses this to optimize bidding once we have enough conversion
-          // data (typically ~30 events). The base PageVisit fires from
-          // layout.tsx on every page load; this is the value event.
-          if (typeof window !== "undefined") {
-            const w = window as unknown as { rdt?: (...args: unknown[]) => void };
-            if (typeof w.rdt === "function") {
-              w.rdt("track", "SignUp");
-            }
-          }
-          window.location.href = `/report/${freeJson.id}`;
-          return;
-        }
-      }
-
-      // 2b) Paid path
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok || json.error) {
-        throw new Error(json.error || `Server error ${res.status}`);
-      }
-      const { url } = json;
-      if (!url) throw new Error("No checkout URL returned");
-      // GA funnel — paid-path completion. User is being redirected to
-      // Stripe; we count this as "report_run" with path="paid" so the
-      // overall conversion metric covers both free and paid users. (The
-      // actual report only renders after Stripe payment succeeds; we
-      // could add a separate `report_purchased` event from the Stripe
-      // webhook later if we want to distinguish intent from completion.)
-      sendGAEvent("event", "report_run", {
-        path: "paid",
-      });
-      // Reddit Ads pixel — fires when user is redirected to Stripe.
-      // NOTE: primary Lead fire is now at Pipeline Success (mid-funnel) to
-      // give Reddit's optimizer usable signal volume. This end-of-funnel
-      // fire is retained as an additional Lead until we swap it to Purchase
-      // once a Stripe webhook confirms payment. When we do that swap, this
-      // should become rdt("track","Purchase") with order value for ROAS.
-      if (typeof window !== "undefined") {
-        const w = window as unknown as { rdt?: (...args: unknown[]) => void };
-        if (typeof w.rdt === "function") {
-          w.rdt("track", "Lead");
-        }
-      }
-      window.location.href = url;
-    } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
-      setGenerating(false);
-    }
+    // In-place taxes track the reactive Appraised × Tax Rate computation when
+    // available, so editing Tax Rate updates Current Taxes (not just the
+    // reassessed line). Read the computed value directly rather than the hidden
+    // input, which lags by one commit.
+    if (computedAnnualTaxes) body.annualTaxes = computedAnnualTaxes;
+    return body;
   };
 
-  const handleDevGenerate = async () => {
-    if (!formRef.current || !devKey) return;
-    setGenerateError("");
-    const fd = new FormData(formRef.current);
-    const body: Record<string, unknown> = {};
-    fd.forEach((val, key) => { body[key] = val; });
-
-    // Same validation as handleGenerate
-    if (!body.askingPrice && !body.buyerCapRate) {
-      setGenerateError("Please enter an Asking Price or Buyer Cap Rate before generating — at least one is required for the financial analysis.");
-      return;
-    }
-    if (!body.units) {
-      setGenerateError("⚠ Units is blank — enter the number of units to get per-unit expense estimates and breakeven analysis. You can still generate without it.");
-      return;
-    }
-
-    setGenerating(true);
-    body.rates = selectedRates;
-    body.ltvs = selectedLtvs;
-    body.amortYears = amortYears;
-    body.ioPeriod = ioPeriod;
-    body.vacancyPct = vacancyPct;
-    body.badDebtPct = badDebtPct;
-    body.otherIncomePct = otherIncomePct;
-    body.opexOverrides = [insurancePerUnit, maintenancePerUnit, utilitiesPerUnit, managementPct, marketingPerUnit, adminPerUnit, reservesPerUnit].join(",");
-    if (data?._pipeline) body._pipeline = data._pipeline;
-
+  // Live results — recomputed on every form edit (formTick) and on any
+  // controlled-assumption change. Routes through the SAME path as the
+  // generated PDF (buildReportMetadata → metadataToReportData → computeBoe/
+  // computeDerivations) so the on-screen numbers are guaranteed identical to
+  // the delivered report. Returns null until the form + pipeline data exist.
+  const liveResults = useMemo(() => {
+    if (!formRef.current || !data) return null;
     try {
-      const res = await fetch(`/api/dev-report?key=${encodeURIComponent(devKey)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error((json as {error?: string}).error || `Server error ${res.status}`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const devStreet = (address || "").split(",")[0].trim();
-      a.download = devStreet ? `DealBrief - ${devStreet}.pdf` : "DealBrief.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : "Dev generation failed.");
-    } finally {
-      setGenerating(false);
+      const body = buildBody(new FormData(formRef.current));
+      const rd   = metadataToReportData(buildReportMetadata(body));
+      const boe  = computeBoe(rd);
+      const deriv = computeDerivations(rd, boe);
+      return { rd, boe, deriv };
+    } catch {
+      return null;
     }
-  };
+    // formRef/buildBody are stable within a render; formTick + the assumption
+    // states below are the real triggers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    formTick, data, summedAssessed, unitsEdit, propertyType,
+    selectedRates, selectedLtvs, amortYears, ioPeriod,
+    vacancyPct, badDebtPct, otherIncomePct,
+    insurancePerUnit, maintenancePerUnit, utilitiesPerUnit, managementPct,
+    marketingPerUnit, adminPerUnit, reservesPerUnit, payrollPerUnit,
+  ]);
+
+  // Seed the live memo once the form is actually mounted (refs populate after
+  // commit) and whenever a fresh address loads — so the report pane renders
+  // immediately instead of waiting for the user's first edit.
+  useEffect(() => {
+    if (view === "confirm" && data) setFormTick(t => t + 1);
+    // propertyType is a controlled <select> — FormData lags its value by one
+    // commit, so bump the tick post-commit to re-read it fresh into the panel.
+  }, [view, data, propertyType, unitsEdit, taxRateEdit, proFormaTaxRateEdit]);
+
+  // Required-but-empty highlight for the two must-fill inputs. Derived from the
+  // live model so the amber cue clears the instant a valid value lands.
+  const priceFilled = (liveResults?.deriv?.askNum ?? 0) > 0;
+  const unitsFilled = (parseInt(liveResults?.rd?.units || "0", 10) || 0) > 0;
+
 
   const go = async (overrideAddress?: string) => {
     // Source-of-truth precedence for the address we submit:
@@ -782,50 +728,7 @@ export default function DealBrief() {
       }
       // Prefer the geocoded formatted address for proper commas/casing, but restore
       // hyphenated range prefixes (e.g. "2429-2431") that the geocoder drops.
-      const geoAddr = pipeline?.geo?.formattedAddress || addr;
-      const userRangeMatch = addr.match(/^(\d+-\d+)\b/);
-      const geoNumMatch    = geoAddr.match(/^(\d+)\b/);
-      const displayAddr = userRangeMatch && geoNumMatch
-        ? geoAddr.replace(geoNumMatch[1], userRangeMatch[1])
-        : geoAddr;
-      setData({
-        address: displayAddr,
-        yearBuilt:    a.yearBuilt    || "",
-        buildingArea: a.buildingArea || "",
-        lotSize:      a.lotSize      || "",
-        units:        a.units        || "",
-        unitMix:      "",
-        zoning:       a.zoning || "",
-        assessedValue:    a.assessedValue  || "",
-        marketValue:      a.marketValue    || "",
-        landValue:        a.landValue      || "",
-        improvementValue: a.improvements   || "",
-        otherValue:       a.otherValue     || "",
-        lpv:              a.lpv            || "",
-        adjustedLpv:      a.adjustedLpv    || "",
-        assessmentRatio:  typeof a.assessmentRatio === "number" ? a.assessmentRatio.toString() : (a.assessmentRatio || ""),
-        reappraisalYear:  a.reappraisalYear || "",
-        annualTaxes:      a.annualTaxes    || "",
-        taxRate:          a.taxRate        || "",
-        taxFeePerUnit:    a.taxFeePerUnit != null ? String(a.taxFeePerUnit) : "",
-        // FIPS state used by class-threshold rate adjustment when user
-        // edits unit count. KS/TN/MO/IN switch rate between 1-4 unit
-        // residential and 5+ unit commercial brackets.
-        fipsState:        pipelineData?.geo?.fipsState || "",
-        femaFloodZone:    pipelineData?.fema?.floodZone || "",
-        walkScore:        pipelineData?.walkscore?.walk?.toString() || "",
-        bikeScore:        pipelineData?.walkscore?.bike?.toString() || "",
-        crimeGrade:       pipelineData?.crime?.overallGrade || "",
-        crimeRate:        pipelineData?.crime?.ratePerThousand
-          ? `${pipelineData.crime.ratePerThousand} per 1,000`
-          : "",
-        medianHHIncome:  pipelineData?.census?.medianIncome || "",
-        population:      pipelineData?.census?.population?.toString() || "",
-        medianAge:       pipelineData?.census?.medianAge?.toString() || "",
-        medianHomeValue: pipelineData?.census?.medianHomeValue || "",
-        medianRent:      pipelineData?.census?.medianRent || "",
-        _pipeline: pipelineData,
-      } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
+      setData(pipelineToData(pipeline, addr));
       // Auto-set OpEx defaults from year built
       // Unknown/missing year defaults to conservative middle estimates
       const yrStr = a.yearBuilt || "";
@@ -851,7 +754,8 @@ export default function DealBrief() {
           w.rdt("track", "Lead");
         }
       }
-      setView("confirm");
+      // Pipeline done → the gate (sign up for the free run / log in / subscribe).
+      setView("gate");
     } catch (err) {
       sendGAEvent("event", "pipeline_error", {
         error_kind: "network",
@@ -860,6 +764,26 @@ export default function DealBrief() {
       setPipelineError(err instanceof Error ? err.message : "Unable to reach the server. Please try again.");
       setView("landing");
     }
+  };
+
+  // Live demo — loads a PRE-CANNED sample report instantly (no pipeline call,
+  // no loading screen), pre-seeded with units + price, straight to R&A. Skips
+  // the gate and the meter. Wired to the landing screenshots + "See a live
+  // sample" button.
+  const runDemo = () => {
+    setAssessorNote("");
+    setPipelineError("");
+    setData({ ...pipelineToData(DEMO_PIPELINE, DEMO_ADDRESS), units: "12" });
+    setPropertyType("Multifamily");
+    setUnitsEdit("12");
+    setUnitsKey((k) => k + 1);
+    setPriceSeed("1,399,000");
+    setPriceKey((k) => k + 1);
+    // OpEx defaults from the 1956 build (mirrors the live-run logic).
+    setMaintenancePerUnit("1000");
+    setReservesPerUnit("500");
+    sendGAEvent("event", "sample_demo_run", { address: "barnett_jacksonville" });
+    setView("confirm");
   };
 
   const submitSuggest = () => {
@@ -878,16 +802,15 @@ export default function DealBrief() {
     }).catch(() => { /* silently ignore network errors */ });
   };
 
-  const features = [
-    "Tax assessment & reassessment risk",
-    "Permit history vs. broker claims",
-    "FEMA flood zone",
-    "ZIP-level crime grade",
-    "Census demographics",
-    "Walk & bike score",
-    "Back-of-envelope NOI",
-    "Debt service at 4 rate scenarios",
-  ];
+  if (view === "gate") return (
+    <AuthGate
+      address={data?.address || address}
+      reportData={data}
+      justSubscribed={justSubscribed}
+      onUnlocked={() => setView("confirm")}
+      onBack={() => { setView("landing"); setData(null); setJustSubscribed(false); }}
+    />
+  );
 
   if (view === "loading") return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
@@ -901,15 +824,30 @@ export default function DealBrief() {
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
       
       {/* Top bar */}
-      <div style={{ padding: "14px 28px", borderBottom: "1px solid #E5E7EB", background: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="db-no-print" style={{ padding: "14px 28px", borderBottom: "1px solid #E5E7EB", background: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 600, color: "#1D3557", letterSpacing: "-0.5px", cursor: "pointer" }}
-          onClick={() => { setView("landing"); setData(null); }}>
+          onClick={() => { window.location.href = "/"; }}>
           DEAL<span style={{ color: "#457B9D" }}>BRIEF</span>
         </span>
-        <button onClick={() => { setView("landing"); setData(null); }}
-          style={{ background: "none", border: "none", fontSize: 13, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}>
-          ← New search
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <AccountMenu />
+          <button onClick={() => { setView("landing"); setData(null); }}
+            style={{ background: "none", border: "none", fontSize: 13, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}>
+            ← New search
+          </button>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            disabled={!liveResults}
+            style={{
+              padding: "9px 18px", fontSize: 13, fontWeight: 600,
+              background: "#1D3557", color: "white",
+              border: "none", borderRadius: 6, cursor: !liveResults ? "default" : "pointer",
+              fontFamily: "inherit", letterSpacing: "-0.1px",
+            }}>
+            {"Generate PDF"}
+          </button>
+        </div>
       </div>
 
       <form
@@ -923,6 +861,8 @@ export default function DealBrief() {
         // entry point. Reset by the view-change useEffect when they
         // leave R&A and come back.
         onInput={(e) => {
+          // Recompute the live results panel on every keystroke.
+          setFormTick(t => t + 1);
           if (raFirstEditFiredRef.current) return;
           raFirstEditFiredRef.current = true;
           const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
@@ -931,7 +871,9 @@ export default function DealBrief() {
           });
         }}
       >
-      <div style={{ maxWidth: 660, margin: "0 auto", padding: "36px 24px 64px" }}>
+      <div style={{ maxWidth: 1440, margin: "0 auto", padding: "36px 24px 64px", display: "flex", gap: 28, alignItems: "flex-start", flexWrap: "wrap" }}>
+        {/* LEFT — editable inputs (Review & Adjust) */}
+        <div className="db-no-print" style={{ flex: "1 1 470px", minWidth: 0 }}>
         <div style={{ marginBottom: 28 }}>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: "0 0 6px", letterSpacing: "-0.3px" }}>
             Review & Adjust
@@ -948,14 +890,17 @@ export default function DealBrief() {
             <span style={{ width: 180, fontSize: 13, color: "#6B7280", flexShrink: 0, letterSpacing: "-0.1px" }}>Property Type</span>
             <select
               name="propertyType"
-              value={propertyType}
+              // UNCONTROLLED (defaultValue, not value): a controlled <select>
+              // was snapping back to the prior state value after the sibling
+              // Units field remounted in the same commit. Uncontrolled, the DOM
+              // holds the user's choice; onChange keeps propertyType state in
+              // sync for the panel + Units-field derivation.
+              defaultValue={propertyType}
               onChange={e => {
                 const val = e.target.value;
                 setPropertyType(val);
-                if (val === "Single Family Rental") {
-                  setData(prev => prev ? { ...prev, units: "1" } : prev);
-                  setUnitsKey(k => k + 1);
-                }
+                setUnitsEdit(val === "Single Family Rental" ? "1" : "");
+                setUnitsKey(k => k + 1);
               }}
               style={{ flex: 1, padding: "5px 8px", fontSize: 13, color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 4, fontFamily: "inherit", outline: "none", background: "white", cursor: "pointer" }}
             >
@@ -966,7 +911,9 @@ export default function DealBrief() {
           <FieldRow label="Year Built" name="yearBuilt" value={data.yearBuilt || ""} placeholder="e.g. 1987" />
           <FieldRow label="Building Area" name="buildingArea" value={data.buildingArea || ""} placeholder="e.g. 8,400 SF" />
           <FieldRow label="Lot Size" name="lotSize" value={data.lotSize || ""} placeholder="e.g. 12,500 SF" />
-          <FieldRow key={unitsKey} label="Units *" name="units" value={data.units} placeholder="Required — e.g. 8"
+          <FieldRow key={unitsKey} label="Units *" name="units"
+            value={propertyType === "Single Family Rental" ? "1" : (data.units || "")}
+            placeholder="Required — e.g. 8" highlight={!unitsFilled}
             onChange={(e) => setUnitsEdit(e.target.value)} />
           {data.zoning && (
             <input type="hidden" name="zoning" value={data.zoning} />
@@ -1127,28 +1074,23 @@ export default function DealBrief() {
                     ? "Estimated from LPV × assessment ratio × jurisdiction levy rate. Verify against actual tax bill."
                     : "Current owner's annual property tax bill. Used as Year-1 taxes in the in-place NOI."} />
               )}
-              <FieldRow key={rateKey} label="Tax Rate" name="taxRate" value={taxRateEdit || data.taxRate || ""} placeholder="e.g. 2.20%"
+              <FieldRow key={rateKey} label="Current Tax Rate" name="taxRate" value={taxRateEdit || data.taxRate || ""} placeholder="e.g. 2.20%"
                 onChange={(e) => setTaxRateEdit(e.target.value)}
                 tooltip={isAZ
                   ? "Effective rate applied to Adj. LPV (Net Assessed Value), not raw LPV. AZ taxes = LPV × assessment ratio × levy rate."
-                  : "Tax rate used when calculating reassessed taxes."} />
+                  : "The seller's current effective rate — applied to Appraised Value to compute the in-place (current) annual taxes."} />
+              <FieldRow label="Reassessment Tax Rate" name="proFormaTaxRate" value={proFormaTaxRateEdit || data.taxRate || ""} placeholder="e.g. 2.20%"
+                onChange={(e) => setProFormaTaxRateEdit(e.target.value)}
+                tooltip="Pro-forma rate applied to your Price in the post-reassessment (tax-adjusted) scenario. Defaults to the current rate — raise it to model a rate increase after purchase." />
             </SectionCard>
           );
         })()}
 
         <SectionCard title="Deal Inputs">
-          <FieldRow label="Asking Price *" name="askingPrice" value="" placeholder="$995,000"
-            tooltip="Broker/Seller's asking price for the property. DealBrief needs this or Buyer Cap Rate for all calculations to work. You can provide both for more functionality." />
-          <FieldRow label="Broker Cap Rate" name="brokerCapRate" value="" placeholder="6.76%"
-            tooltip="Broker/Seller's implied cap rate at the asking price. Provided for reference — not required." />
-          <FieldRow label="Buyer Cap Rate *" name="buyerCapRate" value="" placeholder="7.0%"
-            tooltip="Your required going-in cap rate. DealBrief needs this or Asking Price for calculations. Provide both for full sensitivity analysis." />
-          <FieldRow label="Occupancy" name="occupancy" value="" placeholder="100%"
-            tooltip="Current occupancy for reference — displayed on the report. NOI is driven by the Vacancy % set in Analysis Assumptions below." />
-          <FieldRow label="Average Monthly In-Place Rent" name="inPlaceRents" value="" placeholder="$1,250"
-            tooltip="Average per unit. Used to drive GPR. Use market rents if you want to show a mark-to-market NOI. If not provided, GPR will be estimated from the property zip code median rent, if available." />
-          <FieldRow label="Broker Claims" name="brokerClaims" value="" placeholder="New roof 2022, renovated units"
-            tooltip="Free form — describe any relevant broker or seller claims about the property. These will appear in the report for reference." />
+          <FieldRow key={priceKey} label="Price *" name="askingPrice" value={priceSeed} placeholder="$995,000" highlight={!priceFilled}
+            tooltip="The price you're evaluating — what you'd pay for the property. Drives cap rate, DSCR, and the tax-adjusted analysis live." />
+          <FieldRow label="Average Monthly In-Place Rent" name="inPlaceRents" value="" placeholder={data.medianRent ? `ZIP median ${data.medianRent}` : "$1,250"}
+            tooltip="Leave blank to use the ZIP median rent (shown in the field) — NOI falls back to it automatically, and clearing an override returns to it. Enter the actual average in-place rent per unit to override. Drives Gross Potential Rent and therefore NOI." />
         </SectionCard>
 
         {/* Analysis Assumptions */}
@@ -1233,6 +1175,7 @@ export default function DealBrief() {
                   ["Maintenance", maintenancePerUnit, setMaintenancePerUnit, "$/unit"],
                   ["Utilities", utilitiesPerUnit, setUtilitiesPerUnit, "$/unit"],
                   ["Mgmt", managementPct, setManagementPct, "% EGI"],
+                  ["Payroll", payrollPerUnit, setPayrollPerUnit, "$/unit"],
                   ["Marketing", marketingPerUnit, setMarketingPerUnit, "$/unit"],
                   ["Admin", adminPerUnit, setAdminPerUnit, "$/unit"],
                   ["Reserves", reservesPerUnit, setReservesPerUnit, "$/unit"],
@@ -1354,95 +1297,15 @@ export default function DealBrief() {
           </div>
         </div>
 
-        {/* Email — OPTIONAL. Used only as the free-report eligibility key
-            (one free report per email). Blank email or already-used email
-            routes to Stripe checkout, which collects an email on the
-            hosted page anyway. */}
-        <div style={{
-          marginTop: 24, paddingTop: 20, borderTop: "1px solid #E5E7EB",
-        }}>
-          <label style={{
-            display: "block", fontSize: 13, fontWeight: 500,
-            color: "#374151", marginBottom: 6, letterSpacing: "-0.1px",
-          }}>
-            Email address <span style={{ color: "#1D3557", fontWeight: 500 }}>(for free first report)</span>
-          </label>
-          <input
-            type="email"
-            name="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            style={{
-              width: "100%", maxWidth: 360, padding: "9px 12px", fontSize: 14,
-              color: "#111827", border: "1.5px solid #D1D5DB", borderRadius: 6,
-              fontFamily: "inherit", outline: "none",
-            }}
-            onFocus={e => e.currentTarget.style.borderColor = "#1D3557"}
-            onBlur={e => e.currentTarget.style.borderColor = "#D1D5DB"}
-          />
-          {/* Decision-led microcopy — previous copy ("Your first report is
-              free. Use your email to check eligibility...") was ambiguous
-              and visitors interpreted email as report delivery rather than
-              free-report claim. New copy makes the two paths (with email
-              vs without) explicit and names the paid price up front so
-              there's no Stripe-page sticker shock. */}
-          <p style={{ fontSize: 12, color: "#6B7280", marginTop: 8, marginBottom: 0, lineHeight: 1.5, maxWidth: 480 }}>
-            Enter your email to claim your free first report.
-            Leave blank to skip straight to paid checkout ($29 per report).
-            We don't send marketing emails or share your address.
-          </p>
-        </div>
+        {/* Email + one-off generate removed — access is now gated before R&A;
+            the report downloads via the Generate PDF button in the top bar. */}
+        </div>{/* end LEFT column */}
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10, marginTop: 20 }}>
-          {generateError && (
-            <p style={{ fontSize: 13, color: "#C0392B", margin: 0, textAlign: "right" }}>{generateError}</p>
-          )}
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          {devKey && (
-            <button
-              type="button"
-              onClick={handleDevGenerate}
-              disabled={generating}
-              style={{
-                padding: "12px 20px", fontSize: 13, fontWeight: 500,
-                background: generating ? "#9CA3AF" : "#2D6A4F",
-                color: "white", border: "none", borderRadius: 6,
-                cursor: generating ? "not-allowed" : "pointer",
-                fontFamily: "inherit", letterSpacing: "-0.1px",
-              }}>
-              {generating ? "Generating…" : "⚡ Dev PDF"}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleGenerate}
-            disabled={generating}
-            style={{
-              padding: "12px 32px", fontSize: 14, fontWeight: 500,
-              background: generating ? "#9CA3AF" : "#1D3557",
-              color: "white", border: "none", borderRadius: 6,
-              cursor: generating ? "not-allowed" : "pointer",
-              fontFamily: "inherit", letterSpacing: "-0.1px",
-              transition: "background 0.12s",
-            }}
-            onMouseEnter={e => { if (!generating) e.currentTarget.style.background = "#152A47"; }}
-            onMouseLeave={e => { if (!generating) e.currentTarget.style.background = generating ? "#9CA3AF" : "#1D3557"; }}>
-            {generating ? "Redirecting to checkout…" : "Generate DealBrief →"}
-          </button>
-          </div>
-          {/* Price callout right under the Generate button — pre-empts
-              the Stripe-page sticker shock that was likely a factor in
-              the one paid-path drop we saw this week. Right-aligned to
-              hug the Generate button. */}
-          <p style={{
-            fontSize: 11, color: "#6B7280", margin: 0,
-            textAlign: "right", letterSpacing: "0.2px", lineHeight: 1.5,
-          }}>
-            <span style={{ color: "#1D3557", fontWeight: 600 }}>First report free</span>
-            {" "}with email above. Additional reports{" "}
-            <span style={{ color: "#1F2937", fontWeight: 600 }}>$29 each</span>.
-          </p>
+        {/* RIGHT — live HTML mirror of the report, sticky alongside the inputs */}
+        <div id="ra-report" style={{ flex: "1 1 600px", minWidth: 400, position: "sticky", top: 12, alignSelf: "flex-start", maxHeight: "calc(100vh - 24px)", overflowY: "auto", background: "white", border: "1px solid #E5E7EB", borderRadius: 12, padding: "20px 22px", boxShadow: "0 6px 24px rgba(29,53,87,0.07)" }}>
+          {liveResults
+            ? <LiveReport rd={liveResults.rd} boe={liveResults.boe} deriv={liveResults.deriv} />
+            : <div style={{ fontSize: 13, color: "#6B7280", padding: "20px 0", lineHeight: 1.5 }}>Live report preview will appear here as you enter deal terms.</div>}
         </div>
       </div>
       </form>
@@ -1482,9 +1345,10 @@ export default function DealBrief() {
         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 600, color: "#1D3557", letterSpacing: "-0.5px" }}>
           DEAL<span style={{ color: "#457B9D" }}>BRIEF</span>
         </span>
-        <span style={{ fontSize: 12, color: "#9CA3AF", letterSpacing: "0.2px" }}>
-          Pre-Offer Research
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ fontSize: 12, color: "#9CA3AF", letterSpacing: "0.2px" }}>Pre-Offer Research</span>
+          <AccountMenu dark />
+        </div>
       </div>
 
       <div style={{ maxWidth: 540, margin: "0 auto", padding: "32px 24px 16px" }}>
@@ -1504,7 +1368,7 @@ export default function DealBrief() {
             Catch the 30%+ post-sale tax hike before you submit an LOI.
           </h1>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6, margin: 0, fontWeight: 300 }}>
-            Pre-offer property research for multifamily buyers. Tax, permits, FEMA flood, crime, demographics, and debt service scenarios — one 60-second PDF.
+            Pre-offer property research for multifamily buyers. Tax, permits, FEMA flood, crime, demographics, and debt service scenarios in a live report you can edit and export. Ready in 60 seconds.
           </p>
         </div>
 
@@ -1545,24 +1409,18 @@ export default function DealBrief() {
             marginBottom: 16,
           }}>
             {[
-              { src: "/sample-debt-service.png",  alt: "Sample debt service scenarios page" },
-              { src: "/sample-demographics.png",  alt: "Sample crime and demographics page" },
-              { src: "/sample-key-flags.png",     alt: "Sample deal context and key flags page" },
+              { src: "/new_ss_1.png", alt: "Sample: deal snapshot and operating statement" },
+              { src: "/new_ss_2.png", alt: "Sample: tax-adjusted, price sensitivity, debt service" },
+              { src: "/new_ss_3.png", alt: "Sample: demographics, schools, crime" },
             ].map((s) => (
-              <a
+              <div
                 key={s.src}
-                href="/sample-report.pdf"
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  sendGAEvent("event", "sample_preview_click", {
-                    file_name: "sample-report.pdf",
-                    card_name: s.src.replace("/sample-", "").replace(".png", ""),
-                    location: "mobile_above_fold",
-                  });
-                }}
+                role="button"
+                tabIndex={0}
+                onClick={runDemo}
                 style={{
                   display: "block",
+                  cursor: "pointer",
                   borderRadius: 4,
                   overflow: "hidden",
                   boxShadow: "0 2px 6px rgba(29, 53, 87, 0.08), 0 1px 2px rgba(0,0,0,0.04)",
@@ -1575,7 +1433,7 @@ export default function DealBrief() {
                   alt={s.alt}
                   style={{ width: "100%", height: "auto", display: "block" }}
                 />
-              </a>
+              </div>
             ))}
           </div>
         )}
@@ -1638,7 +1496,7 @@ export default function DealBrief() {
             margin: "10px 0 0",
             lineHeight: 1.5,
           }}>
-            First report free. No credit card. No subscription.
+            First report free. No credit card required.
           </p>
         </div>
 
@@ -1655,12 +1513,11 @@ export default function DealBrief() {
           textAlign: "center",
         }}>
           Data from FEMA{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
-          Regrid{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
           U.S. Census{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
           BLS{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
           Shovels{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
           GreatSchools{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
-          county tax assessors
+          County Tax Assessors
         </p>
 
         {/* PIPELINE ERROR */}
@@ -1670,31 +1527,20 @@ export default function DealBrief() {
           </div>
         )}
 
-        {/* SAMPLE REPORT */}
+        {/* SAMPLE REPORT — runs a live demo address straight into the R&A */}
         <div style={{ margin: "12px 0 8px", textAlign: "center" }}>
-          <a
-            href="/sample-report.pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            // Fires a Google Analytics custom event so we can see how many
-            // visitors download the sample PDF vs how many actually run a
-            // report from the address-input box. Event name kept in sync
-            // with the GA4 custom-event definition; if you rename it here,
-            // also rename it in the GA UI to keep historical reporting.
-            onClick={() => {
-              sendGAEvent("event", "sample_report_download", {
-                file_name: "sample-report.pdf",
-                location: "landing_below_form",
-              });
-            }}
+          <button
+            type="button"
+            onClick={runDemo}
             style={{
-              fontSize: 13, color: "#457B9D", textDecoration: "none",
+              background: "none", border: "none", cursor: "pointer",
+              fontSize: 13, color: "#457B9D",
               borderBottom: "1px solid #457B9D", paddingBottom: 1,
               fontFamily: "inherit", letterSpacing: "-0.1px",
             }}
           >
-            View a sample report to see what&rsquo;s included &rarr;
-          </a>
+            See a live sample report &rarr;
+          </button>
         </div>
 
       </div>{/* /end first 540px wrapper (HERO + INPUT + SAMPLE link) */}
@@ -1716,25 +1562,15 @@ export default function DealBrief() {
           gap: 16,
         }}>
           {[
-            { src: "/sample-debt-service.png",  alt: "Sample debt service scenarios page" },
-            { src: "/sample-demographics.png",  alt: "Sample crime and demographics page" },
-            { src: "/sample-key-flags.png",     alt: "Sample deal context and key flags page" },
+            { src: "/new_ss_1.png", alt: "Sample: deal snapshot and operating statement" },
+            { src: "/new_ss_2.png", alt: "Sample: tax-adjusted, price sensitivity, debt service" },
+            { src: "/new_ss_3.png", alt: "Sample: demographics, schools, crime" },
           ].map((s) => (
-            <a
+            <div
               key={s.src}
-              href="/sample-report.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-              // Separate GA event from the text-link's `sample_report_download`
-              // so the two click targets show up as distinct rows in GA reports
-              // (no need to slice by an event parameter). `card_name` lets us
-              // also see which of the three previews is doing the most work.
-              onClick={() => {
-                sendGAEvent("event", "sample_preview_click", {
-                  file_name: "sample-report.pdf",
-                  card_name: s.src.replace("/sample-", "").replace(".png", ""),
-                });
-              }}
+              role="button"
+              tabIndex={0}
+              onClick={runDemo}
               style={{
                 display: "block",
                 borderRadius: 8,
@@ -1754,16 +1590,13 @@ export default function DealBrief() {
                 e.currentTarget.style.boxShadow = "0 4px 12px rgba(29, 53, 87, 0.10), 0 1px 3px rgba(0,0,0,0.05)";
               }}
             >
-              {/* Plain <img> instead of next/image: these are static
-                  bitmaps in /public, not above-the-fold critical, and
-                  next/image's required dimensions add boilerplate
-                  without measurable benefit at this size. */}
+              {/* Plain <img>: static bitmaps in /public, not above-the-fold critical. */}
               <img
                 src={s.src}
                 alt={s.alt}
                 style={{ width: "100%", height: "auto", display: "block" }}
               />
-            </a>
+            </div>
           ))}
         </div>
       </div>
@@ -1958,14 +1791,14 @@ export default function DealBrief() {
         {/* FOOTER */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-            <a
+            <Link
               href="/blog"
               style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", fontWeight: 500 }}
               onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
               onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
             >
               Blog
-            </a>
+            </Link>
             <a
               href="mailto:info@getdealbrief.com"
               style={{ fontSize: 14, color: "#6B7280", textDecoration: "none", fontWeight: 500 }}

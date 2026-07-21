@@ -37,7 +37,7 @@ export function buildReportMetadata(
   for (const f of [
     "address","propertyType","yearBuilt","buildingArea","lotSize",
     "units","zoning","assessedValue","marketValue","landValue","improvements","otherValue","lpv","adjustedLpv","assessmentRatio","reappraisalYear",
-    "annualTaxes","askingPrice","brokerCapRate","buyerCapRate","occupancy","inPlaceRents",
+    "annualTaxes","taxRate","proFormaTaxRate","askingPrice","brokerCapRate","buyerCapRate","occupancy","inPlaceRents",
     "brokerClaims","amortYears","ioPeriod",
   ]) {
     if (body[f]) metadata[f] = String(body[f]).slice(0, 500);
@@ -61,7 +61,10 @@ export function buildReportMetadata(
   // Deeded owner name — feeds the condo / master-file / HOA detection in the
   // PDF template. Truncated to fit Stripe's 500-char metadata value limit.
   if (assessor.owner)       metadata.owner          = String(assessor.owner).slice(0, 200);
-  if (assessor.taxRate != null)
+  // Only fall back to the pipeline's assessor rate when the user did NOT
+  // provide a Tax Rate on R&A. A user-edited taxRate (from the form loop
+  // above) must win so reassessed-tax math responds to their edit.
+  if (assessor.taxRate != null && !body.taxRate)
     metadata.taxRate = String(assessor.taxRate).slice(0, 20);
   if (assessor.taxFeePerUnit)
     metadata.taxFeePerUnit = String(assessor.taxFeePerUnit).slice(0, 20);
@@ -158,6 +161,12 @@ export function buildReportMetadata(
     if (msaData.medianRent)        msaC.r  = String(msaData.medianRent).slice(0, 20);
     if (msaData.povertyRate)       msaC.p  = String(msaData.povertyRate).slice(0, 10);
     if (msaData.pctBachelorPlus != null) msaC.b = String(msaData.pctBachelorPlus).slice(0, 10);
+    if (msaData.population != null)      msaC.mp = String(msaData.population).slice(0, 12);
+    if (msaData.medianAge != null)       msaC.ma = String(msaData.medianAge).slice(0, 6);
+    if (msaData.renterPct)               msaC.ro = String(msaData.renterPct).slice(0, 10);
+    if (msaData.totalHouseholds != null)        msaC.hh = String(msaData.totalHouseholds).slice(0, 12);
+    if (msaData.avgHouseholdSize != null)       msaC.ah = String(msaData.avgHouseholdSize).slice(0, 6);
+    if (msaData.avgRenterHouseholdSize != null) msaC.ar = String(msaData.avgRenterHouseholdSize).slice(0, 6);
     if (Object.keys(msaC).length > 0) metadata.msaJ = JSON.stringify(msaC).slice(0, 490);
   }
 

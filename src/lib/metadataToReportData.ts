@@ -35,6 +35,7 @@ export function metadataToReportData(
     assessmentRatio: get("assessmentRatio"),
     reappraisalYear: get("reappraisalYear"),
     taxRate:        get("taxRate"),
+    proFormaTaxRate: get("proFormaTaxRate"),
     annualTaxes:    get("annualTaxes"),
     taxFeePerUnit:  get("taxFeePerUnit"),
     parcelId:       get("parcelId"),
@@ -128,6 +129,12 @@ export function metadataToReportData(
         msaRent:      msa.r ?? get("msaRent"),
         msaPoverty:   msa.p ?? get("msaPoverty"),
         msaBachPlus:  msa.b != null ? String(msa.b) : "",
+        msaPop:       msa.mp != null ? String(msa.mp) : "",
+        msaAge:       msa.ma != null ? String(msa.ma) : "",
+        msaRenterPct: msa.ro != null ? String(msa.ro) : "",
+        msaHouseholds:   msa.hh != null ? String(msa.hh) : "",
+        msaAvgHHSize:    msa.ah != null ? String(msa.ah) : "",
+        msaAvgRenterSize: msa.ar != null ? String(msa.ar) : "",
       };
     })(),
     // Census HH

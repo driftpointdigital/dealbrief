@@ -57,3 +57,28 @@
   opacity: 0.55 !important;
   background-position-x: right !important;
 }
+
+/* ── Print: "Generate PDF" prints only the live report panel (#ra-report),
+   an exact copy of what's on screen. Everything tagged .db-no-print (top bar,
+   the left input column) is removed from the print flow; the panel is
+   un-clipped and stretched to the page. ── */
+@media print {
+  .db-no-print { display: none !important; }
+  #ra-report {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* let the inner horizontal-scroll tables print in full, no clipping */
+  #ra-report * { overflow: visible !important; }
+  body { background: #fff !important; }
+  @page { margin: 0.5in; }
+}

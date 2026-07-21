@@ -1,3 +1,8 @@
+// Acquisition closing costs as a fraction of PURCHASE PRICE (title, lender,
+// legal, third-party DD). Single-sourced here so the debt model and the PDF
+// (which recomputes CoC for its dual-NOI tables) use the identical rate.
+export const CLOSING_COST_RATE = 0.02;
+
 export interface ScenarioInput {
   rate: number;   // annual interest rate as percent (e.g. 7.5)
   ltv: number;    // loan-to-value as percent (e.g. 75)
@@ -7,7 +12,9 @@ export interface ScenarioResult {
   rate: number;
   ltv: number;
   loanAmount: number;
+  equity: number;   // down payment + closing costs (the CoC denominator)
   annualDebtService: number;
+  cashFlow: number | null;   // levered cash flow = NOI − annual debt service
   dscr: number | null;
   coc: number | null;
   isIO: boolean;
@@ -46,6 +53,10 @@ export function runFinancialModel(params: {
   amortYears: string;
   ioPeriod: string;
   closingCostRate?: number;
+  // Bottom-up NOI (from computeBoe). When provided, DSCR / CoC are computed
+  // against it rather than the broker-cap-derived NOI — which is essential now
+  // that Broker Cap Rate is no longer an input.
+  noiOverride?: number | null;
 }): FinancialSummary {
   const {
     askingPriceStr,
@@ -54,7 +65,8 @@ export function runFinancialModel(params: {
     ltvs,
     amortYears,
     ioPeriod,
-    closingCostRate = 0.015,
+    closingCostRate = CLOSING_COST_RATE,
+    noiOverride,
   } = params;
 
   const askingPrice = parseDollar(askingPriceStr) ?? 0;
@@ -63,9 +75,11 @@ export function runFinancialModel(params: {
   const ioYears = parseFloat(ioPeriod) || 0;
   const isIO = ioYears > 0;
 
-  const noi = askingPrice > 0 && brokerCapRate !== null
-    ? askingPrice * (brokerCapRate / 100)
-    : null;
+  const noi = (noiOverride != null && noiOverride > 0)
+    ? noiOverride
+    : (askingPrice > 0 && brokerCapRate !== null
+      ? askingPrice * (brokerCapRate / 100)
+      : null);
 
   const scenarios: ScenarioResult[] = [];
 
@@ -76,7 +90,9 @@ export function runFinancialModel(params: {
       if (isNaN(rate) || isNaN(ltv)) continue;
 
       const loanAmount = askingPrice * (ltv / 100);
-      const equity = askingPrice * (1 - ltv / 100) * (1 + closingCostRate);
+      // Equity = down payment + closing costs, where closing costs are a % of the
+      // PURCHASE PRICE (title, lender, legal, third-party DD), not of the down payment.
+      const equity = askingPrice * (1 - ltv / 100) + askingPrice * closingCostRate;
 
       // Year 1 payment: IO if ioYears > 0, otherwise full amort
       const monthlyPmt = isIO
@@ -84,12 +100,13 @@ export function runFinancialModel(params: {
         : monthlyPayment(loanAmount, rate, amortMonths);
 
       const annualDebtService = monthlyPmt * 12;
+      const cashFlow = noi !== null ? noi - annualDebtService : null;
       const dscr = noi !== null && annualDebtService > 0 ? noi / annualDebtService : null;
       const coc = noi !== null && equity > 0
         ? (noi - annualDebtService) / equity
         : null;
 
-      scenarios.push({ rate, ltv, loanAmount, annualDebtService, dscr, coc, isIO });
+      scenarios.push({ rate, ltv, loanAmount, equity, annualDebtService, cashFlow, dscr, coc, isIO });
     }
   }
 
