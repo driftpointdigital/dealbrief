@@ -36,6 +36,23 @@ const MARKET_POST_SLUG: Record<string, string> = {
   "Jacksonville, FL": "buying-multifamily-jacksonville",
   "Miami – Fort Lauderdale – West Palm, FL": "buying-multifamily-miami",
   "Philadelphia, PA": "buying-multifamily-philadelphia",
+  "San Antonio, TX": "buying-multifamily-san-antonio",
+  "Austin, TX": "buying-multifamily-austin",
+  "El Paso, TX": "buying-multifamily-el-paso",
+  "Oklahoma City, OK": "buying-multifamily-oklahoma-city",
+  "Tulsa, OK": "buying-multifamily-tulsa",
+  "Denver, CO": "buying-multifamily-denver",
+  "Las Vegas, NV": "buying-multifamily-las-vegas",
+  "Nashville, TN": "buying-multifamily-nashville",
+  "Memphis, TN-MS": "buying-multifamily-memphis",
+  "Columbus, OH": "buying-multifamily-columbus",
+  "Cleveland / Akron, OH": "buying-multifamily-cleveland",
+  "Cincinnati, OH-KY": "buying-multifamily-cincinnati",
+  "Toledo, OH": "buying-multifamily-toledo",
+  "Dayton, OH": "buying-multifamily-dayton",
+  "Kansas City, MO-KS": "buying-multifamily-kansas-city",
+  "St. Louis, MO": "buying-multifamily-st-louis",
+  "Indianapolis, IN": "buying-multifamily-indianapolis",
 };
 
 const MOCK_RETURN_DATA = {
