@@ -174,7 +174,7 @@ export default function AuthGate({
             <>
               <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 6 }}>You&apos;ve used your free report</div>
               <div style={{ fontSize: 13, color: MUTE, lineHeight: 1.5, marginBottom: 16 }}>
-                Subscribe for <strong style={{ color: INK }}>$29/mo</strong>. 20 reports included, then $2 each. First 14 days or 10 reports free.
+                Subscribe for <strong style={{ color: INK }}>$29/mo</strong>. 20 reports included, then $2 each. <span style={{ fontWeight: 700, textDecoration: "underline", color: INK }}>First 14 days or 10 reports free.</span>
               </div>
               <button onClick={subscribe} disabled={busy} style={primaryBtn}>
                 {busy ? "Starting checkout…" : "Subscribe & unlock →"}
