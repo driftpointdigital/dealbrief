@@ -353,6 +353,12 @@ export default function DealBrief() {
   // True when we've just returned from Stripe subscription checkout (?subscribed=1)
   // — the gate then polls for the subscription to sync before unlocking.
   const [justSubscribed, setJustSubscribed] = useState(false);
+  // The address that triggered the gate (401/402). Re-run automatically once the
+  // visitor signs in or subscribes. A ref (not state) since it's read on demand,
+  // never rendered directly except via the gate's address prop.
+  const pendingAddressRef = useRef<string>("");
+  // Start the gate in subscribe mode (402: authed but out of runs) vs auth mode.
+  const [gateSubscribe, setGateSubscribe] = useState(false);
   // Demo seed: the pre-canned sample pre-fills price (units handled via unitsEdit).
   const [priceSeed, setPriceSeed] = useState("");
   const [priceKey, setPriceKey] = useState(0);
@@ -409,21 +415,20 @@ export default function DealBrief() {
     setTimeout(() => setHeroVisible(true), 50);
     // Read ?dev=KEY from URL — enables the dev bypass button
     if (typeof window !== "undefined") {
-      // Returning from Stripe subscription checkout — restore the report we
-      // stashed before the redirect and drop back onto the gate, which
-      // auto-unlocks once the subscription webhook syncs.
+      // Returning from Stripe subscription checkout — restore the address we
+      // stashed before the redirect and drop back onto the gate, which polls
+      // until the subscription webhook syncs, then re-runs the pipeline.
       if (new URLSearchParams(window.location.search).get("subscribed") === "1") {
         sendGAEvent("event", "subscribe_complete", {});
         const w = window as unknown as { rdt?: (...args: unknown[]) => void };
         if (typeof w.rdt === "function") w.rdt("track", "Purchase");
-        const saved = sessionStorage.getItem("db_pending_report");
-        if (saved) {
-          try {
-            setData(JSON.parse(saved) as typeof MOCK_RETURN_DATA & { _pipeline?: unknown });
-            setJustSubscribed(true);
-            setView("gate");
-          } catch { /* ignore malformed stash */ }
-          sessionStorage.removeItem("db_pending_report");
+        const savedAddr = sessionStorage.getItem("db_pending_address");
+        if (savedAddr) {
+          pendingAddressRef.current = savedAddr;
+          setJustSubscribed(true);
+          setGateSubscribe(false);
+          setView("gate");
+          sessionStorage.removeItem("db_pending_address");
         }
         window.history.replaceState({}, "", window.location.pathname);
       }
@@ -720,6 +725,23 @@ export default function DealBrief() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: addr }),
       });
+      // Gate happens server-side, BEFORE the pipeline spends anything:
+      //   401 → not signed in    → show the gate in auth mode
+      //   402 → no run available → show the gate in subscribe mode
+      // Stash the address so we can re-run it automatically once they're in.
+      if (res.status === 401) {
+        pendingAddressRef.current = addr;
+        setGateSubscribe(false);
+        setJustSubscribed(false);
+        setView("gate");
+        return;
+      }
+      if (res.status === 402) {
+        pendingAddressRef.current = addr;
+        setGateSubscribe(true);
+        setView("gate");
+        return;
+      }
       const pipeline = await res.json();
       if (!res.ok || pipeline.error) {
         sendGAEvent("event", "pipeline_error", {
@@ -789,8 +811,12 @@ export default function DealBrief() {
           w.rdt("track", "Lead");
         }
       }
-      // Pipeline done → the gate (sign up for the free run / log in / subscribe).
-      setView("gate");
+      // Run was authorized + metered server-side before the data came back, so
+      // go straight to the report. Fire the meter event with the claim kind.
+      sendGAEvent("event", "run_claimed", {
+        kind: (pipeline?._run?.kind as string) || "unknown",
+      });
+      setView("confirm");
     } catch (err) {
       sendGAEvent("event", "pipeline_error", {
         error_kind: "network",
@@ -839,11 +865,11 @@ export default function DealBrief() {
 
   if (view === "gate") return (
     <AuthGate
-      address={data?.address || address}
-      reportData={data}
+      address={pendingAddressRef.current || address}
+      forceSubscribe={gateSubscribe}
       justSubscribed={justSubscribed}
-      onUnlocked={() => setView("confirm")}
-      onBack={() => { setView("landing"); setData(null); setJustSubscribed(false); }}
+      onReady={() => { go(pendingAddressRef.current); }}
+      onBack={() => { setView("landing"); setData(null); setJustSubscribed(false); setGateSubscribe(false); }}
     />
   );
 

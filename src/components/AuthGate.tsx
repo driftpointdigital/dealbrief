@@ -1,12 +1,13 @@
 "use client";
-// The gate shown between the loading sequence and the R&A. Signed-out visitors
-// sign up (which grants 1 free run) or log in; if they've used their free run
-// and have no active subscription, they subscribe. Once authed AND eligible, we
-// claim the just-completed run (the meter) and call onUnlocked to reveal R&A.
+// The gate shown BEFORE the pipeline runs. Signed-out visitors sign up (which
+// grants 1 free run) or log in; if they've used their free run and have no
+// active subscription, they subscribe. Once authed AND eligible we call
+// onReady, and the parent re-invokes the pipeline (which now authorizes + meters
+// the run server-side). The gate never sees or claims report data itself.
 //
-// Subscribe flow stashes the already-run report so that after the Stripe
-// redirect the user lands back on their report (not a blank homepage). On
-// return we poll the account until the subscription webhook has synced.
+// Subscribe flow stashes the pending ADDRESS so that after the Stripe redirect
+// the user lands back on the gate; we poll the account until the subscription
+// webhook has synced, then onReady re-runs that address.
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { sendGAEvent } from "@next/third-parties/google";
 import { useAuth } from "@/lib/auth-context";
@@ -23,15 +24,15 @@ const SANS = "'IBM Plex Sans', -apple-system, sans-serif";
 
 export default function AuthGate({
   address,
-  reportData,
+  forceSubscribe = false,
   justSubscribed = false,
-  onUnlocked,
+  onReady,
   onBack,
 }: {
   address: string;
-  reportData?: unknown;      // pipeline result, stashed before Stripe redirect
+  forceSubscribe?: boolean;  // 402: authed but out of runs — open in subscribe mode
   justSubscribed?: boolean;  // returned from Stripe checkout — poll for sync
-  onUnlocked: () => void;
+  onReady: () => void;       // authed AND eligible — parent re-runs the pipeline
   onBack: () => void;
 }) {
   const { user, account, accountLoading, refreshAccount, signInWithPassword, signUpWithPassword } = useAuth();
@@ -40,47 +41,23 @@ export default function AuthGate({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [needSubscribe, setNeedSubscribe] = useState(false);
-  const claimingRef = useRef(false);
+  const [needSubscribe, setNeedSubscribe] = useState(forceSubscribe);
+  const readyRef = useRef(false);
   const activateAttemptsRef = useRef(0);
 
-  const attemptClaim = useCallback(async () => {
-    if (claimingRef.current) return;
-    claimingRef.current = true;
-    setError("");
-    try {
-      const res = await fetch("/api/run/claim", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      if (res.ok) {
-        const j = await res.json().catch(() => ({}));
-        sendGAEvent("event", "run_claimed", { kind: (j as { kind?: string }).kind || "unknown" });
-        onUnlocked();
-        return;
-      }
-      if (res.status === 402) {
-        setNeedSubscribe(true);
-        claimingRef.current = false;
-        return;
-      }
-      const j = await res.json().catch(() => ({}));
-      setError(j.error || "Could not unlock the report. Please try again.");
-      claimingRef.current = false;
-    } catch {
-      setError("Network error. Please try again.");
-      claimingRef.current = false;
-    }
-  }, [address, onUnlocked]);
+  const fireReady = useCallback(() => {
+    if (readyRef.current) return;
+    readyRef.current = true;
+    onReady();
+  }, [onReady]);
 
-  // Once authed and the account summary has loaded: claim if eligible; if we
-  // just returned from Stripe, poll until the subscription syncs; else prompt
-  // subscribe.
+  // Once authed and the account summary has loaded: if eligible, hand back to
+  // the parent to run; if we just returned from Stripe, poll until the
+  // subscription syncs; else prompt subscribe.
   useEffect(() => {
     if (!user || accountLoading || account === null || needSubscribe) return;
     if (account.canRun) {
-      attemptClaim();
+      fireReady();
       return;
     }
     if (justSubscribed && activateAttemptsRef.current < 10) {
@@ -89,7 +66,7 @@ export default function AuthGate({
       return () => clearTimeout(t);
     }
     setNeedSubscribe(true);
-  }, [user, account, accountLoading, needSubscribe, justSubscribed, attemptClaim, refreshAccount]);
+  }, [user, account, accountLoading, needSubscribe, justSubscribed, fireReady, refreshAccount]);
 
   const submitAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,9 +94,9 @@ export default function AuthGate({
     setBusy(true);
     setError("");
     try {
-      // Stash the already-run report so we can restore it after Stripe returns.
-      if (reportData && typeof window !== "undefined") {
-        sessionStorage.setItem("db_pending_report", JSON.stringify(reportData));
+      // Stash the pending address so we can re-run it after Stripe returns.
+      if (address && typeof window !== "undefined") {
+        sessionStorage.setItem("db_pending_address", address);
       }
       const res = await fetch("/api/subscribe", { method: "POST" });
       const j = await res.json();
@@ -132,7 +109,7 @@ export default function AuthGate({
     }
   };
 
-  const claimingNow = !!user && !needSubscribe && (accountLoading || claimingRef.current || !!account?.canRun);
+  const claimingNow = !!user && !needSubscribe && (accountLoading || readyRef.current || !!account?.canRun);
   const activating = !!user && justSubscribed && !needSubscribe && !account?.canRun && !claimingNow;
 
   const input: React.CSSProperties = {
@@ -157,7 +134,7 @@ export default function AuthGate({
 
       <div style={{ maxWidth: 420, margin: "8vh auto 0", padding: "0 20px" }}>
         <div style={{ background: "white", border: `1px solid ${RULE}`, borderRadius: 12, padding: "28px 26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-          <div style={{ fontSize: 12, color: MUTE, marginBottom: 4 }}>Your report is ready for</div>
+          <div style={{ fontSize: 12, color: MUTE, marginBottom: 4 }}>Your report for</div>
           <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 20 }}>{address || "your property"}</div>
 
           {activating ? (
@@ -167,7 +144,7 @@ export default function AuthGate({
             </div>
           ) : claimingNow ? (
             <div style={{ textAlign: "center", padding: "20px 0" }}>
-              <div style={{ fontSize: 14, color: NAVY, fontWeight: 600 }}>Unlocking your report…</div>
+              <div style={{ fontSize: 14, color: NAVY, fontWeight: 600 }}>Preparing your report…</div>
               {error ? <div style={{ fontSize: 12.5, color: RED, marginTop: 10 }}>{error}</div> : null}
             </div>
           ) : needSubscribe ? (
