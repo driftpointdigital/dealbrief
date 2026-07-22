@@ -357,6 +357,11 @@ export default function DealBrief() {
   // visitor signs in or subscribes. A ref (not state) since it's read on demand,
   // never rendered directly except via the gate's address prop.
   const pendingAddressRef = useRef<string>("");
+  // Guards the gate's auto-run so it fires AT MOST ONCE per gate session. Without
+  // this, if go() bounces back to the gate (e.g. a transient auth hiccup) the
+  // gate would re-fire go() in a tight loop. Reset on a successful run or when
+  // the user backs out.
+  const autoRanRef = useRef(false);
   // Start the gate in subscribe mode (402: authed but out of runs) vs auth mode.
   const [gateSubscribe, setGateSubscribe] = useState(false);
   // Demo seed: the pre-canned sample pre-fills price (units handled via unitsEdit).
@@ -816,6 +821,7 @@ export default function DealBrief() {
       sendGAEvent("event", "run_claimed", {
         kind: (pipeline?._run?.kind as string) || "unknown",
       });
+      autoRanRef.current = false;  // run succeeded — re-arm auto-run for next gate session
       setView("confirm");
     } catch (err) {
       sendGAEvent("event", "pipeline_error", {
@@ -868,8 +874,8 @@ export default function DealBrief() {
       address={pendingAddressRef.current || address}
       forceSubscribe={gateSubscribe}
       justSubscribed={justSubscribed}
-      onReady={() => { go(pendingAddressRef.current); }}
-      onBack={() => { setView("landing"); setData(null); setJustSubscribed(false); setGateSubscribe(false); }}
+      onReady={() => { if (autoRanRef.current) return; autoRanRef.current = true; go(pendingAddressRef.current); }}
+      onBack={() => { autoRanRef.current = false; setView("landing"); setData(null); setJustSubscribed(false); setGateSubscribe(false); }}
     />
   );
 

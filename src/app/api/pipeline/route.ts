@@ -139,11 +139,20 @@ export async function POST(req: NextRequest) {
       signal: AbortSignal.timeout(58000),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      // Backend failed — do NOT meter the run.
-      return NextResponse.json(data, { status: res.status });
+      // Backend (Railway) failed. This can be a 401 from a secret mismatch, a
+      // 5xx, an upstream timeout, etc. CRITICAL: never surface it as 401/402 —
+      // those codes are reserved for OUR auth/eligibility gate. If we passed a
+      // backend 401 straight through, the client mistakes it for "not signed
+      // in", shows the gate, and auto-retries into an infinite loop. Collapse
+      // any backend failure to a generic 502 and do NOT meter the run.
+      console.error(`pipeline backend ${res.status}:`, JSON.stringify(data).slice(0, 200));
+      return NextResponse.json(
+        { error: "The report engine had a problem. Please try again in a moment." },
+        { status: 502 },
+      );
     }
 
     // 5) Meter the successful run (after delivery is guaranteed). If the claim
