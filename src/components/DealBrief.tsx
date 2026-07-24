@@ -366,6 +366,9 @@ export default function DealBrief() {
   const autoRanRef = useRef(false);
   // Start the gate in subscribe mode (402: authed but out of runs) vs auth mode.
   const [gateSubscribe, setGateSubscribe] = useState(false);
+  // True while the pipeline auto-retry is in flight (a slow first attempt timed
+  // out) — surfaces a "taking a moment longer" note on the loading screen.
+  const [slowRetry, setSlowRetry] = useState(false);
   // Demo seed: the pre-canned sample pre-fills price (units handled via unitsEdit).
   const [priceSeed, setPriceSeed] = useState("");
   const [priceKey, setPriceKey] = useState(0);
@@ -434,6 +437,10 @@ export default function DealBrief() {
           pendingAddressRef.current = savedAddr;
           setJustSubscribed(true);
           setGateSubscribe(false);
+          // Seed the demo backdrop so the gate can render (it requires `data`);
+          // otherwise a fresh post-Stripe page load has data=null and falls
+          // through to the landing page, losing the run the user just paid for.
+          seedDemo();
           setView("gate");
           sessionStorage.removeItem("db_pending_address");
         }
@@ -755,6 +762,7 @@ export default function DealBrief() {
     sendGAEvent("event", "run_brief_click", {
       address_length: addr.length,
     });
+    if (!isRetry) setSlowRetry(false);  // fresh run clears any prior retry note
     setView("loading");
     try {
       const res = await fetch("/api/pipeline", {
@@ -870,6 +878,7 @@ export default function DealBrief() {
       const isTimeout = /abort|timeout|timed out/i.test(msg);
       if (isTimeout && !isRetry) {
         sendGAEvent("event", "pipeline_retry", {});
+        setSlowRetry(true);  // surface the "taking a moment longer" note
         return go(addr, true);
       }
       sendGAEvent("event", "pipeline_error", {
@@ -929,6 +938,13 @@ export default function DealBrief() {
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <LoadingSequence />
+      {slowRetry && (
+        <div style={{ textAlign: "center", margin: "-8px auto 0", maxWidth: 420, padding: "0 20px" }}>
+          <p style={{ fontSize: 13, color: "#B7791F", lineHeight: 1.5 }}>
+            This one&apos;s taking a moment longer than usual. Still working on it, hang tight.
+          </p>
+        </div>
+      )}
     </div>
   );
 
