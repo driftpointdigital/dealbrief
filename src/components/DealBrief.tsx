@@ -1976,9 +1976,9 @@ export default function DealBrief() {
               <Link
                 key={href}
                 href={href}
-                style={{ fontSize: 12, color: "#6B7280", textDecoration: "underline", textUnderlineOffset: 2 }}
-                onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
-                onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+                style={{ fontSize: 12, color: "#9CA3AF", textDecoration: "none" }}
+                onMouseEnter={e => e.currentTarget.style.color = "#6B7280"}
+                onMouseLeave={e => e.currentTarget.style.color = "#9CA3AF"}
               >
                 {label}
               </Link>

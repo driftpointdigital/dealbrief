@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data: sub } = await db
     .from("subscriptions")
-    .select("status, included_runs, current_period_start")
+    .select("status, included_runs, trial_run_cap, current_period_start")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -56,6 +56,7 @@ export async function GET() {
       ? {
           status: sub.status,
           includedRuns: sub.included_runs,
+          trialRunCap: sub.trial_run_cap,
           periodStart: sub.current_period_start,
         }
       : null,

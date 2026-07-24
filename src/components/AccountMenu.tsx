@@ -61,7 +61,7 @@ export default function AccountMenu({ dark = false }: { dark?: boolean }) {
             <div style={{ fontSize: 13, color: INK }}>{statusLabel}</div>
             {sub ? (
               <div style={{ fontSize: 11.5, color: MUTE, marginTop: 2, marginBottom: 10 }}>
-                {(account?.runsThisPeriod ?? 0)} / {sub.includedRuns} reports this period
+                {(account?.runsThisPeriod ?? 0)} / {sub.status === "trialing" ? (sub.trialRunCap ?? 10) : sub.includedRuns} {sub.status === "trialing" ? "trial reports" : "reports this period"}
               </div>
             ) : <div style={{ height: 10 }} />}
             <a href="/reports" style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "9px 12px", fontSize: 13, fontWeight: 600, color: INK, background: "none", border: `1px solid ${RULE}`, borderRadius: 6, marginBottom: 6, textDecoration: "none" }}>

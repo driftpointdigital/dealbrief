@@ -9,7 +9,7 @@ import { supabaseBrowser } from "@/lib/supabase-browser";
 export type AccountSummary = {
   email: string | null;
   freeRunAvailable: boolean;
-  subscription: { status: string; includedRuns: number; periodStart: string | null } | null;
+  subscription: { status: string; includedRuns: number; trialRunCap: number; periodStart: string | null } | null;
   runsThisPeriod: number;
   // True when the user may run at least one more report right now (free run
   // available, or an active subscription — overage keeps this true).
