@@ -9,8 +9,12 @@ import { NextResponse } from "next/server";
 import { currentUserId } from "@/lib/supabase-server";
 import { supabase } from "@/lib/supabase";
 import { getStripe, baseUrl } from "@/lib/stripe";
+import { rejectCrossOrigin } from "@/lib/csrf";
 
-export async function POST() {
+export async function POST(req: Request) {
+  const bad = rejectCrossOrigin(req);
+  if (bad) return bad;
+
   const userId = await currentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

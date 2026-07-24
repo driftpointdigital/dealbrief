@@ -2,10 +2,10 @@
  * POST /api/subscribe
  *
  * Starts a Stripe subscription checkout for the signed-in user:
- *   • base plan ($49/mo, STRIPE_PRICE_SUBSCRIPTION)
- *   • metered overage ($1/run, STRIPE_PRICE_OVERAGE) — no quantity; usage is
- *     reported from the meter (see Phase 4).
- *   • 30-day trial (the 20-run trial cap is enforced in-app).
+ *   • base plan ($29/mo, 20 runs included, STRIPE_PRICE_SUBSCRIPTION)
+ *   • overage ($2/run beyond 20, STRIPE_PRICE_OVERAGE) — billed as invoice
+ *     items from the meter (see run gate).
+ *   • trial: 14 days OR 10 runs, whichever comes first (run cap enforced in-app).
  *
  * Requires auth. Creates/links a Stripe customer to the user's profile, then
  * returns the hosted-checkout URL.
@@ -15,9 +15,13 @@ import { currentUserId } from "@/lib/supabase-server";
 import { supabase } from "@/lib/supabase";
 import { getStripe, baseUrl } from "@/lib/stripe";
 import { STRIPE_PRICE_SUBSCRIPTION, PLAN } from "@/lib/billing";
+import { rejectCrossOrigin } from "@/lib/csrf";
 import type Stripe from "stripe";
 
-export async function POST() {
+export async function POST(req: Request) {
+  const bad = rejectCrossOrigin(req);
+  if (bad) return bad;
+
   const userId = await currentUserId();
   if (!userId) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });

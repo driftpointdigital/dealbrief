@@ -10,6 +10,7 @@ import { metadataToReportData } from "@/lib/metadataToReportData";
 import LiveReport from "@/components/LiveReport";
 import AuthGate from "@/components/AuthGate";
 import AccountMenu from "@/components/AccountMenu";
+import { useAuth } from "@/lib/auth-context";
 import { DEMO_PIPELINE, DEMO_ADDRESS } from "@/lib/demoReport";
 
 // Google Maps Places API key — exposed client-side because the API
@@ -349,6 +350,7 @@ function pipelineToData(pipeline: Record<string, unknown>, addr: string) {
 }
 
 export default function DealBrief() {
+  const { refreshAccount } = useAuth();
   const [view, setView] = useState("landing");
   // True when we've just returned from Stripe subscription checkout (?subscribed=1)
   // — the gate then polls for the subscription to sync before unlocking.
@@ -436,6 +438,33 @@ export default function DealBrief() {
           sessionStorage.removeItem("db_pending_address");
         }
         window.history.replaceState({}, "", window.location.pathname);
+      }
+
+      // Opening a saved report from the library (/?report=<id>). Fetch the
+      // stored pipeline payload and re-render Review & Adjust from it.
+      const reportId = new URLSearchParams(window.location.search).get("report");
+      if (reportId) {
+        window.history.replaceState({}, "", window.location.pathname);
+        setView("loading");
+        (async () => {
+          try {
+            const res = await fetch(`/api/reports/${encodeURIComponent(reportId)}`);
+            if (!res.ok) throw new Error("not found");
+            const j = await res.json();
+            const pipeline = j.report_data;
+            const addr = j.address || "";
+            if (!pipeline) throw new Error("empty");
+            const a = pipeline.assessor ?? {};
+            setData(pipelineToData(pipeline, addr));
+            const yr = parseInt(a.yearBuilt || "") || 0;
+            setMaintenancePerUnit(yr >= 2000 ? "500" : yr >= 1980 ? "750" : yr > 0 ? "1000" : "750");
+            setReservesPerUnit(yr >= 2000 ? "250" : yr >= 1980 ? "400" : yr > 0 ? "500" : "400");
+            setView("confirm");
+          } catch {
+            setPipelineError("That report could not be loaded. It may have been removed.");
+            setView("landing");
+          }
+        })();
       }
     }
     // Mobile detection — 640px breakpoint matches typical "phone" cutoff
@@ -684,7 +713,10 @@ export default function DealBrief() {
   // commit) and whenever a fresh address loads — so the report pane renders
   // immediately instead of waiting for the user's first edit.
   useEffect(() => {
-    if (view === "confirm" && data) setFormTick(t => t + 1);
+    // Also fire for "gate": the confirm view renders (blurred) behind the gate
+    // as the teaser, and its report pane needs the tick to compute once the
+    // form mounts — otherwise the right-hand report is blank behind the card.
+    if ((view === "confirm" || view === "gate") && data) setFormTick(t => t + 1);
     // propertyType is a controlled <select> — FormData lags its value by one
     // commit, so bump the tick post-commit to re-read it fresh into the panel.
   }, [view, data, propertyType, unitsEdit, taxRateEdit, proFormaTaxRateEdit]);
@@ -695,7 +727,7 @@ export default function DealBrief() {
   const unitsFilled = (parseInt(liveResults?.rd?.units || "0", 10) || 0) > 0;
 
 
-  const go = async (overrideAddress?: string) => {
+  const go = async (overrideAddress?: string, isRetry = false) => {
     // Source-of-truth precedence for the address we submit:
     //   1. Explicit override (rarely used; place_changed listener path).
     //   2. Input element's current DOM value. Google Places mutates the
@@ -734,16 +766,14 @@ export default function DealBrief() {
       //   401 → not signed in    → show the gate in auth mode
       //   402 → no run available → show the gate in subscribe mode
       // Stash the address so we can re-run it automatically once they're in.
-      if (res.status === 401) {
+      // Seed the canned sample report so the gate can render it (blurred) behind
+      // the card — the real report hasn't run yet, so this is a teaser only. The
+      // seeds are cleared on a real run below so they never bleed into it.
+      if (res.status === 401 || res.status === 402) {
         pendingAddressRef.current = addr;
-        setGateSubscribe(false);
-        setJustSubscribed(false);
-        setView("gate");
-        return;
-      }
-      if (res.status === 402) {
-        pendingAddressRef.current = addr;
-        setGateSubscribe(true);
+        setGateSubscribe(res.status === 402);
+        if (res.status === 401) setJustSubscribed(false);
+        seedDemo();
         setView("gate");
         return;
       }
@@ -788,6 +818,11 @@ export default function DealBrief() {
       } else {
         setAssessorNote("");
       }
+      // Clear any demo-teaser seeds (from the gate backdrop) so the real report
+      // starts clean: price empty (user enters it / implied), units from the
+      // real pipeline. Remount both fields via their keys.
+      setPriceSeed(""); setPriceKey((k) => k + 1);
+      setUnitsEdit(""); setUnitsKey((k) => k + 1);
       // Prefer the geocoded formatted address for proper commas/casing, but restore
       // hyphenated range prefixes (e.g. "2429-2431") that the geocoder drops.
       setData(pipelineToData(pipeline, addr));
@@ -822,22 +857,36 @@ export default function DealBrief() {
         kind: (pipeline?._run?.kind as string) || "unknown",
       });
       autoRanRef.current = false;  // run succeeded — re-arm auto-run for next gate session
+      // Refresh the account summary so the "X / 20 reports this period" counter
+      // updates live (the run was metered server-side), not one run behind.
+      refreshAccount();
       setView("confirm");
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "unknown";
+      // The pipeline run time varies (collectors intermittently near their
+      // timeouts), so a run occasionally exceeds the abort window. A timed-out
+      // run is never metered (claimRun only fires on success), so one automatic
+      // retry is free and usually lands. Keep the loading screen up.
+      const isTimeout = /abort|timeout|timed out/i.test(msg);
+      if (isTimeout && !isRetry) {
+        sendGAEvent("event", "pipeline_retry", {});
+        return go(addr, true);
+      }
       sendGAEvent("event", "pipeline_error", {
         error_kind: "network",
-        error_msg: err instanceof Error ? err.message.slice(0, 60) : "unknown",
+        error_msg: msg.slice(0, 60),
       });
-      setPipelineError(err instanceof Error ? err.message : "Unable to reach the server. Please try again.");
+      setPipelineError(isTimeout
+        ? "That one took too long to pull. Please try again — it usually works on the second try."
+        : (err instanceof Error ? err.message : "Unable to reach the server. Please try again."));
       setView("landing");
     }
   };
 
-  // Live demo — loads a PRE-CANNED sample report instantly (no pipeline call,
-  // no loading screen), pre-seeded with units + price, straight to R&A. Skips
-  // the gate and the meter. Wired to the landing screenshots + "See a live
-  // sample" button.
-  const runDemo = () => {
+  // Seeds the PRE-CANNED sample report (Barnett St) into the R&A state:
+  // pipeline data + the known price/units + OpEx. Shared by the live-sample
+  // button and by the gate, which renders this (blurred) behind the signup card.
+  const seedDemo = () => {
     setAssessorNote("");
     setPipelineError("");
     setData({ ...pipelineToData(DEMO_PIPELINE, DEMO_ADDRESS), units: "12" });
@@ -849,6 +898,13 @@ export default function DealBrief() {
     // OpEx defaults from the 1956 build (mirrors the live-run logic).
     setMaintenancePerUnit("1000");
     setReservesPerUnit("500");
+  };
+
+  // Live demo — loads the pre-canned sample instantly (no pipeline call, no
+  // loading, no gate, no meter). Wired to the landing screenshots + "See a live
+  // sample" button.
+  const runDemo = () => {
+    seedDemo();
     sendGAEvent("event", "sample_demo_run", { address: "barnett_jacksonville" });
     setView("confirm");
   };
@@ -869,16 +925,6 @@ export default function DealBrief() {
     }).catch(() => { /* silently ignore network errors */ });
   };
 
-  if (view === "gate") return (
-    <AuthGate
-      address={pendingAddressRef.current || address}
-      forceSubscribe={gateSubscribe}
-      justSubscribed={justSubscribed}
-      onReady={() => { if (autoRanRef.current) return; autoRanRef.current = true; go(pendingAddressRef.current); }}
-      onBack={() => { autoRanRef.current = false; setView("landing"); setData(null); setJustSubscribed(false); setGateSubscribe(false); }}
-    />
-  );
-
   if (view === "loading") return (
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -886,10 +932,16 @@ export default function DealBrief() {
     </div>
   );
 
-  if (view === "confirm" && data) return (
+  if ((view === "confirm" || view === "gate") && data) {
+    const gating = view === "gate";
+    return (
+    <div style={{ position: "relative", minHeight: "100vh" }}>
+      {/* The full report. When gating, it renders behind the signup card,
+          lightly blurred and non-interactive, as a real teaser (demo data). */}
+      <div style={gating ? { filter: "blur(3px)", pointerEvents: "none", userSelect: "none" } : undefined} aria-hidden={gating || undefined}>
     <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'IBM Plex Sans', -apple-system, sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-      
+
       {/* Top bar */}
       <div className="db-no-print" style={{ padding: "14px 28px", borderBottom: "1px solid #E5E7EB", background: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 600, color: "#1D3557", letterSpacing: "-0.5px", cursor: "pointer" }}
@@ -898,7 +950,7 @@ export default function DealBrief() {
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <AccountMenu />
-          <button onClick={() => { setView("landing"); setData(null); }}
+          <button onClick={() => { window.location.href = "/"; }}
             style={{ background: "none", border: "none", fontSize: 13, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}>
             ← New search
           </button>
@@ -1377,7 +1429,19 @@ export default function DealBrief() {
       </div>
       </form>
     </div>
-  );
+      </div>
+      {gating && (
+        <AuthGate
+          address={pendingAddressRef.current || address}
+          forceSubscribe={gateSubscribe}
+          justSubscribed={justSubscribed}
+          onReady={() => { if (autoRanRef.current) return; autoRanRef.current = true; go(pendingAddressRef.current); }}
+          onBack={() => { window.location.href = "/"; }}
+        />
+      )}
+    </div>
+    );
+  }
 
   // LANDING
   return (
@@ -1435,7 +1499,7 @@ export default function DealBrief() {
             Catch the 30%+ post-sale tax hike before you submit an LOI.
           </h1>
           <p style={{ fontSize: 16, color: "#6B7280", lineHeight: 1.6, margin: 0, fontWeight: 300 }}>
-            Pre-offer property research for multifamily buyers. Tax, permits, FEMA flood, crime, demographics, and debt service scenarios in a live report you can edit and export. Ready in 60 seconds.
+            Pre-offer property research for multifamily buyers. Tax, permits, FEMA flood, crime, demographics, tax adjusted NOI, and debt service scenarios in a live report you can edit and export. Ready in 60 seconds.
           </p>
         </div>
 
@@ -1575,7 +1639,7 @@ export default function DealBrief() {
           fontSize: 11,
           color: "#9CA3AF",
           letterSpacing: "0.2px",
-          margin: "0 0 28px",
+          margin: "0 0 10px",
           lineHeight: 1.6,
           textAlign: "center",
         }}>
@@ -1585,6 +1649,23 @@ export default function DealBrief() {
           Shovels{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
           GreatSchools{" "}<span style={{ color: "#D1D5DB" }}>·</span>{" "}
           County Tax Assessors
+        </p>
+
+        {/* MOAT LINE — the un-copyable differentiator: per-county post-sale
+            reassessment modeling, empirically calibrated against real bills.
+            Most tools apply a flat rate; DealBrief encodes state statutes and
+            county rate tables verified against actual tax bills. */}
+        <p style={{
+          fontSize: 12.5,
+          color: "#374151",
+          letterSpacing: "0.1px",
+          margin: "0 0 28px",
+          lineHeight: 1.6,
+          textAlign: "center",
+          fontWeight: 500,
+        }}>
+          Post-sale tax adjustments calibrated against verified county tax bills across{" "}
+          <strong style={{ color: "#1D3557", fontWeight: 700 }}>100+ jurisdictions</strong>.
         </p>
 
         {/* PIPELINE ERROR */}
@@ -1885,6 +1966,23 @@ export default function DealBrief() {
             >
               Contact Us
             </a>
+          </div>
+          <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
+            {[
+              { href: "/terms", label: "Terms" },
+              { href: "/privacy", label: "Privacy" },
+              { href: "/refunds", label: "Refunds" },
+            ].map(({ href, label }) => (
+              <Link
+                key={href}
+                href={href}
+                style={{ fontSize: 12, color: "#6B7280", textDecoration: "underline", textUnderlineOffset: 2 }}
+                onMouseEnter={e => e.currentTarget.style.color = "#1D3557"}
+                onMouseLeave={e => e.currentTarget.style.color = "#6B7280"}
+              >
+                {label}
+              </Link>
+            ))}
           </div>
           <p style={{ fontSize: 11, color: "#C4C7CC", margin: 0 }}>
             Public data aggregation for informational purposes only. Not investment advice.

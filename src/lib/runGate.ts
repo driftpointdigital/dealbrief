@@ -76,7 +76,9 @@ export type ClaimResult =
 
 // Mutating. Records ONE successful run and enforces billing. Call ONLY after
 // the backend returned data — never before — so failures don't consume quota.
-export async function claimRun(userId: string, address: string | null): Promise<ClaimResult> {
+// `reportData` (the raw pipeline payload) is persisted so the user can revisit
+// the report later (report library).
+export async function claimRun(userId: string, address: string | null, reportData?: unknown): Promise<ClaimResult> {
   const db = supabase();
 
   const { data: profile } = await db
@@ -94,7 +96,7 @@ export async function claimRun(userId: string, address: string | null): Promise<
       .eq("free_run_used", false)
       .select("id");
     if (claimed && claimed.length > 0) {
-      await db.from("report_runs").insert({ user_id: userId, address, is_free: true });
+      await db.from("report_runs").insert({ user_id: userId, address, is_free: true, report_data: reportData ?? null });
       return { ok: true, kind: "free" };
     }
     // lost the race — fall through to the subscription path
@@ -132,7 +134,7 @@ export async function claimRun(userId: string, address: string | null): Promise<
 
   const { data: runRow } = await db
     .from("report_runs")
-    .insert({ user_id: userId, address, billing_period_start: periodStart, is_overage: isOverage })
+    .insert({ user_id: userId, address, billing_period_start: periodStart, is_overage: isOverage, report_data: reportData ?? null })
     .select("id")
     .maybeSingle();
 

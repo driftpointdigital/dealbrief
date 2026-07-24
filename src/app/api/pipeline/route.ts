@@ -155,10 +155,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5) Meter the successful run (after delivery is guaranteed). If the claim
-    //    itself finds the user is out of quota (race with a concurrent run),
-    //    surface subscribe rather than handing over a free dataset.
-    const claim = await claimRun(userId, address);
+    // 5) Meter the successful run (after delivery is guaranteed) — UNLESS the
+    //    assessor lookup came back empty (new construction, Regrid miss, no
+    //    parcel). Charging for a report with no tax basis is the worst possible
+    //    first experience, so we hand it over uncharged: the free run / quota is
+    //    preserved and the user can immediately try another address.
+    const assessor = (data as { assessor?: { assessedValue?: unknown } } | null)?.assessor;
+    const hasTaxBasis = Boolean(assessor && assessor.assessedValue);
+    if (!hasTaxBasis) {
+      return NextResponse.json({ ...data, _run: { kind: "uncharged" } }, { status: 200 });
+    }
+
+    // If the claim finds the user is out of quota (race with a concurrent run),
+    // surface subscribe rather than handing over a free dataset. The payload is
+    // persisted so the user can revisit this report later (report library).
+    const claim = await claimRun(userId, address, data);
     if (!claim.ok) {
       return NextResponse.json({ error: "subscribe_required", reason: claim.reason }, { status: 402 });
     }

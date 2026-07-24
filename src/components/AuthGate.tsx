@@ -123,17 +123,10 @@ export default function AuthGate({
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: SANS, color: INK }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "10vh 20px 24px", background: "rgba(248,250,252,0.35)", fontFamily: SANS, color: INK, overflowY: "auto" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-      <div style={{ padding: "14px 28px", borderBottom: `1px solid ${RULE}`, background: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 600, color: NAVY, letterSpacing: "-0.5px" }}>
-          DEAL<span style={{ color: SLATE }}>BRIEF</span>
-        </span>
-        <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 13, color: MUTE, cursor: "pointer", fontFamily: SANS }}>← New search</button>
-      </div>
-
-      <div style={{ maxWidth: 420, margin: "8vh auto 0", padding: "0 20px" }}>
-        <div style={{ background: "white", border: `1px solid ${RULE}`, borderRadius: 12, padding: "28px 26px", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+      <div style={{ maxWidth: 420, width: "100%" }}>
+        <div style={{ background: "white", border: `1px solid ${RULE}`, borderRadius: 12, padding: "28px 26px", boxShadow: "0 16px 48px rgba(15,31,56,0.22)" }}>
           <div style={{ fontSize: 12, color: MUTE, marginBottom: 4 }}>Your report for</div>
           <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 20 }}>{address || "your property"}</div>
 
@@ -196,6 +189,9 @@ export default function AuthGate({
               </div>
             </>
           )}
+        </div>
+        <div style={{ textAlign: "center", marginTop: 14 }}>
+          <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 13, color: MUTE, cursor: "pointer", fontFamily: SANS }}>← New search</button>
         </div>
       </div>
     </div>

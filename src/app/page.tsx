@@ -11,9 +11,9 @@ const jsonLd = {
     "Pre-offer property research reports for multifamily real estate investors. Instantly pulls tax assessments, permit history, FEMA flood zone, crime grades, demographics, and generates a debt service analysis PDF.",
   offers: {
     "@type": "Offer",
-    price: "49",
+    price: "29",
     priceCurrency: "USD",
-    description: "Per-report pricing for multifamily property research",
+    description: "Monthly subscription — 20 reports included, then $2 per additional report. First report free.",
   },
   featureList: [
     "Tax assessment & ownership history",

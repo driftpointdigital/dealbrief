@@ -19,7 +19,7 @@ export const PLAN = {
 } as const;
 
 // Stripe Price IDs — created in the Stripe dashboard/API and supplied via env.
-// STRIPE_PRICE_SUBSCRIPTION: recurring $49/mo Price (the base plan).
+// STRIPE_PRICE_SUBSCRIPTION: recurring $29/mo Price (the base plan).
 // STRIPE_PRICE_OVERAGE:      metered usage Price at $1/unit (the overage).
 export const STRIPE_PRICE_SUBSCRIPTION = process.env.STRIPE_PRICE_SUBSCRIPTION || "";
 export const STRIPE_PRICE_OVERAGE = process.env.STRIPE_PRICE_OVERAGE || "";

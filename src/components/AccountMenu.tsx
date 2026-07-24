@@ -64,6 +64,9 @@ export default function AccountMenu({ dark = false }: { dark?: boolean }) {
                 {(account?.runsThisPeriod ?? 0)} / {sub.includedRuns} reports this period
               </div>
             ) : <div style={{ height: 10 }} />}
+            <a href="/reports" style={{ display: "block", width: "100%", boxSizing: "border-box", textAlign: "center", padding: "9px 12px", fontSize: 13, fontWeight: 600, color: INK, background: "none", border: `1px solid ${RULE}`, borderRadius: 6, marginBottom: 6, textDecoration: "none" }}>
+              My reports
+            </a>
             {sub ? (
               <button onClick={manageBilling} disabled={busy} style={{ width: "100%", padding: "9px 12px", fontSize: 13, fontWeight: 600, background: NAVY, color: "white", border: "none", borderRadius: 6, cursor: busy ? "default" : "pointer", marginBottom: 6, opacity: busy ? 0.7 : 1 }}>
                 {busy ? "Opening…" : "Manage / cancel subscription →"}
