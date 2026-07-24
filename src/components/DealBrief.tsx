@@ -366,9 +366,11 @@ export default function DealBrief() {
   const autoRanRef = useRef(false);
   // Start the gate in subscribe mode (402: authed but out of runs) vs auth mode.
   const [gateSubscribe, setGateSubscribe] = useState(false);
-  // True while the pipeline auto-retry is in flight (a slow first attempt timed
-  // out) — surfaces a "taking a moment longer" note on the loading screen.
+  // True while a run is taking a while (or the auto-retry is in flight) —
+  // surfaces a "taking a moment longer" note on the loading screen.
   const [slowRetry, setSlowRetry] = useState(false);
+  const slowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearSlowTimer = () => { if (slowTimerRef.current) { clearTimeout(slowTimerRef.current); slowTimerRef.current = null; } };
   // Demo seed: the pre-canned sample pre-fills price (units handled via unitsEdit).
   const [priceSeed, setPriceSeed] = useState("");
   const [priceKey, setPriceKey] = useState(0);
@@ -762,8 +764,12 @@ export default function DealBrief() {
     sendGAEvent("event", "run_brief_click", {
       address_length: addr.length,
     });
+    clearSlowTimer();
     if (!isRetry) setSlowRetry(false);  // fresh run clears any prior retry note
     setView("loading");
+    // Surface the "taking longer" note if the run is slow, without waiting for
+    // the full timeout to fire.
+    slowTimerRef.current = setTimeout(() => setSlowRetry(true), 22000);
     try {
       const res = await fetch("/api/pipeline", {
         method: "POST",
@@ -778,6 +784,7 @@ export default function DealBrief() {
       // the card — the real report hasn't run yet, so this is a teaser only. The
       // seeds are cleared on a real run below so they never bleed into it.
       if (res.status === 401 || res.status === 402) {
+        clearSlowTimer();
         pendingAddressRef.current = addr;
         setGateSubscribe(res.status === 402);
         if (res.status === 401) setJustSubscribed(false);
@@ -785,13 +792,23 @@ export default function DealBrief() {
         setView("gate");
         return;
       }
-      const pipeline = await res.json();
+      const pipeline = await res.json().catch(() => ({}));
       if (!res.ok || pipeline.error) {
-        sendGAEvent("event", "pipeline_error", {
-          status: res.status,
-          error_kind: "api_error",
-        });
-        setPipelineError(pipeline.error || `Server error ${res.status}. Please try again.`);
+        const errText = String(pipeline.error || `Server error ${res.status}. Please try again.`);
+        // A run that exceeds the abort window surfaces HERE as a 500 (aborted /
+        // timeout message) or a 504 (function killed) — NOT a client-side throw.
+        // Retry once; a timed-out run is never metered, so it's free.
+        const isTimeout = res.status === 504 || /abort|timeout|timed out/i.test(errText);
+        if (isTimeout && !isRetry) {
+          sendGAEvent("event", "pipeline_retry", {});
+          setSlowRetry(true);
+          return go(addr, true);
+        }
+        clearSlowTimer();
+        sendGAEvent("event", "pipeline_error", { status: res.status, error_kind: "api_error" });
+        setPipelineError(isTimeout
+          ? "This one took longer than usual and timed out. Give it another try."
+          : errText);
         setView("landing");
         return;
       }
@@ -865,28 +882,29 @@ export default function DealBrief() {
         kind: (pipeline?._run?.kind as string) || "unknown",
       });
       autoRanRef.current = false;  // run succeeded — re-arm auto-run for next gate session
+      clearSlowTimer();
       // Refresh the account summary so the "X / 20 reports this period" counter
       // updates live (the run was metered server-side), not one run behind.
       refreshAccount();
       setView("confirm");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";
-      // The pipeline run time varies (collectors intermittently near their
-      // timeouts), so a run occasionally exceeds the abort window. A timed-out
-      // run is never metered (claimRun only fires on success), so one automatic
-      // retry is free and usually lands. Keep the loading screen up.
+      // A client-side network abort/timeout. (Server-side timeouts come back as a
+      // 500/504 response and are handled above.) A timed-out run is never metered,
+      // so one automatic retry is free and usually lands.
       const isTimeout = /abort|timeout|timed out/i.test(msg);
       if (isTimeout && !isRetry) {
         sendGAEvent("event", "pipeline_retry", {});
         setSlowRetry(true);  // surface the "taking a moment longer" note
         return go(addr, true);
       }
+      clearSlowTimer();
       sendGAEvent("event", "pipeline_error", {
         error_kind: "network",
         error_msg: msg.slice(0, 60),
       });
       setPipelineError(isTimeout
-        ? "That one took too long to pull. Please try again — it usually works on the second try."
+        ? "This one took longer than usual and timed out. Give it another try."
         : (err instanceof Error ? err.message : "Unable to reach the server. Please try again."));
       setView("landing");
     }
