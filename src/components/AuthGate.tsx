@@ -26,17 +26,19 @@ export default function AuthGate({
   address,
   forceSubscribe = false,
   justSubscribed = false,
+  loginOnly = false,
   onReady,
   onBack,
 }: {
   address: string;
   forceSubscribe?: boolean;  // 402: authed but out of runs — open in subscribe mode
   justSubscribed?: boolean;  // returned from Stripe checkout — poll for sync
-  onReady: () => void;       // authed AND eligible — parent re-runs the pipeline
+  loginOnly?: boolean;       // standalone "Log in" from the homepage — no address/run, just authenticate
+  onReady: () => void;       // authed AND eligible — parent re-runs the pipeline (or, loginOnly: authed)
   onBack: () => void;
 }) {
   const { user, account, accountLoading, refreshAccount, signInWithPassword, signUpWithPassword } = useAuth();
-  const [mode, setMode] = useState<"signup" | "login">("signup");
+  const [mode, setMode] = useState<"signup" | "login">(loginOnly ? "login" : "signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,6 +57,12 @@ export default function AuthGate({
   // the parent to run; if we just returned from Stripe, poll until the
   // subscription syncs; else prompt subscribe.
   useEffect(() => {
+    // Standalone login (homepage "Log in"): authenticate and hand back as soon
+    // as the user exists — no eligibility/subscribe gating, no address to run.
+    if (loginOnly) {
+      if (user) fireReady();
+      return;
+    }
     if (!user || accountLoading || account === null || needSubscribe) return;
     if (account.canRun) {
       fireReady();
@@ -66,7 +74,7 @@ export default function AuthGate({
       return () => clearTimeout(t);
     }
     setNeedSubscribe(true);
-  }, [user, account, accountLoading, needSubscribe, justSubscribed, fireReady, refreshAccount]);
+  }, [user, account, accountLoading, needSubscribe, justSubscribed, fireReady, refreshAccount, loginOnly]);
 
   const submitAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,8 +135,14 @@ export default function AuthGate({
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <div style={{ maxWidth: 420, width: "100%" }}>
         <div style={{ background: "white", border: `1px solid ${RULE}`, borderRadius: 12, padding: "28px 26px", boxShadow: "0 16px 48px rgba(15,31,56,0.22)" }}>
-          <div style={{ fontSize: 12, color: MUTE, marginBottom: 4 }}>Your report for</div>
-          <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 20 }}>{address || "your property"}</div>
+          {loginOnly ? (
+            <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 20 }}>Log in to your account</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, color: MUTE, marginBottom: 4 }}>Your report for</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: INK, marginBottom: 20 }}>{address || "your property"}</div>
+            </>
+          )}
 
           {activating ? (
             <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -191,7 +205,7 @@ export default function AuthGate({
           )}
         </div>
         <div style={{ textAlign: "center", marginTop: 14 }}>
-          <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 13, color: MUTE, cursor: "pointer", fontFamily: SANS }}>← New search</button>
+          <button onClick={onBack} style={{ background: "none", border: "none", fontSize: 13, color: MUTE, cursor: "pointer", fontFamily: SANS }}>{loginOnly ? "Cancel" : "← New search"}</button>
         </div>
       </div>
     </div>

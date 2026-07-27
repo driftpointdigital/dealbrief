@@ -350,8 +350,12 @@ function pipelineToData(pipeline: Record<string, unknown>, addr: string) {
 }
 
 export default function DealBrief() {
-  const { refreshAccount } = useAuth();
+  const { refreshAccount, user } = useAuth();
   const [view, setView] = useState("landing");
+  // Standalone "Log in" modal opened from the homepage header (returning users
+  // who want to sign in first, e.g. to view prior reports, without running an
+  // address). Renders AuthGate in loginOnly mode.
+  const [showLogin, setShowLogin] = useState(false);
   // True when we've just returned from Stripe subscription checkout (?subscribed=1)
   // — the gate then polls for the subscription to sync before unlocking.
   const [justSubscribed, setJustSubscribed] = useState(false);
@@ -1516,9 +1520,30 @@ export default function DealBrief() {
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span style={{ fontSize: 12, color: "#9CA3AF", letterSpacing: "0.2px" }}>Pre-Offer Research</span>
+          {!user && (
+            <button
+              onClick={() => setShowLogin(true)}
+              style={{
+                background: "none", border: "1px solid #D1D5DB", borderRadius: 6,
+                padding: "6px 14px", fontSize: 13, fontWeight: 600, color: "#374151",
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              Log in
+            </button>
+          )}
           <AccountMenu dark />
         </div>
       </div>
+
+      {showLogin && (
+        <AuthGate
+          loginOnly
+          address=""
+          onReady={() => { window.location.href = "/reports"; }}
+          onBack={() => setShowLogin(false)}
+        />
+      )}
 
       <div style={{ maxWidth: 540, margin: "0 auto", padding: "32px 24px 16px" }}>
         {/* HERO — calm/professional positioning. H1 leads with a concrete

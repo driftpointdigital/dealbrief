@@ -72,7 +72,7 @@ export default function AccountMenu({ dark = false }: { dark?: boolean }) {
                 {busy ? "Opening…" : "Manage / cancel subscription →"}
               </button>
             ) : null}
-            <button onClick={() => { signOut(); setOpen(false); }} style={{ width: "100%", padding: "9px 12px", fontSize: 13, background: "none", color: MUTE, border: `1px solid ${RULE}`, borderRadius: 6, cursor: "pointer" }}>
+            <button onClick={async () => { setOpen(false); await signOut(); window.location.href = "/"; }} style={{ width: "100%", padding: "9px 12px", fontSize: 13, background: "none", color: MUTE, border: `1px solid ${RULE}`, borderRadius: 6, cursor: "pointer" }}>
               Sign out
             </button>
             {err ? <div style={{ fontSize: 11.5, color: RED, marginTop: 8 }}>{err}</div> : null}
