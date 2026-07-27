@@ -329,8 +329,8 @@ export function computeDerivations(data: DerivationData, boe: BoeEst | null) {
     ? 1 + (parseFloat(data.capPct || "0.08") || 0.08)
     : 1.08;
 
-  // Split-assessment-ratio states (OH/TN/MS/MO/KS).
-  const splitRatioStateMatch = /(?:,\s*|\s+)(OH|TN|MS|MO|KS)\s*,?\s*\d{5}/.exec(data.address || "");
+  // Split-assessment-ratio states (OH/TN/MS/MO/KS/OK).
+  const splitRatioStateMatch = /(?:,\s*|\s+)(OH|TN|MS|MO|KS|OK)\s*,?\s*\d{5}/.exec(data.address || "");
   const splitRatioState = splitRatioStateMatch ? splitRatioStateMatch[1] : "";
   const _splitRatioUnits = (() => {
     const n = parseInt(data.units) || 0;
@@ -340,6 +340,9 @@ export function computeDerivations(data: DerivationData, boe: BoeEst | null) {
     OH: 0.35,
     TN: _splitRatioUnits <= 4 ? 0.25 : 0.40,
     MS: 0.15, MO: 0.19, KS: 0.115,
+    // OK: flat county ratio (11% floor; Osage 12%). Pipeline sends the exact
+    // per-parcel ratio in assessmentRatio; this is the Regrid-fallback default.
+    OK: 0.11,
   };
   const splitRatioPct = (() => {
     const raw = (data.assessmentRatio || "").toString().replace(/%/g, "").trim();

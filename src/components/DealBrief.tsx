@@ -1104,7 +1104,7 @@ export default function DealBrief() {
           // Prefer the pipeline's `assessmentRatio` if the collector populated
           // it (Jackson MO does), otherwise fall back to the state default.
           const stateForRatio = (() => {
-            const m = /(?:,\s*|\s+)(OH|TN|MS|MO|KS)(?:\s|,|$|\s*\d{5})/.exec(data.address || "");
+            const m = /(?:,\s*|\s+)(OH|TN|MS|MO|KS|OK)(?:\s|,|$|\s*\d{5})/.exec(data.address || "");
             return m ? m[1] : "";
           })();
           // TN is the only split-ratio state that flips MF ratio based on
@@ -1122,6 +1122,10 @@ export default function DealBrief() {
             OH: 0.35,
             TN: unitCountForRatio <= 4 ? 0.25 : 0.40,
             MS: 0.15, MO: 0.19, KS: 0.115,
+            // OK: flat county ratio (11% floor; Osage 12%) — no unit split. The
+            // pipeline sends the exact per-parcel ratio in assessmentRatio, so
+            // this default only applies on a Regrid fallback that omits it.
+            OK: 0.11,
           };
           const splitRatio = (() => {
             const raw = (data.assessmentRatio || "").toString().replace(/%/g, "").trim();
