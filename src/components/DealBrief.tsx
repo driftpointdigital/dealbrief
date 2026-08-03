@@ -349,6 +349,17 @@ function pipelineToData(pipeline: Record<string, unknown>, addr: string) {
   } as typeof MOCK_RETURN_DATA & { _pipeline?: unknown };
 }
 
+// Default property-management fee and on-site payroll scale with property size.
+// Small deals are third-party managed (higher % fee, no on-site staff); larger
+// deals run an on-site team (lower fee, real payroll, per-unit cost easing as
+// the fixed staff amortizes). Both remain user-editable.
+function _opexDefaultsForUnits(n: number): { mgmt: string; payroll: string } {
+  if (n >= 200) return { mgmt: "4.0", payroll: "900" };   // on-site team, at scale
+  if (n >= 100) return { mgmt: "5.0", payroll: "1000" };  // on-site staff kicks in
+  if (n >= 50)  return { mgmt: "7.0", payroll: "0" };     // third-party, mid-size
+  return { mgmt: "9.0", payroll: "0" };                    // third-party, small
+}
+
 export default function DealBrief() {
   const { refreshAccount, user } = useAuth();
   const [view, setView] = useState("landing");
@@ -395,11 +406,18 @@ export default function DealBrief() {
   const [insurancePerUnit, setInsurancePerUnit] = useState("800");
   const [maintenancePerUnit, setMaintenancePerUnit] = useState("750");
   const [utilitiesPerUnit, setUtilitiesPerUnit] = useState("250");
-  const [managementPct, setManagementPct] = useState("3.0");
+  // Mgmt % and Payroll defaults scale with unit count (see _opexDefaultsForUnits
+  // + the effect below). These initial values are the small-property tier; the
+  // effect corrects them once the unit count is known.
+  const [managementPct, setManagementPct] = useState("9.0");
   const [marketingPerUnit, setMarketingPerUnit] = useState("150");
   const [adminPerUnit, setAdminPerUnit] = useState("100");
   const [reservesPerUnit, setReservesPerUnit] = useState("400");
-  const [payrollPerUnit, setPayrollPerUnit] = useState("1000");
+  const [payrollPerUnit, setPayrollPerUnit] = useState("0");
+  // Manual-override guards: once the user edits Mgmt % or Payroll, the
+  // units-driven default stops overwriting that field.
+  const mgmtTouchedRef = useRef(false);
+  const payrollTouchedRef = useRef(false);
   const [propertyType, setPropertyType] = useState("Multifamily");
   const [unitsKey, setUnitsKey] = useState(0);
   // Same remount trick as unitsKey — Tax Rate FieldRow uses `defaultValue`
@@ -623,6 +641,19 @@ export default function DealBrief() {
     // sync from units → rate, not the inverse.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitsEdit, data?.taxRate, data]);
+
+  // Scale the default Mgmt % and Payroll with unit count. Small properties are
+  // third-party managed (higher fee, no payroll); larger ones add on-site staff
+  // (lower fee, real payroll). One-way units → defaults; skips a field once the
+  // user has edited it (see the touched refs).
+  useEffect(() => {
+    const n = _parseInt(unitsEdit || (data?.units ?? ""));
+    if (!n) return;
+    const d = _opexDefaultsForUnits(n);
+    if (!mgmtTouchedRef.current) setManagementPct(d.mgmt);
+    if (!payrollTouchedRef.current) setPayrollPerUnit(d.payroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitsEdit, data?.units]);
 
   // Derive assessed value as sum of land + improvements + misc features.
   // Misc features only contributes when present; jurisdictions without a
@@ -1335,8 +1366,8 @@ export default function DealBrief() {
                   ["Insurance", insurancePerUnit, setInsurancePerUnit, "$/unit"],
                   ["Maintenance", maintenancePerUnit, setMaintenancePerUnit, "$/unit"],
                   ["Utilities", utilitiesPerUnit, setUtilitiesPerUnit, "$/unit"],
-                  ["Mgmt", managementPct, setManagementPct, "% EGI"],
-                  ["Payroll", payrollPerUnit, setPayrollPerUnit, "$/unit"],
+                  ["Mgmt", managementPct, (v: string) => { mgmtTouchedRef.current = true; setManagementPct(v); }, "% EGI"],
+                  ["Payroll", payrollPerUnit, (v: string) => { payrollTouchedRef.current = true; setPayrollPerUnit(v); }, "$/unit"],
                   ["Marketing", marketingPerUnit, setMarketingPerUnit, "$/unit"],
                   ["Admin", adminPerUnit, setAdminPerUnit, "$/unit"],
                   ["Reserves", reservesPerUnit, setReservesPerUnit, "$/unit"],
