@@ -24,7 +24,7 @@ Harris County Appraisal District (HCAD) revalues every parcel every year. There'
 
 When you close on a Houston property, HCAD pulls the sale price from public records and uses it as their primary comp for next year's assessment. The catch-up is typically year 1 or year 2, not gradual.
 
-Combined millage in Harris County multifamily commonly lands at 2.4-2.8% (county + city of Houston + HISD or another ISD + MUD if applicable). Practical math: model your year-1 tax at purchase price × 2.6% as a placeholder, then refine with the actual jurisdictions on the parcel.
+DealBrief models Harris County in-city Houston parcels from a MUD-free baseline of roughly 2.1% effective on fair market value (county + city of Houston + HISD or the local ISD). Suburban parcels usually sit inside a Municipal Utility District, which stacks on top of that base (covered below). Practical math: model your year-1 tax at purchase price × about 2.1% for an in-city parcel, then add the detected MUD rate for anything out in Spring, Cypress, Katy, or the outer master-planned communities.
 
 ## Floodplain matters more here than anywhere else
 
@@ -44,7 +44,7 @@ Houston has no zoning. Land use is governed by deed restrictions, which can be h
 
 Practical effect on multifamily: a parcel might be zoned-equivalent to single-family-only by deed restriction even though the city says you can build anything. Before underwriting any redevelopment angle, check the deed restrictions filed with Harris County Clerk.
 
-For the suburbs (Cinco Ranch, The Woodlands, Sienna, Bridgeland, Cross Creek Ranch, many others), MUDs are nearly universal. A MUD in Houston can add 0.5-1.5% to the combined tax rate. Always check whether the parcel sits in a MUD before underwriting. The Texas Comptroller lists every MUD with its rate.
+For the suburbs (Cinco Ranch, The Woodlands, Sienna, Bridgeland, Cross Creek Ranch, many others), MUDs are nearly universal, and the add-on varies by county. DealBrief sees Harris County suburban MUDs add roughly 0.4-1.5% on top of the base rate, Fort Bend (Sugar Land, Sienna, Cinco Ranch) add about 0.3-1.5%, and Montgomery (The Woodlands and its neighbors) add about 0.2-0.8%. Rather than apply a county average, DealBrief locates each parcel against the Texas special-district boundaries (the Comptroller and TCEQ maintain the list of every MUD with its rate) and adds the specific district's rate to the county baseline, so the projection reflects the district the property actually sits in. Always check whether the parcel sits in a MUD before underwriting.
 
 ## The Houston Permitting Center
 

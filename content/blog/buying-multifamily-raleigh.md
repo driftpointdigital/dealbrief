@@ -24,15 +24,15 @@ Wake County reappraised real property effective January 1, 2024. The next reappr
 
 Like Mecklenburg in Charlotte, the sale does not trigger a reassessment. You inherit the seller's tax bill until the next cycle.
 
-Combined millage for property inside the City of Raleigh runs approximately $0.95 per $100 of assessed value (Wake County around $0.51 + City of Raleigh around $0.44), or 0.95% of assessed value. Other Wake municipalities (Cary, Apex, Wake Forest, Holly Springs, Garner) each have their own city rates that layer on top of the county rate, with the combined typically falling in a similar 0.9-1.1% range.
+The combined rate DealBrief uses for property inside the City of Raleigh is approximately $0.87 per $100 of assessed value (Wake County FY25-26 rate of $0.5171 + City of Raleigh $0.3550 = $0.8721 / $100, or about 0.87% of assessed value). Other Wake municipalities each layer their own city rate on top of the same county rate, so the combined ranges from roughly 0.86% in Cary ($0.5171 + $0.34) up to about 1.09% in Zebulon. One line item easy to miss: some Wake towns also add a per-unit solid waste fee (Rolesville, for example, bills about $300 per unit per year), billed separately from the millage.
 
 The cycle math: model your year-1 through year-2 tax at the seller's current assessment. In year 3 (the 2027 reappraisal) and again in year 5 (the first 2-year reset in 2029), expect bumps.
 
-Worked example: bought a Raleigh 12-unit in 2026 for $2.0M. Current Wake assessed (from 2024): $1.4M. Combined millage 1.0%.
+Worked example: bought a Raleigh 12-unit in 2026 for $2.0M. Current Wake assessed (from 2024): $1.4M. Combined rate 0.87%.
 
-- Year 1-2 tax: $1.4M × 1.0% = $14,000
+- Year 1-2 tax: $1.4M × 0.87% = $12,210
 - 2027 reappraisal: estimate $1.85M assessed (95% of sale price; Wake mass-appraisal tends to lag actual sale prices slightly)
-- Year 3-4 tax: $18,500
+- Year 3-4 tax: $1.85M × 0.87% = $16,130
 - 2029 reappraisal: smaller incremental bump as the cycle moves to 2-year resets
 
 The bump pattern is similar to Charlotte in structure (cycle-based reassessment, post-sale tax inherits seller's rate until the next cycle), though the underlying combined millage is somewhat higher in Wake than in Mecklenburg. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).

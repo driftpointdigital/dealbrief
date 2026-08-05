@@ -20,7 +20,7 @@ Three things matter most when underwriting an Atlanta address. None of them are 
 
 ## Annual reassessment, but the 299(c) appeal freeze matters
 
-Fulton County reassesses every year. DeKalb every year. Cobb every year. Gwinnett every year. So in theory, your year-1 tax will reflect your purchase price.
+Fulton County reassesses every year. DeKalb every year. Cobb every year. Gwinnett every year. The recorded sale (filed on Georgia's PT-61 real estate transfer declaration) becomes a primary comp for the assessor's next January 1 value, so in theory your year-1 tax resets toward your purchase price.
 
 In practice, Georgia's Code 48-5-299(c), commonly called the 299(c) freeze, gives owners who successfully appeal a 3-year freeze on the resulting assessed value. To trigger the freeze, the owner must attend the appeal hearing or submit written evidence. If the prior owner appealed and won, you may inherit a frozen value that doesn't reset until the freeze expires.
 
@@ -39,12 +39,14 @@ A 12-unit in Decatur (DeKalb) and a 12-unit in Buckhead (Fulton) sitting at the 
 
 One important quirk: Georgia assesses property at 40% of fair market value (the "assessed value" on the tax bill is 40% of FMV). Millage rates are expressed per $1,000 of assessed value. So to compare across states, you need to compute the effective rate on FMV: combined mill rate × 40% / 1,000.
 
-For Atlanta proper (Fulton County General Fund 8.87 mills + Atlanta Public Schools roughly 18-20 mills + City of Atlanta 7-8 mills), the combined sits around 33-37 mills, which works out to roughly 1.3-1.5% effective on FMV. Other metro counties:
+For Atlanta proper, the stack layers Fulton County (General Fund around 8.9 mills), Atlanta Public Schools (the largest single component), and the City of Atlanta's own general, parks, and bond levies. Weighted together, DealBrief models City of Atlanta (Fulton) parcels near 1.8% effective on FMV. The effective rates DealBrief applies for the other metro counties:
 
-- **Unincorporated Fulton or smaller Fulton municipalities**: combined typically lower than Atlanta city, around 1.0-1.3% effective on FMV.
-- **DeKalb**: roughly comparable to Fulton, 1.1-1.4% effective on FMV depending on city/unincorporated.
-- **Cobb**: lower than Fulton/DeKalb, around 0.9-1.2% effective on FMV.
-- **Gwinnett**: lowest among the urban core counties, roughly 0.8-1.1% effective on FMV.
+- **Unincorporated Fulton and the smaller Fulton cities** (including much of the City of South Fulton): lower than City of Atlanta, around 1.4% effective on FMV.
+- **DeKalb** (Decatur, Brookhaven, unincorporated): around 1.6% effective on FMV.
+- **Cobb**: the lowest of the core counties, around 1.15% effective on FMV.
+- **Gwinnett**: around 1.35% effective on FMV.
+- **Clayton**: around 1.55% effective on FMV.
+- **Cherokee and Forsyth** (the far-north exurbs): around 1.0-1.05% effective on FMV.
 
 These ranges shift annually with millage changes. Always pull the actual combined rate and assessment ratio for the specific parcel before underwriting.
 

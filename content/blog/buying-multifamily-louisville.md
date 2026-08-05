@@ -22,13 +22,13 @@ If you're underwriting for cash flow, Louisville is one of the most reliable sma
 
 Louisville and Jefferson County operate as a single government (Louisville/Jefferson County Metro Government, or LMG), unified in 2003. There's effectively one tax jurisdiction for property within Jefferson County, with subdivisions for cities within Jefferson (Anchorage, Indian Hills, Lyndon, etc.) layering additional small rates.
 
-Combined millage in Louisville Metro typically runs 1.0-1.3%, depending on the specific cities/districts that apply. This is materially lower than most Sun Belt comparables.
+The merger left one wrinkle that matters for underwriting. The old City of Louisville core is now an Urban Services District (USD) that funds fire, sanitation, and streetlights through an added overlay, so USD parcels run higher, roughly 1.5% effective, than the suburban Home Rule cities (St. Matthews, Jeffersontown, Shively, Lyndon) that kept their own tax rolls and bypass the USD overlay at roughly 1.2%. A "Louisville" mailing address alone doesn't tell you which side of that line a parcel sits on, so DealBrief applies about 1.28% as its Jefferson County weighted default and resolves the specific overlay from the parcel record. Even the high end is materially lower than most Sun Belt comparables.
 
 ## Kentucky's quadrennial-ish tax cycle
 
-Kentucky property tax assessments are nominally on a 4-year cycle, though counties operate with significant flexibility. Jefferson County PVA (Property Valuation Administrator) reassesses regularly and adjusts values to track market changes. Unlike PA, the cycle is not as locked.
+Kentucky property tax assessments are nominally on a 4-year cycle, though counties operate with significant flexibility. Jefferson County PVA (Property Valuation Administrator) reassesses regularly and adjusts values to track market changes. Kentucky's Constitution (Section 172) requires assessment at 100% of fair cash value, but there is no sale-triggered reassessment. Your purchase doesn't snap the value to your price the way it does in TX, OK, or FL. Unlike PA, the cycle is not as locked.
 
-Practical implication: your post-sale tax in Louisville is more like a typical state than a cycle-locked PA county. Plan for the assessor to update toward your purchase price within 1-2 years. The flexibility means the catch-up is faster than NC, slower than TX.
+Practical implication: your post-sale tax in Louisville is more like a typical state than a cycle-locked PA county. The PVA moves the value toward market on its own cadence rather than the moment you close, so plan for a gradual catch-up over 1-2 years rather than an automatic reset. The flexibility means the catch-up is faster than NC, slower than TX.
 
 [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
 

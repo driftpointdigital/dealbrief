@@ -22,11 +22,11 @@ If you're buying multifamily in Lexington, three locally specific items should d
 
 Lexington and Fayette County operate as a single consolidated government (LFUCG), similar to Louisville-Jefferson but smaller in scale. This simplifies the tax math: one tax jurisdiction with school district added.
 
-Combined millage in Fayette County typically runs 0.9-1.1%, on the lower end of the metros DealBrief covers. Property taxes are not the headline operating cost in Lexington (insurance and management often are).
+DealBrief applies about 1.22% effective on assessed value for Fayette County. The stack is the Kentucky state levy, Fayette County, LFUCG, small health, library, and extension districts, and, dominating the bill, the Fayette County Public Schools levy (roughly two-thirds of the total), with the urban services core running slightly higher near 1.25%. That still lands on the lower end of the metros DealBrief covers, and property taxes are not the headline operating cost in Lexington (insurance and management often are).
 
 ## Kentucky's tax cycle: less aggressive than most
 
-Kentucky operates on a quadrennial-ish tax cycle, with significant flexibility for individual Property Valuation Administrators (PVAs, the elected county-level assessor in Kentucky) to update values more frequently when warranted. Fayette County's PVA tends to track market changes but does not as aggressively pursue post-sale catch-up as TX, FL, or even some KY counties.
+Kentucky operates on a quadrennial-ish tax cycle, with significant flexibility for individual Property Valuation Administrators (PVAs, the elected county-level assessor in Kentucky) to update values more frequently when warranted. Kentucky's Constitution (Section 172) requires assessment at 100% of fair cash value, but there is no sale-triggered reset, so a purchase in Fayette County does not automatically snap the value to your price the way it does in TX, FL, or OK. Fayette County's PVA tends to track market changes but does not as aggressively pursue post-sale catch-up as those states, or even some other KY counties.
 
 Practical implication: model your post-sale tax conservatively but expect a more modest catch-up than other states. Year 1-2 may stay close to seller's tax; year 3+ likely reflects market.
 

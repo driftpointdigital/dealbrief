@@ -20,18 +20,19 @@ If you're underwriting Orlando multifamily, three local considerations should dr
 
 ## The Orange County tax cycle (and the catch-up)
 
-Orange County reassesses every year. As elsewhere in Florida, the 10% non-homestead cap applies to investment property, so your post-sale assessment will rise toward your purchase price by up to 10% per year.
+Orange County reassesses every year. The 10% non-homestead cap applies to investment property, but it protects the seller, not you. On a change of ownership the cap is stripped, and the Property Appraiser resets Just Value the following January 1 (F.S. 193.1554 for nine-or-fewer-unit buildings, 193.1555 for ten-plus units and commercial) toward net sale proceeds, roughly 85-90% of your price after the F.S. 193.011(8) cost-of-sale adjustment. The step-up lands in your first post-close assessment.
 
-Combined millage varies by municipality. For 2025 the City of Orlando combined rate is approximately 19.1 mills ($19.10 per $1,000 of taxable value, or ~1.9% of taxable value). Unincorporated Orange County is around 16.1 mills (~1.6%). Other Orange municipalities (Winter Park, Winter Garden, Ocoee) fall in between. Property in Osceola County (south Orlando metro, including Kissimmee) has a separate combined rate.
+Combined millage varies by municipality. For 2025 the City of Orlando combined rate is approximately 19.1 mills ($19.10 per $1,000 of taxable value, or ~1.9% of taxable value). Unincorporated Orange County is around 16.1 mills (~1.6%). Other Orange municipalities (Winter Park, Winter Garden, Ocoee) fall in between. The blended effective rate DealBrief models for Orange is about 1.80%, but the same deal underwrites differently across county lines: Osceola (Kissimmee) runs closer to 1.95%, Seminole (Sanford) nearer 1.70%, and Lake (Clermont) about 1.75%.
 
-Worked example: bought $1.8M, current assessed $1.0M, combined millage 1.85%.
+Worked example: bought $1.8M, current assessed $1.0M, Orange effective rate about 1.80%.
 
-- Year 1 tax: $1.1M × 1.85% = $20,350
-- Year 2: $1.21M × 1.85% = $22,385
-- ...
-- Year 7: catches up to $1.8M. Tax = $33,300
+- Broker-quoted (seller's capped assessed): $1.0M × 1.80% = $18,000
+- Post-close Just Value roughly 0.90 × $1.8M = $1.62M
+- Year-1 tax: $1.62M × 1.80% = about $29,200
 
-Broker-quoted: $1.0M × 1.85% = $18,500. By year 4 you're paying 30%+ more. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+Nearly a 62% jump in the first reassessment, not a gradual climb. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+
+Budget the non-ad-valorem line the millage leaves out, too: Orlando's newer master-planned suburbs (Lake Nona, Horizon West, and much of the Kissimmee and Sanford growth corridors) sit inside Community Development Districts that add a separate CDD assessment to the tax bill, commonly $1,000-$3,000+ per year per home for bonds and maintenance. The effective rate above does not include it, so read the non-ad-valorem section of the actual bill.
 
 ## Insurance: better than Tampa, still elevated
 

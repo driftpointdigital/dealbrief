@@ -36,16 +36,17 @@ Three rules:
 
 Florida caps non-homestead assessed value growth at 10% per year. This is NOT Save Our Homes (which is 3% and homestead-only); this is the separate "non-homestead cap" enacted in 2008.
 
-Practical implication: when you close, Hillsborough County will reassess the property toward your sale price, but limited to 10% per year. If you bought 50% above current assessed, you'll see the catch-up over roughly 5 years.
+Here is the part that catches buyers: that 10% cap protects the current owner, not you. On a change of ownership the cap is stripped, and the Property Appraiser resets Just Value the following January 1 (F.S. 193.1554 for buildings of nine or fewer units, 193.1555 for ten-plus units and commercial). The new Just Value tracks net sale proceeds, which under the F.S. 193.011(8) cost-of-sale adjustment lands around 85-90% of your purchase price. So the step-up hits your first post-close assessment, not gradually over five years. The 10% cap only starts protecting you the year after that reset.
 
-Worked example: $2.4M purchase, current assessed $1.4M, combined millage 2.0%.
+Worked example: $2.4M purchase, current assessed $1.4M, Hillsborough effective rate about 1.95%.
 
-- Year 1 tax: $1.54M × 2.0% = $30,800
-- Year 2: $1.69M × 2.0% = $33,880
-- ...
-- Year 6: catches up to $2.4M. Tax = $48,000
+- Broker-quoted (seller's capped assessed): $1.4M × 1.95% = $27,300
+- Post-close Just Value roughly 0.90 × $2.4M = $2.16M
+- Year-1 tax: $2.16M × 1.95% = about $42,100
 
-Broker-quoted tax: $1.4M × 2.0% = $28,000. By year 3 you're paying 30% more. By year 6, 70% more. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+That is a 54% jump in the first reassessment, not a slow climb. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+
+One line the effective rate above does not capture: if the building sits in a newer master-planned community (common across Pasco and Wesley Chapel, and in the Bradenton and Lakewood Ranch corridor south of the bay), a Community Development District (CDD) assessment appears as a separate non-ad-valorem charge on the tax bill, often $1,000-$3,000+ per year per home for infrastructure bonds and maintenance. Read the non-ad-valorem section of the actual bill, not just the millage.
 
 ## FEMA flood zone is half the metro
 

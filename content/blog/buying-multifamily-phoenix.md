@@ -29,7 +29,7 @@ LPV is what determines your tax bill. FCV is informational only and used to calc
 
 Your purchase price doesn't reset LPV. There's no sale-triggered reassessment. The LPV that applied to the seller continues to apply to you, growing at 5% per year, regardless of what you paid.
 
-This is the structural advantage of Phoenix multifamily underwriting. The post-sale tax bump that crushes returns in TX and FL doesn't happen here. Your year-1 tax is the seller's tax, give or take 5% inflation.
+This is the structural advantage of Phoenix multifamily underwriting. The post-sale tax bump that crushes returns in TX and FL doesn't happen here. Your year-1 tax is the seller's tax, give or take 5% inflation. Because the LPV on a long-held building can sit well below Full Cash Value, DealBrief pulls the parcel's actual LPV from the Maricopa County Assessor rather than estimating off your purchase price, so the report reflects the below-market basis you inherit.
 
 ## The assessment ratio: multifamily is Class 4
 
@@ -51,7 +51,13 @@ Other Maricopa cities run lower: Mesa, Chandler, and Gilbert typically come in a
 
 Properties inside Community Facilities Districts (CFDs), common in newer master-planned suburbs like Verrado in Buckeye, Estrella, Eastmark in Mesa, or Vistancia in Peoria, add another $1.50-$2.80 per $100 NAV, which can push the total to 1.4-1.7% of LPV. CFDs are material to suburban underwriting; check whether a target parcel is inside one.
 
+DealBrief computes the bill the way the county does: LPV times the 10% Class 4 ratio times the parcel's combined levy, using the Limited Property Value pulled directly from the Maricopa County Assessor. When an address can't be matched to an assessor record, it falls back to roughly 0.6% of Full Cash Value, the Maricopa County effective median. Either way the number is anchored to the capped, non-resetting LPV, not your purchase price.
+
 Compared to TX (2.3-2.8% of FMV, no cap) or FL (1.7-2.2% of FMV, 10% cap), Phoenix multifamily carries a structurally lower effective tax burden, especially over a multi-year hold where LPV stays capped at 5% annual growth.
+
+## Watch the county line: Pinal vs Maricopa
+
+The fastest-growing far-southeast suburbs sit in Pinal County, not Maricopa. The city of Maricopa (confusingly named, since it's the neighboring county), San Tan Valley, Casa Grande, and most of Apache Junction are Pinal parcels, and Queen Creek straddles the line. Pinal runs its own assessor and a somewhat higher combined levy: DealBrief uses roughly 0.7% of Full Cash Value as its Pinal fallback versus roughly 0.6% for Maricopa, and routes those parcels through the Pinal County Assessor for the LPV-based calc. The LPV mechanic is identical (5% annual cap, no reset on sale), but confirm which county a fringe parcel is actually in before you pull comps or a tax figure.
 
 ## Permit access through Phoenix PDD
 

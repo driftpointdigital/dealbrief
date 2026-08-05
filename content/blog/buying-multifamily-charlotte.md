@@ -30,23 +30,23 @@ The 4-year cycle means you need to estimate what Mecklenburg will assess your pr
 
 A reasonable approach: estimate the next-cycle assessed value at 90-105% of your purchase price. Above 100% if the broader market has appreciated since you bought; below if it's softened. Then model the tax bump in the appropriate year of your pro forma.
 
-Worked example: bought a Mecklenburg triplex in 2026 for $750K. Current assessed (from 2023 reappraisal): $400K. The combined property tax rate for a typical parcel inside the City of Charlotte is approximately $0.77 per $100 of assessed value (Mecklenburg County ~$0.49 + City of Charlotte ~$0.27 = $0.7668 / $100, or 0.77% of assessed value). Properties inside Charlotte's downtown / SouthPark Municipal Service Districts add $0.01-0.05 per $100, bringing the combined to ~$0.78-0.82 per $100. Other Mecklenburg towns and unincorporated areas typically fall in a $0.67-0.81 per $100 range. Note: per-unit solid waste fees and stormwater utility fees are billed separately and are NOT included in the millage.
+Worked example: bought a Mecklenburg triplex in 2026 for $750K. Current assessed (from 2023 reappraisal): $400K. The combined property tax rate DealBrief uses for a parcel inside the City of Charlotte is approximately $0.83 per $100 of assessed value (Mecklenburg County FY25 rate of $0.4831 + City of Charlotte $0.3481 = $0.8312 / $100, or about 0.83% of assessed value). Properties inside Charlotte's downtown / SouthPark Municipal Service Districts add a small additional per-$100 amount. Other Mecklenburg towns (Matthews, Cornelius, Mint Hill, Pineville) and unincorporated areas carry their own combined rates. Note: the per-unit solid waste fee and stormwater utility fees are billed separately and are NOT included in the millage.
 
-For this example, use 0.77% combined.
+For this example, use 0.83% combined.
 
-- Year 1 tax: $400K × 0.77% = $3,080
+- Year 1 tax: $400K × 0.83% = $3,320
 - 2027 reappraisal (next cycle): estimate $725K assessed (95% of sale price)
-- Year 2+ tax: $725K × 0.77% = $5,580
+- Year 2+ tax: $725K × 0.83% = $6,020
 
-The bump arrives in year 2 of the hold (+$2,500/year). NPV over a 7-year hold at 10% discount: roughly $12K. Material to your offer math, especially when compounded across multiple properties.
+The bump arrives in year 2 of the hold (+$2,700/year). NPV over a 7-year hold at 10% discount: roughly $11K. Material to your offer math, especially when compounded across multiple properties.
 
 [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
 
 ## The Charlotte solid waste fee
 
-This one catches buyers off-guard. The City of Charlotte assesses a separate per-unit fee for solid waste service on multifamily properties. It's billed by the city alongside property taxes but is NOT part of the millage. Recent annual rates range from approximately $55 to $130 per unit per year depending on service type (county-only collection at the low end, full city curbside service at the high end, dumpster service somewhere in between). The rate is set annually as part of the city budget.
+This one catches buyers off-guard. The City of Charlotte assesses a separate per-unit fee for solid waste service on multifamily properties. It's billed by the city alongside property taxes but is NOT part of the millage. Recent annual rates range from approximately $55 to $130 per unit per year depending on service type (county-only collection at the low end, full city curbside service at the high end, dumpster service somewhere in between). DealBrief defaults to about $110 per unit, the typical multifamily dumpster-service tier. The rate is set annually as part of the city budget.
 
-For a 16-unit property, that's roughly $900 to $2,100 per year on top of property tax. Not enormous, but easy to miss because most underwriting templates don't have a line for it. Mecklenburg County multifamily properties outside the City of Charlotte (in incorporated towns like Matthews, Cornelius, Mint Hill, Pineville, or in unincorporated Mecklenburg) have different waste arrangements; check with the local municipality.
+For a 16-unit property, that's roughly $1,760 per year at the dumpster tier (and $900 to $2,100 across the service-type range) on top of property tax. Not enormous, but easy to miss because most underwriting templates don't have a line for it. Mecklenburg County multifamily properties outside the City of Charlotte (in incorporated towns like Matthews, Cornelius, Mint Hill, Pineville, or in unincorporated Mecklenburg) have different waste arrangements; check with the local municipality.
 
 ## Permits through Mecklenburg / Charlotte Accela
 

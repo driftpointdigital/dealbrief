@@ -26,7 +26,7 @@ The mechanics: DCAD publishes preliminary assessments in April for the upcoming 
 
 Tarrant County (Fort Worth) operates the same way through TAD. So does Collin County (Plano / Frisco / McKinney) through CCAD, and Denton County through DCAD-Denton.
 
-Practical implication: model your year-1 tax at purchase price × combined millage rate, not the seller's tax bill. Combined millage in Dallas County is typically 2.3-2.8% across all jurisdictions (county + city + ISD + special districts). Tarrant runs similar. The dollar number that arrives in your mailbox in October of year 1 will not match the broker's underwriting.
+Practical implication: model your year-1 tax at purchase price × combined effective rate, not the seller's tax bill. DealBrief starts from a MUD-free county baseline: Dallas and Tarrant parcels run about 2.0% effective on market value (county + city + ISD core), and Collin and Denton about 1.9%. Any MUD or special district is added on top of that (covered below), which is how a Dallas-core parcel and a Frisco or McKinney parcel end up with different effective rates. The dollar number that arrives in your mailbox in October of year 1 will not match the broker's underwriting.
 
 ## MUDs in the suburbs
 
@@ -34,7 +34,7 @@ Master-planned communities in the DFW exurbs (Frisco, Prosper, Celina, Aubrey, N
 
 A MUD can add 0.5% to 1.5% to the combined tax rate, on top of the standard county and ISD layers. They're easy to miss if you're only looking at the standard tax bill, because they sometimes appear on a separate notice.
 
-Always check whether the parcel is inside a MUD before underwriting suburban DFW. The Texas Comptroller's office publishes a list of all MUDs with rates. If your target property is in a master-planned community built in the last 20 years, assume there's a MUD until you've proved there isn't.
+Always check whether the parcel is inside a MUD before underwriting suburban DFW. DealBrief locates each parcel against the Texas special-district boundaries (the Comptroller's office publishes the list of all MUDs with rates) and adds the detected rate to the county baseline. Kaufman County is a clean example: Forney and Heartland parcels can carry a MUD that adds roughly 0.5-1.0% over the in-city rate. If your target property is in a master-planned community built in the last 20 years, assume there's a MUD until you've proved there isn't.
 
 ## Hail and wind insurance
 

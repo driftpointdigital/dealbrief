@@ -52,9 +52,9 @@ Rules:
 
 ## The Save Our Homes confusion
 
-Florida's Save Our Homes amendment caps homestead-property assessment growth at 3% per year. This does NOT apply to investment property. Investment property is subject to the 10% non-homestead cap, which is much weaker protection.
+Florida's Save Our Homes amendment caps homestead-property assessment growth at 3% per year. This does NOT apply to investment property. Investment property is subject to the 10% non-homestead cap, which is much weaker protection, and weaker still because that cap protected the seller, not you.
 
-When you close, Miami-Dade reassesses toward your purchase price up to 10% per year. The catch-up runs across multiple years. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+When you close, the cap is stripped. Under F.S. 193.1554 (buildings of nine or fewer units) and 193.1555 (ten-plus units and commercial), Miami-Dade resets Just Value the January 1 after the sale toward net sale proceeds, roughly 85-90% of your purchase price after the F.S. 193.011(8) cost-of-sale adjustment. On a Class B/C deal bought well above the seller's capped assessed value, that step-up lands in your first post-close tax bill rather than gradually. At Miami-Dade's roughly 2.0% effective rate, a $3M purchase resetting to about $2.7M in Just Value carries roughly $54,000 in year-one ad valorem, before the windstorm and flood lines discussed above. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
 
 Combined millage in Miami-Dade for 2025 ranges from approximately 1.69% (unincorporated UMSA) to 2.00% (City of Miami / Miami Beach / Hialeah for typical multifamily parcels). A few outlier cities run higher (Opa-Locka, North Miami Gardens approach 2.2-2.4%). In Broward, combined runs roughly 1.79% (unincorporated south) to 2.21% (Hollywood north hospital district), with Fort Lauderdale around 1.85% and Pompano Beach around 2.03%. Both counties are higher than Tampa or Orlando, which compounds with the insurance premium to make all-in operating costs the highest in Florida.
 

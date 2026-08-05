@@ -24,15 +24,17 @@ Jacksonville and Duval County have operated as a consolidated city-county govern
 
 Combined millage in Duval typically runs 1.7-1.9% of assessed value, mostly the city/county rate plus the school district. Lower than Tampa or Miami-Dade, in the same range as Orlando.
 
-The Florida non-homestead 10% cap applies. Your year-1 assessment will rise toward your purchase price by up to 10%, and the catch-up runs across multiple years.
+The Florida non-homestead 10% cap applies, but it protects the seller, not you. On a change of ownership the cap is stripped, and the Property Appraiser resets Just Value the following January 1 (F.S. 193.1554 for nine-or-fewer-unit buildings, 193.1555 for ten-plus units and commercial) toward net sale proceeds, roughly 85-90% of your price after the F.S. 193.011(8) cost-of-sale adjustment. The step-up lands in your first post-close assessment, not gradually across seven years.
 
-Worked example: bought $1.5M, current assessed $850K, combined millage 1.8%.
+Worked example: bought $1.5M, current assessed $850K, City of Jacksonville (USD1) effective rate about 1.77%.
 
-- Year 1 tax: $935K × 1.8% = $16,830
-- Year 5: $1.37M × 1.8% = $24,660
-- Year 7: catches up. $27,000
+- Broker-quoted (seller's capped assessed): $850K × 1.77% = $15,045
+- Post-close Just Value roughly 0.90 × $1.5M = $1.35M
+- Year-1 tax: $1.35M × 1.77% = about $23,900
 
-Broker-quoted: $850K × 1.8% = $15,300. Year-7 tax is 76% higher. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+A 59% jump in the first reassessment. [Full tax modeling guide](/blog/post-sale-tax-reassessment-multifamily).
+
+One caveat the millage leaves out: newer master-planned communities on the Southside and along the St. Johns County line (eTown, Bartram Park, and Nocatee just south in St. Johns) carry Community Development District assessments, a separate non-ad-valorem line of roughly $1,000-$3,000+ per year per home. It is not in the effective rate above, so check the non-ad-valorem section of the bill.
 
 ## Insurance: $700-$1,200 per door is the new normal
 
@@ -51,7 +53,7 @@ Get a real quote before bidding, especially for buildings near the St. Johns Riv
 Most of inland Duval is in Zone X. The exposure concentrates in:
 
 - **Atlantic / Neptune / Jacksonville Beach corridors**: coastal AE and V zones along the Atlantic.
-- **St. Johns River bluff areas**: some AE zones along the western bluff and adjacent low-lying flats.
+- **St. Johns River bluff areas**: some AE zones along the western bluff and adjacent low-lying flats. The historic Riverside and Avondale streetcar suburbs sit on this west bank, and their 1920s-1940s frame stock is both flood- and insurance-sensitive.
 - **Tributaries to the St. Johns**: properties along Trout River, Cedar River, Ortega River may be in AE.
 - **Southside neighborhoods near Pottsburg Creek**: scattered AE pockets.
 
